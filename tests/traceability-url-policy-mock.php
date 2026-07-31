@@ -1,0 +1,7 @@
+<?php
+define('ABSPATH',__DIR__.'/');define('IDG_TRACEABILITY_ACTION_HOOK','a');define('IDG_TRACEABILITY_RECONCILE_HOOK','r');
+class IDG_Traceability_Outbox{public static function install_or_upgrade():array{return[];}public static function schema_status():array{return['valid'=>true,'errors'=>[]];}public static function table_exists():bool{return true;}public static function schema_ready():bool{return true;}public static function process_queue(int $l=10):array{return[];}public static function reconcile(int $l=50):array{return[];}}
+function add_action(...$a){}function sanitize_text_field($v){return(string)$v;}function absint($v){return abs((int)$v);}function wp_parse_url($u){return parse_url($u);}function wp_get_environment_type(){return 'production';}function wp_next_scheduled($h){return false;}function wp_schedule_single_event(...$a){}function wp_schedule_event(...$a){}
+require_once dirname(__DIR__).'/includes/class-traceability.php';
+function ok($c,$m){if(!$c){fwrite(STDERR,"FAIL: $m\n");exit(1);}echo "OK: $m\n";}
+ok(!empty(IDG_Traceability::validate_radar_url('https://radar.example.com/events')['valid']),'HTTPS válido');ok(!empty(IDG_Traceability::validate_radar_url('http://localhost:8055/events')['valid']),'HTTP localhost permitido');ok(empty(IDG_Traceability::validate_radar_url('http://radar.example.com/events')['valid']),'HTTP productivo rechazado');ok(empty(IDG_Traceability::validate_radar_url('not-a-url')['valid']),'URL inválida rechazada');echo "PASS URL policy mock\n";

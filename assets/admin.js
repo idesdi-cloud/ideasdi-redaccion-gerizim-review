@@ -9,8 +9,9 @@
   document.addEventListener('DOMContentLoaded', function () {
     const forms = document.querySelectorAll('form[action*="admin-post.php"]');
     const overlay = document.querySelector('.idg-processing-overlay');
-    const buttons = document.querySelectorAll('.idg-actions button[type="submit"], .idg-button-reset, .idg-button-reset-partial, .idg-radar-import-form button[type="submit"]');
+    const buttons = document.querySelectorAll('.idg-actions button[type="submit"], .idg-button-reset, .idg-button-reset-partial, .idg-radar-import-form button[type="submit"], .idg-recurring-apply-form button[type="submit"]');
     let clickedButton = null;
+    let tempMaterialFileReady = true;
 
     buttons.forEach(function (button) {
       button.addEventListener('click', function (event) {
@@ -25,12 +26,23 @@
     });
 
     forms.forEach(function (form) {
-      form.addEventListener('submit', function () {
+      form.addEventListener('submit', function (event) {
         if (!clickedButton || !form.contains(clickedButton)) {
           return;
         }
         const step = clickedButton.value || '';
-        if (['generate', 'editorial', 'seo', 'draft'].indexOf(step) === -1) {
+        if (['generate', 'editorial', 'seo', 'draft', 'draft_force', 'recurring_event_content', 'recurring_event_content_force'].indexOf(step) === -1) {
+          return;
+        }
+        if (step === 'generate' && !tempMaterialFileReady) {
+          event.preventDefault();
+          const fileInput = document.getElementById('temp_material_file');
+          const liveStatus = document.getElementById('idg_temp_material_file_live_status');
+          if (liveStatus && !liveStatus.textContent) {
+            liveStatus.textContent = 'Reemplaza o descarta el archivo temporal antes de generar.';
+            liveStatus.classList.add('is-error');
+          }
+          if (fileInput) fileInput.focus();
           return;
         }
         document.body.classList.add('idg-is-processing');
@@ -38,7 +50,7 @@
           overlay.setAttribute('aria-hidden', 'false');
         }
         clickedButton.dataset.originalText = clickedButton.textContent;
-        clickedButton.textContent = step === 'draft' ? 'Creando borrador...' : (step === 'generate' ? 'Generando artículo...' : 'Procesando...');
+        clickedButton.textContent = step.indexOf('recurring_event_content') === 0 ? 'Aplicando redacción...' : (step.indexOf('draft') === 0 ? 'Creando borrador...' : (step === 'generate' ? 'Generando artículo...' : 'Procesando...'));
       });
     });
 
@@ -68,28 +80,37 @@
     }
 
     function buildPrioritySuggestion(selectedTagIds) {
-      const parts = [];
-      const seen = {};
       const catId = categorySelect ? String(categorySelect.value || '') : '';
-      if (catId && categoryPresets[catId]) {
-        parts.push(categoryPresets[catId]);
-      }
+      const categoryPreset = catId && categoryPresets[catId] ? categoryPresets[catId] : null;
+      let winner = null;
+      const modifiers = [];
+
       (selectedTagIds || []).forEach(function (id) {
-        const key = String(id);
-        if (tagPresets[key]) {
-          parts.push(tagPresets[key]);
+        const preset = tagPresets[String(id)];
+        if (!preset || typeof preset !== 'object') return;
+        const role = String(preset.role || '');
+        if (role === 'modifier' || role === 'context') {
+          if (preset.tag) modifiers.push(String(preset.tag));
+          return;
+        }
+        const priority = Number(preset.priority || 0);
+        if (!winner || priority > Number(winner.priority || 0)) {
+          winner = preset;
         }
       });
-      const tokens = [];
-      parts.join(';').split(';').forEach(function (token) {
-        token = String(token || '').trim().replace(/[.]+$/, '');
-        if (!token) return;
-        const normalized = normalizeText(token);
-        if (seen[normalized]) return;
-        seen[normalized] = true;
-        tokens.push(token);
-      });
-      return tokens.length ? tokens.join('; ') + '.' : '';
+
+      let suggestion = '';
+      if (winner && winner.summary) {
+        suggestion = String(winner.summary).trim();
+      } else if (categoryPreset && typeof categoryPreset === 'object' && categoryPreset.summary) {
+        suggestion = String(categoryPreset.summary).trim();
+      } else if (typeof categoryPreset === 'string') {
+        suggestion = String(categoryPreset).trim();
+      }
+      if (suggestion && modifiers.length) {
+        suggestion += ' Considerar ' + modifiers.join(', ') + ' únicamente cuando la documentación lo respalde.';
+      }
+      return suggestion;
     }
 
     function canAutoReplacePriority() {
@@ -135,8 +156,10 @@
       try { pieceTypeMap = JSON.parse(pieceTypeWrap.getAttribute('data-piece-type-map') || '{}'); } catch (error) { pieceTypeMap = {}; }
     }
     function inferredPieceType() {
+      const fixed = pieceTypeWrap ? String(pieceTypeWrap.getAttribute('data-fixed-piece-type') || '') : '';
+      if (fixed) return fixed;
       const key = categorySelect ? String(categorySelect.value || '') : '';
-      return pieceTypeMap[key] || 'Actualidad';
+      return pieceTypeMap[key] || (pieceTypeSelect ? String(pieceTypeSelect.value || '') : '') || 'Actualidad';
     }
     function updatePieceTypeFromCategory() {
       if (!pieceTypeSelect) return;
@@ -157,6 +180,71 @@
       updatePieceTypeFromCategory();
     }
 
+    const recurringStartDate = document.querySelector('[data-recurring-start-date]');
+    const recurringEndDate = document.querySelector('[data-recurring-end-date]');
+    if (recurringStartDate && recurringEndDate) {
+      function syncRecurringEndMinimum() {
+        const startValue = String(recurringStartDate.value || '').trim();
+        if (startValue) {
+          recurringEndDate.setAttribute('min', startValue);
+        } else {
+          recurringEndDate.removeAttribute('min');
+        }
+        if (startValue && recurringEndDate.value && recurringEndDate.value < startValue) {
+          recurringEndDate.setCustomValidity('La fecha de fin debe ser igual o posterior a la fecha de inicio.');
+        } else {
+          recurringEndDate.setCustomValidity('');
+        }
+      }
+      recurringStartDate.addEventListener('change', syncRecurringEndMinimum);
+      recurringStartDate.addEventListener('input', syncRecurringEndMinimum);
+      recurringEndDate.addEventListener('change', syncRecurringEndMinimum);
+      recurringEndDate.addEventListener('input', syncRecurringEndMinimum);
+      syncRecurringEndMinimum();
+    }
+
+    const recurringPreparation = document.querySelector('.idg-recurring-preparation');
+    const recurringAnalyzeButton = recurringPreparation ? recurringPreparation.querySelector('.idg-recurring-analyze-button') : null;
+    const recurringOverwriteWarning = recurringPreparation ? recurringPreparation.querySelector('[data-idg-overwrite-warning]') : null;
+    const recurringModeInputs = recurringPreparation ? recurringPreparation.querySelectorAll('input[name="update_mode"]') : [];
+    if (recurringPreparation && recurringOverwriteWarning && recurringModeInputs.length) {
+      const syncRecurringModeWarning = function () {
+        const selected = recurringPreparation.querySelector('input[name="update_mode"]:checked');
+        recurringOverwriteWarning.hidden = !(selected && selected.value === 'update_existing');
+      };
+      recurringModeInputs.forEach(function (input) {
+        input.addEventListener('change', syncRecurringModeWarning);
+      });
+      syncRecurringModeWarning();
+    }
+    if (recurringPreparation && recurringAnalyzeButton) {
+      const resetAnalyzeState = function () {
+        if (!recurringAnalyzeButton.classList.contains('idg-step-done')) return;
+        recurringAnalyzeButton.classList.remove('idg-step-done');
+        recurringAnalyzeButton.textContent = recurringAnalyzeButton.getAttribute('data-default-label') || 'Analizar cambios';
+      };
+      recurringPreparation.querySelectorAll('input, select, textarea').forEach(function (field) {
+        if (field.type === 'hidden') return;
+        field.addEventListener('input', resetAnalyzeState);
+        field.addEventListener('change', resetAnalyzeState);
+      });
+    }
+
+    const proposedTitle = document.querySelector('.idg-recurring-proposed-title');
+    const proposedSlug = document.querySelector('.idg-recurring-proposed-slug');
+    if (proposedTitle && proposedSlug) {
+      let slugTouched = false;
+      proposedSlug.addEventListener('input', function () { slugTouched = true; proposedSlug.dataset.manualSlug = '1'; });
+      proposedTitle.addEventListener('input', function () {
+        if (slugTouched) return;
+        proposedSlug.value = String(proposedTitle.value || '')
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase().trim()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+      });
+    }
+
     document.querySelectorAll('[data-idg-counter]').forEach(function (field) {
       const targetSelector = field.getAttribute('data-idg-counter');
       const target = targetSelector ? document.querySelector(targetSelector) : null;
@@ -169,6 +257,58 @@
       field.addEventListener('input', updateCount);
       updateCount();
     });
+
+    const tempFileInput = document.getElementById('temp_material_file');
+    const tempFileStatus = document.getElementById('idg_temp_material_file_live_status');
+    const generateButton = document.getElementById('idg_generate_button');
+    const serverFileError = document.querySelector('.idg-file-server-status.notice-error');
+    const clearFileError = document.querySelector('input[name="temp_material_clear_file_error"]');
+    const removeCurrentFile = document.querySelector('input[name="temp_material_remove_file"]');
+    const allowedTempExtensions = ['txt', 'md', 'markdown', 'docx', 'pdf', 'html', 'htm', 'csv'];
+
+    function setTempFileState(ok, message, kind) {
+      tempMaterialFileReady = !!ok;
+      if (generateButton) generateButton.disabled = !tempMaterialFileReady;
+      if (tempFileStatus) {
+        tempFileStatus.textContent = message || '';
+        tempFileStatus.classList.remove('is-error', 'is-ready');
+        if (kind) tempFileStatus.classList.add(kind);
+      }
+    }
+
+    function validateTempFileSelection() {
+      if (!tempFileInput || !tempFileInput.files || !tempFileInput.files.length) {
+        const cleared = clearFileError && clearFileError.checked;
+        setTempFileState(!serverFileError || cleared, cleared ? 'El archivo rechazado será descartado.' : '', cleared ? 'is-ready' : '');
+        return;
+      }
+      const file = tempFileInput.files[0];
+      const maxBytes = Number(tempFileInput.getAttribute('data-max-bytes') || 6291456);
+      const nameParts = String(file.name || '').toLowerCase().split('.');
+      const extension = nameParts.length > 1 ? nameParts.pop() : '';
+      if (file.size > maxBytes) {
+        setTempFileState(false, 'El archivo supera 6 MB. Selecciona otra versión antes de generar.', 'is-error');
+        return;
+      }
+      if (allowedTempExtensions.indexOf(extension) === -1) {
+        setTempFileState(false, 'Formato no soportado. Usa TXT, MD, DOCX, PDF, HTML o CSV.', 'is-error');
+        return;
+      }
+      setTempFileState(true, 'Archivo dentro del límite. Gerizim comprobará que tenga texto legible antes de generar.', 'is-ready');
+    }
+
+    if (tempFileInput) {
+      tempFileInput.addEventListener('change', validateTempFileSelection);
+    }
+    if (clearFileError) {
+      clearFileError.addEventListener('change', validateTempFileSelection);
+    }
+    if (removeCurrentFile) {
+      removeCurrentFile.addEventListener('change', function () {
+        setTempFileState(true, removeCurrentFile.checked ? 'El archivo actual será retirado al guardar o generar.' : '', removeCurrentFile.checked ? 'is-ready' : '');
+      });
+    }
+    validateTempFileSelection();
 
     const picker = document.querySelector('.idg-tag-picker');
     if (!picker) {

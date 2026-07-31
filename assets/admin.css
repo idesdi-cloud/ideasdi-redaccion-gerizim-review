@@ -470,6 +470,15 @@ body.idg-is-processing .idg-processing-overlay {
 
 .idg-field-help { display: block; margin-top: 4px; }
 
+.idg-recurring-editorial-profile .idg-event-editorial-category {
+    grid-column: 2;
+}
+@media (max-width: 1100px) {
+    .idg-recurring-editorial-profile .idg-event-editorial-category {
+        grid-column: 1;
+    }
+}
+
 .idg-radar-import-card {
     border-left: 4px solid #2271b1;
 }
@@ -517,3 +526,137 @@ body.idg-is-processing .idg-processing-overlay {
         width: auto;
     }
 }
+
+/* RC1.4.9.0 · Análisis seguro de actualizaciones recurrentes */
+.idg-recurring-analysis {
+    border-left: 4px solid #2271b1;
+}
+.idg-recurring-comparison-table th,
+.idg-recurring-comparison-table td {
+    vertical-align: top;
+}
+.idg-recurring-comparison-table th:first-child {
+    width: 180px;
+}
+.idg-recurring-preparation input[list] {
+    max-width: 420px;
+}
+@media (max-width: 782px) {
+    .idg-recurring-comparison-table th:first-child {
+        width: auto;
+    }
+}
+
+
+/* RC1.4.9.1 · Aplicación confirmada sobre eventos existentes */
+.idg-recurring-apply-panel {
+    margin-top: 18px;
+    padding: 16px;
+    border: 1px solid #c3c4c7;
+    border-left: 4px solid #00a32a;
+    border-radius: 6px;
+    background: #f6fff8;
+}
+.idg-recurring-apply-panel h3,
+.idg-recurring-application-result h3 {
+    margin-top: 0;
+}
+.idg-recurring-application-result {
+    margin-top: 18px;
+    padding: 16px;
+    border: 1px solid #dcdcde;
+    border-left: 4px solid #2271b1;
+    border-radius: 6px;
+    background: #fbfbfc;
+}
+.idg-recurring-apply-form {
+    margin-top: 12px;
+}
+
+/* RC1.4.9.2 · Puente Actualizaciones recurrentes → Flujo editorial */
+.idg-recurring-editorial-bridge,
+.idg-recurring-workflow-origin {
+    border-left: 4px solid #2271b1;
+}
+.idg-recurring-editorial-bridge {
+    margin-top: 18px;
+    padding: 16px;
+    border: 1px solid #dcdcde;
+    border-left-width: 4px;
+    border-radius: 8px;
+    background: #f6f7f7;
+}
+.idg-recurring-editorial-bridge h3 {
+    margin-top: 0;
+}
+
+
+/* RC1.4.9.3 · Perfil editorial virtual para CPT evento */
+.idg-recurring-editorial-profile input[readonly],
+.idg-event-taxonomy-context {
+    background: #f6f7f7;
+}
+.idg-event-taxonomy-context {
+    max-width: 920px;
+    margin: 12px 0 18px;
+    padding: 12px 14px;
+    border: 1px solid #dcdcde;
+    border-left: 4px solid #2271b1;
+    border-radius: 8px;
+}
+.idg-event-taxonomy-context p {
+    margin-bottom: 0;
+}
+
+
+.idg-recurring-comparison-table input.regular-text {
+    width: 100%;
+    min-width: 260px;
+}
+.idg-recurring-content-pending {
+    flex-basis: 100%;
+    margin: 0 0 8px !important;
+}
+.idg-recurring-analyze-button.idg-step-done::before {
+    content: "✓ ";
+}
+
+.idg-recurring-mode-group {
+    margin: 12px 0;
+}
+.idg-recurring-overwrite-warning[hidden] {
+    display: none !important;
+}
+
+
+/* RC1.5.0 · Recetas v2 y ayudas compactas */
+.idg-field-help {
+    display: block;
+    margin-top: 4px;
+    max-width: 72ch;
+    line-height: 1.35;
+}
+.idg-editorial-plan-summary {
+    margin: 16px 0 20px;
+    padding: 14px 16px;
+    border: 1px solid #c3c4c7;
+    border-left: 4px solid #7c3aed;
+    border-radius: 8px;
+    background: #fbfaff;
+}
+.idg-editorial-plan-summary h3 {
+    margin-top: 0;
+}
+.idg-editorial-plan-summary p {
+    margin: 7px 0;
+}
+
+/* RC1.5.1 · validación previa de material temporal */
+.idg-file-status {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.idg-file-status.is-ready { color: #2271b1; }
+.idg-file-status.is-error { color: #b32d2e; font-weight: 600; }
+.idg-file-server-status label { display: block; margin-top: 6px; }

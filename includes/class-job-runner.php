@@ -4,7 +4,6 @@ if (!defined('ABSPATH')) {
 }
 
 final class IDG_Job_Runner {
-    private const MAX_WORKFLOW_HISTORY = 20;
     public static function schedule(string $workflow_id, string $action): bool {
         if (function_exists('as_enqueue_async_action')) {
             as_enqueue_async_action(IDG_ACTION_HOOK, [$workflow_id, $action], 'ideasdi-gerizim');
@@ -12,7 +11,11 @@ final class IDG_Job_Runner {
         }
 
         // Fallback: execute immediately when Action Scheduler is not present.
-        self::process_scheduled_action($workflow_id, $action);
+        if (class_exists('IDG_Workflow_Orchestrator')) {
+            IDG_Workflow_Orchestrator::process_scheduled_action($workflow_id, $action);
+        } else {
+            self::process_scheduled_action($workflow_id, $action);
+        }
         return false;
     }
 
@@ -26,29 +29,14 @@ final class IDG_Job_Runner {
         if (class_exists('IDG_Assignment_Card')) {
             $workflow = IDG_Assignment_Card::attach($workflow);
         }
-        $workflow['status'] = 'processing';
-        $workflow['current_action'] = $action;
+        $workflow = IDG_Workflow_Policies::mark_processing($workflow, $action);
         self::save_workflow($workflow_id, $workflow);
 
         try {
-            if ($action === 'generate') {
-                self::run_generate($workflow_id, $workflow);
-            } elseif ($action === 'editorial') {
-                self::run_editorial($workflow_id, $workflow);
-            } elseif ($action === 'seo') {
-                self::run_seo($workflow_id, $workflow);
-            } elseif ($action === 'draft' || $action === 'draft_force') {
-                if ($action === 'draft_force') {
-                    $workflow['force_validation_override'] = true;
-                    $workflow = self::append_history($workflow, 'draft_force_requested', 'El editor solicitó crear borrador ignorando la validación real.');
-                } else {
-                    unset($workflow['force_validation_override']);
-                }
-                self::run_draft($workflow_id, $workflow);
-            }
+            IDG_Workflow_Action_Strategy_Center::execute($workflow_id, $action, $workflow);
         } catch (Throwable $e) {
-            $workflow['status'] = 'failed';
-            $workflow['last_error'] = $e->getMessage();
+            IDG_Workflow_Policies::should_retry($workflow, $action, $e);
+            $workflow = IDG_Workflow_Policies::mark_failed($workflow, $e->getMessage());
             $workflow = self::append_history($workflow, $action . '_exception', $e->getMessage());
             self::save_workflow($workflow_id, $workflow);
             IDG_Logger::log('workflow_exception', $e->getMessage(), ['workflow_id' => $workflow_id, 'action' => $action]);
@@ -60,7 +48,7 @@ final class IDG_Job_Runner {
         $data['workflow_id'] = $workflow_id;
         $data['created_at'] = current_time('mysql');
         $data['user_id'] = get_current_user_id();
-        $data['status'] = 'draft';
+        $data = IDG_Workflow_Policies::initialize($data);
         if (class_exists('IDG_Assignment_Card')) {
             $data = IDG_Assignment_Card::attach($data);
         }
@@ -100,6 +88,14 @@ final class IDG_Job_Runner {
         self::save_workflow($workflow_id, $workflow);
     }
 
+    /**
+     * Punto de compatibilidad para estrategias: conserva exactamente el
+     * historial producido por el runner histórico.
+     */
+    public static function append_history_snapshot(array $workflow, string $event, string $message): array {
+        return self::append_history($workflow, $event, $message);
+    }
+
     private static function append_history(array $workflow, string $event, string $message): array {
         $history = isset($workflow['history']) && is_array($workflow['history']) ? $workflow['history'] : [];
         $history[] = [
@@ -107,8 +103,8 @@ final class IDG_Job_Runner {
             'event' => sanitize_key($event),
             'message' => sanitize_text_field($message),
         ];
-        if (count($history) > self::MAX_WORKFLOW_HISTORY) {
-            $history = array_slice($history, -self::MAX_WORKFLOW_HISTORY);
+        if (count($history) > IDG_Workflow_Policies::history_limit()) {
+            $history = array_slice($history, -IDG_Workflow_Policies::history_limit());
         }
         $workflow['history'] = $history;
         return $workflow;
@@ -124,15 +120,43 @@ final class IDG_Job_Runner {
         delete_user_meta($user_id, IDG_SESSION_KEY_PREFIX . 'current');
     }
 
+    /**
+     * Entradas estables usadas por el centro de estrategias. Cada método
+     * delega sin transformar el workflow ni alterar la etapa histórica.
+     */
+    public static function execute_generate_stage(string $workflow_id, array $workflow): void {
+        self::run_generate($workflow_id, $workflow);
+    }
+
+    public static function execute_editorial_stage(string $workflow_id, array $workflow): void {
+        self::run_editorial($workflow_id, $workflow);
+    }
+
+    public static function execute_seo_stage(string $workflow_id, array $workflow): void {
+        self::run_seo($workflow_id, $workflow);
+    }
+
+    public static function execute_draft_stage(string $workflow_id, array $workflow): void {
+        self::run_draft($workflow_id, $workflow);
+    }
+
+    public static function execute_recurring_content_stage(string $workflow_id, array $workflow): void {
+        self::run_recurring_event_content($workflow_id, $workflow);
+    }
+
     private static function run_generate(string $workflow_id, array $workflow): void {
         $client = new IDG_OpenAI_Client();
         $workflow = self::ensure_document_card($workflow_id, $workflow, $client);
+        $workflow = self::ensure_editorial_plan($workflow_id, $workflow, $client);
+        if (class_exists('IDG_Assignment_Card')) {
+            $workflow = IDG_Assignment_Card::attach($workflow);
+            self::save_workflow($workflow_id, $workflow);
+        }
         $prompt = IDG_Prompt_Library::generate_prompt(self::prepare_prompt_data($workflow, '', 'generate'));
         $result = $client->complete($prompt);
 
         if (!$result['success']) {
-            $workflow['status'] = 'failed';
-            $workflow['last_error'] = $result['message'];
+            $workflow = IDG_Workflow_Policies::mark_failed($workflow, (string) $result['message']);
             $workflow = self::append_history($workflow, 'generate_failed', $result['message']);
             self::save_workflow($workflow_id, $workflow);
             IDG_Logger::log('generate_failed', $result['message'], ['workflow_id' => $workflow_id]);
@@ -141,9 +165,7 @@ final class IDG_Job_Runner {
 
         $workflow['base_article'] = self::sanitize_model_output((string) $result['content']);
         $workflow['generated_from_brief'] = true;
-        $workflow['status'] = 'completed';
-        $workflow['last_action'] = 'generate';
-        $workflow['last_error'] = '';
+        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'generate');
         $workflow['usage_generate'] = $result['usage'] ?? [];
         $workflow['usage_generate_estimate'] = IDG_Usage_Estimator::record('generate', (array) ($result['usage'] ?? []), $workflow_id, (string) ($result['model'] ?? ''));
         $workflow = self::append_history($workflow, 'generate_completed', 'Artículo base generado desde el brief editorial.');
@@ -154,22 +176,25 @@ final class IDG_Job_Runner {
     private static function run_editorial(string $workflow_id, array $workflow): void {
         $client = new IDG_OpenAI_Client();
         $workflow = self::ensure_document_card($workflow_id, $workflow, $client);
+        $workflow = self::ensure_editorial_plan($workflow_id, $workflow, $client);
         $prompt = IDG_Prompt_Library::editorial_prompt(self::prepare_prompt_data($workflow, (string) ($workflow['base_article'] ?? ''), 'editorial'));
         $result = $client->complete($prompt);
 
         if (!$result['success']) {
-            $workflow['status'] = 'failed';
-            $workflow['last_error'] = $result['message'];
+            $workflow = IDG_Workflow_Policies::mark_failed($workflow, (string) $result['message']);
             $workflow = self::append_history($workflow, 'editorial_failed', $result['message']);
             self::save_workflow($workflow_id, $workflow);
             IDG_Logger::log('editorial_failed', $result['message'], ['workflow_id' => $workflow_id]);
             return;
         }
 
-        $workflow['editorial_result'] = self::sanitize_model_output((string) $result['content']);
-        $workflow['status'] = 'completed';
-        $workflow['last_action'] = 'editorial';
-        $workflow['last_error'] = '';
+        $editorial_output = self::sanitize_model_output((string) $result['content']);
+        $editorial_sections = self::parse_editorial_output($editorial_output);
+        $workflow['editorial_output_raw'] = $editorial_output;
+        $workflow['editorial_result'] = (string) ($editorial_sections['article'] ?? $editorial_output);
+        $workflow['editorial_diagnosis'] = (string) ($editorial_sections['diagnosis'] ?? '');
+        $workflow['editorial_notes'] = (string) ($editorial_sections['notes'] ?? '');
+        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'editorial');
         $workflow['usage_editorial'] = $result['usage'] ?? [];
         $workflow['usage_editorial_estimate'] = IDG_Usage_Estimator::record('editorial', (array) ($result['usage'] ?? []), $workflow_id, (string) ($result['model'] ?? ''));
         $workflow = self::append_history($workflow, 'editorial_completed', 'Revisión editorial completada.');
@@ -181,12 +206,12 @@ final class IDG_Job_Runner {
         $article = (string) ($workflow['editorial_result'] ?? $workflow['base_article'] ?? '');
         $client = new IDG_OpenAI_Client();
         $workflow = self::ensure_document_card($workflow_id, $workflow, $client);
+        $workflow = self::ensure_editorial_plan($workflow_id, $workflow, $client);
         $prompt = IDG_Prompt_Library::seo_prompt(self::prepare_prompt_data($workflow, $article, 'seo'));
         $result = $client->complete($prompt);
 
         if (!$result['success']) {
-            $workflow['status'] = 'failed';
-            $workflow['last_error'] = $result['message'];
+            $workflow = IDG_Workflow_Policies::mark_failed($workflow, (string) $result['message']);
             $workflow = self::append_history($workflow, 'seo_failed', $result['message']);
             self::save_workflow($workflow_id, $workflow);
             IDG_Logger::log('seo_failed', $result['message'], ['workflow_id' => $workflow_id]);
@@ -194,9 +219,7 @@ final class IDG_Job_Runner {
         }
 
         $workflow['seo_result'] = self::sanitize_model_output((string) $result['content']);
-        $workflow['status'] = 'completed';
-        $workflow['last_action'] = 'seo';
-        $workflow['last_error'] = '';
+        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'seo');
         $workflow['usage_seo'] = $result['usage'] ?? [];
         $workflow['usage_seo_estimate'] = IDG_Usage_Estimator::record('seo', (array) ($result['usage'] ?? []), $workflow_id, (string) ($result['model'] ?? ''));
         $workflow['warnings'] = IDG_Validator::summarize($result['content'], (string) ($workflow['keyword'] ?? ''));
@@ -213,8 +236,7 @@ final class IDG_Job_Runner {
         }
         $result = IDG_Post_Creator::create_pending_post($workflow);
         if (!$result['success']) {
-            $workflow['status'] = 'failed';
-            $workflow['last_error'] = $result['message'];
+            $workflow = IDG_Workflow_Policies::mark_failed($workflow, (string) $result['message']);
             if (!empty($result['validation_summary'])) {
                 $workflow['final_validation_summary'] = (string) $result['validation_summary'];
             }
@@ -224,11 +246,9 @@ final class IDG_Job_Runner {
             return;
         }
 
-        $workflow['status'] = 'completed';
-        $workflow['last_action'] = 'draft';
+        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'draft');
         $workflow['draft_post_id'] = $result['post_id'];
         $workflow['draft_edit_link'] = $result['edit_link'];
-        $workflow['last_error'] = '';
         if (!empty($result['validation_summary'])) {
             $workflow['final_validation_summary'] = (string) $result['validation_summary'];
         }
@@ -241,12 +261,83 @@ final class IDG_Job_Runner {
         if (!empty($result['postprocessed_html'])) {
             $workflow['postprocessed_html'] = (string) $result['postprocessed_html'];
         }
+        if (!empty($result['postprocessing_audit']) && is_array($result['postprocessing_audit'])) {
+            $workflow['postprocessing_audit'] = $result['postprocessing_audit'];
+        }
         $workflow = self::append_history($workflow, 'draft_created', !empty($workflow['force_validation_override']) ? 'Entrada creada en Pendiente de revisión con validación ignorada manualmente.' : 'Entrada creada en Pendiente de revisión.');
         unset($workflow['force_validation_override']);
         self::save_workflow($workflow_id, $workflow);
-        IDG_Logger::log('draft_created', 'Borrador creado en Pendiente de revisión.', ['workflow_id' => $workflow_id, 'post_id' => $result['post_id']]);
+        if (class_exists('IDG_Traceability')) {
+            IDG_Traceability::safe_capture_wordpress_post_created($workflow_id, (int) $result['post_id']);
+        }
+        IDG_Logger::log('draft_created', 'Entrada creada en Pendiente de revisión.', ['workflow_id' => $workflow_id, 'post_id' => $result['post_id']]);
     }
 
+
+    private static function run_recurring_event_content(string $workflow_id, array $workflow): void {
+        if (class_exists('IDG_Assignment_Card')) {
+            $workflow = IDG_Assignment_Card::attach($workflow);
+            self::save_workflow($workflow_id, $workflow);
+        }
+        $target_post_type = (string) ($workflow['recurring_target_post_type'] ?? '');
+        $target_label = $target_post_type === 'post' ? 'concurso o convocatoria' : 'evento';
+        $result = IDG_Post_Creator::update_existing_event($workflow);
+        if (empty($result['success'])) {
+            $workflow = IDG_Workflow_Policies::mark_failed($workflow, (string) ($result['message'] ?? 'No se pudo aplicar la redacción a la publicación.'));
+            if (!empty($result['validation_summary'])) {
+                $workflow['final_validation_summary'] = (string) $result['validation_summary'];
+            }
+            $workflow = self::append_history($workflow, 'recurring_event_content_failed', $workflow['last_error']);
+            self::save_workflow($workflow_id, $workflow);
+            IDG_Logger::log('recurring_event_content_failed', $workflow['last_error'], [
+                'workflow_id' => $workflow_id,
+                'post_id' => (int) ($workflow['recurring_target_post_id'] ?? 0),
+            ]);
+            return;
+        }
+
+        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'recurring_event_content');
+        $workflow['recurring_event_content_updated'] = true;
+        $workflow['recurring_event_content_updated_at'] = current_time('mysql');
+        $workflow['recurring_actual_updated_post_id'] = (int) ($result['actual_updated_post_id'] ?? $result['post_id'] ?? 0);
+        $workflow['recurring_same_post_id'] = !empty($result['same_post_id']);
+        $workflow['recurring_title_updated_verified'] = !empty($result['title_updated']);
+        $workflow['recurring_title_before_editorial'] = (string) ($result['title_before'] ?? '');
+        $workflow['recurring_title_after_editorial'] = (string) ($result['title_after'] ?? '');
+        $workflow['recurring_content_updated_verified'] = !empty($result['content_updated']);
+        $workflow['recurring_excerpt_updated_verified'] = !empty($result['excerpt_updated']);
+        $workflow['recurring_applied_content_hash'] = (string) ($result['applied_content_hash'] ?? '');
+        $workflow['recurring_source_seo_hash'] = (string) ($result['source_seo_hash'] ?? '');
+        $workflow['recurring_target_edit_link'] = (string) ($result['edit_link'] ?? $workflow['recurring_target_edit_link'] ?? '');
+        if (!empty($result['validation_summary'])) {
+            $workflow['final_validation_summary'] = (string) $result['validation_summary'];
+        }
+        if (!empty($result['seo_result'])) {
+            $workflow['seo_result'] = (string) $result['seo_result'];
+        }
+        if (!empty($result['reel_package'])) {
+            $workflow['reel_package_postprocessed'] = (string) $result['reel_package'];
+        }
+        if (!empty($result['postprocessed_html'])) {
+            $workflow['postprocessed_html'] = (string) $result['postprocessed_html'];
+        }
+        if (!empty($result['postprocessing_audit']) && is_array($result['postprocessing_audit'])) {
+            $workflow['postprocessing_audit'] = $result['postprocessing_audit'];
+        }
+        if (class_exists('IDG_Recurring_Updates')) {
+            $workflow['recurring_target_signature'] = IDG_Recurring_Updates::editorial_target_signature((int) ($workflow['recurring_target_post_id'] ?? 0), $target_post_type);
+        }
+        $message = !empty($workflow['force_validation_override'])
+            ? 'Redacción aplicada al ' . $target_label . ' ID ' . (int) ($workflow['recurring_actual_updated_post_id'] ?? 0) . ' con validación ignorada manualmente.'
+            : 'Redacción aplicada al mismo ' . $target_label . ' ID ' . (int) ($workflow['recurring_actual_updated_post_id'] ?? 0) . ' después de la validación final.';
+        $workflow = self::append_history($workflow, 'recurring_event_content_updated', $message);
+        unset($workflow['force_validation_override']);
+        self::save_workflow($workflow_id, $workflow);
+        IDG_Logger::log('recurring_event_content_updated', $message, [
+            'workflow_id' => $workflow_id,
+            'post_id' => (int) ($workflow['recurring_target_post_id'] ?? 0),
+        ]);
+    }
 
     private static function sanitize_model_output(string $content): string {
         $content = str_replace(["\r\n", "\r"], "\n", $content);
@@ -353,6 +444,77 @@ final class IDG_Job_Runner {
         return $workflow;
     }
 
+    private static function ensure_editorial_plan(string $workflow_id, array $workflow, IDG_OpenAI_Client $client): array {
+        if (!class_exists('IDG_Editorial_Recipe_Builder') || !class_exists('IDG_Editorial_Plan')) {
+            return $workflow;
+        }
+        $base = IDG_Editorial_Recipe_Builder::build($workflow);
+        $stored_base = trim((string) ($workflow['recipe_base'] ?? $workflow['priority_readings'] ?? ''));
+        $stored_plain = mb_strtolower(function_exists('remove_accents') ? remove_accents($stored_base) : $stored_base);
+        if ($stored_base === '' || str_starts_with($stored_plain, 'leer ') || str_starts_with($stored_plain, 'territorio:') || str_contains($stored_plain, 'desde leer ')) {
+            $stored_base = (string) ($base['base_recipe'] ?? $base['recipe'] ?? '');
+        }
+        $workflow['recipe_base'] = $stored_base;
+        $workflow['priority_readings'] = $stored_base;
+        $workflow['editorial_recipe'] = $stored_base;
+        $workflow['recipe_base_structure'] = $base;
+        $hash = IDG_Editorial_Plan::hash($workflow, $base);
+        if (!empty($workflow['editorial_recipe_applied']) && (string) ($workflow['editorial_plan_hash'] ?? '') === $hash) {
+            return $workflow;
+        }
+
+        $workflow = self::append_history($workflow, 'editorial_plan_started', 'Construyendo receta aplicada y plan editorial después de la investigación.');
+        self::save_workflow($workflow_id, $workflow);
+        $data = self::prepare_prompt_data($workflow, '', 'editorial_plan');
+        $result = $client->complete(IDG_Prompt_Library::editorial_plan_prompt($data));
+        if ($result['success']) {
+            $plan = IDG_Editorial_Plan::parse(self::sanitize_model_output((string) $result['content']), $workflow, $base);
+            IDG_Usage_Estimator::record('editorial_plan', (array) ($result['usage'] ?? []), $workflow_id, (string) ($result['model'] ?? ''));
+        } else {
+            $plan = IDG_Editorial_Plan::fallback($workflow, $base);
+            $workflow['temp_material_warnings'][] = 'No se pudo generar el plan editorial con IA; se aplicó un plan estructurado de respaldo: ' . (string) ($result['message'] ?? 'error desconocido');
+        }
+        $workflow = IDG_Editorial_Plan::apply_to_workflow($workflow, $plan, $hash);
+        $workflow = self::append_history($workflow, 'editorial_plan_completed', 'Receta aplicada y plan editorial registrados antes del artículo base.');
+        self::save_workflow($workflow_id, $workflow);
+        IDG_Logger::log('editorial_plan_completed', 'Plan editorial aplicado creado.', [
+            'workflow_id' => $workflow_id,
+            'source' => (string) ($plan['source'] ?? ''),
+            'axes' => count((array) ($plan['selected_axes'] ?? [])),
+        ]);
+        return $workflow;
+    }
+
+    private static function parse_editorial_output(string $content): array {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $content);
+        $markers = [
+            'article' => '(?:ARTÍCULO REVISADO|ARTICULO REVISADO)',
+            'diagnosis' => '(?:DIAGNÓSTICO EDITORIAL INTERNO|DIAGNOSTICO EDITORIAL INTERNO)',
+            'notes' => '(?:NOTAS EDITORIALES INTERNAS)',
+        ];
+        $positions = [];
+        foreach ($markers as $key => $pattern) {
+            if (preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*' . $pattern . '\s*(?:\*\*)?\s*:?\s*$/imu', $normalized, $m, PREG_OFFSET_CAPTURE)) {
+                $positions[$key] = [
+                    'start' => (int) $m[0][1],
+                    'body' => (int) $m[0][1] + strlen((string) $m[0][0]),
+                ];
+            }
+        }
+        if (!isset($positions['article'])) {
+            return ['article' => trim($normalized), 'diagnosis' => '', 'notes' => ''];
+        }
+        uasort($positions, static fn($a, $b) => $a['start'] <=> $b['start']);
+        $ordered = array_keys($positions);
+        $out = ['article' => '', 'diagnosis' => '', 'notes' => ''];
+        foreach ($ordered as $index => $key) {
+            $start = $positions[$key]['body'];
+            $end = isset($ordered[$index + 1]) ? $positions[$ordered[$index + 1]]['start'] : strlen($normalized);
+            $out[$key] = trim(substr($normalized, $start, $end - $start));
+        }
+        return $out;
+    }
+
     private static function extract_feedback_notes(string $content): string {
         $content = str_replace(["\r\n", "\r"], "\n", $content);
         if (!preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*RETROALIMENTACIÓN GERIZIM\s*(?:\*\*)?\s*:?\s*$/imu', $content, $m, PREG_OFFSET_CAPTURE)) {
@@ -371,7 +533,13 @@ final class IDG_Job_Runner {
 
     private static function prepare_prompt_data(array $workflow, string $article, string $phase = 'generic'): array {
         $category_name = '';
-        if (!empty($workflow['category_id'])) {
+        if (!empty($workflow['editorial_context_name'])) {
+            $category_name = (string) $workflow['editorial_context_name'];
+        } elseif ((string) ($workflow['workflow_origin'] ?? '') === 'recurring_update' && (string) ($workflow['recurring_target_post_type'] ?? '') === 'evento') {
+            $category_name = 'Calendario de eventos';
+        } elseif ((string) ($workflow['workflow_origin'] ?? '') === 'recurring_update' && (string) ($workflow['recurring_target_post_type'] ?? '') === 'post') {
+            $category_name = 'Concursos y convocatorias';
+        } elseif (!empty($workflow['category_id'])) {
             $term = get_term((int) $workflow['category_id'], 'category');
             if ($term && !is_wp_error($term)) {
                 $category_name = $term->name;
@@ -387,16 +555,20 @@ final class IDG_Job_Runner {
                 }
             }
         }
-
-        $auto_priority = class_exists('IDG_Editorial_Recipe_Builder') ? IDG_Editorial_Recipe_Builder::recipe_text($workflow) : IDG_Priority_Readings::build_suggestion((int) ($workflow['category_id'] ?? 0), isset($workflow['tag_ids']) && is_array($workflow['tag_ids']) ? $workflow['tag_ids'] : []);
-        $priority_readings = trim((string) ($workflow['priority_readings'] ?? $workflow['editorial_recipe'] ?? ''));
-        if ($priority_readings === '' || str_contains($priority_readings, ';') || mb_strlen($priority_readings) > 240 || !empty($workflow['radar_source'])) {
-            $priority_readings = $auto_priority;
+        if (empty($tag_names) && !empty($workflow['tag_names']) && is_array($workflow['tag_names'])) {
+            $tag_names = array_values(array_filter(array_map('strval', $workflow['tag_names'])));
         }
+
+        $base_structure = class_exists('IDG_Editorial_Recipe_Builder') ? IDG_Editorial_Recipe_Builder::build($workflow) : [];
+        $auto_priority = (string) ($base_structure['recipe'] ?? (class_exists('IDG_Priority_Readings') ? IDG_Priority_Readings::build_suggestion((int) ($workflow['category_id'] ?? 0), isset($workflow['tag_ids']) && is_array($workflow['tag_ids']) ? $workflow['tag_ids'] : []) : ''));
+        $recipe_base = trim((string) ($workflow['recipe_base'] ?? $workflow['priority_readings'] ?? $workflow['editorial_recipe'] ?? ''));
+        if ($recipe_base === '') {
+            $recipe_base = $auto_priority;
+        }
+        $priority_readings = trim((string) ($workflow['editorial_recipe_applied'] ?? $recipe_base));
         $editorial_angle = trim((string) ($workflow['editorial_angle'] ?? ''));
         if ($editorial_angle === '') {
-            $tag_text = !empty($tag_names) ? implode(', ', $tag_names) : 'sin tags específicos';
-            $editorial_angle = 'Leer el caso desde la categoría ' . ($category_name !== '' ? $category_name : 'seleccionada') . ' y sus etiquetas (' . $tag_text . '), usando el hecho base y la fuente documental como prioridad factual. La lectura prioritaria automática debe orientar el enfoque sin convertirse en lista de subtítulos.';
+            $editorial_angle = 'Usar el hecho base y la investigación como prioridad factual. La categoría delimita el territorio, el lente filtra la mirada y el plan editorial aplicado selecciona únicamente los ejes pertinentes.';
         }
 
         return [
@@ -406,12 +578,32 @@ final class IDG_Job_Runner {
             'brief_fact' => $workflow['brief_fact'] ?? '',
             'editorial_angle' => $editorial_angle,
             'priority_readings' => $priority_readings,
+            'recipe_base' => $recipe_base,
+            'recipe_base_structure' => class_exists('IDG_Editorial_Recipe_Builder') ? IDG_Editorial_Recipe_Builder::prompt_structure($workflow) : '',
+            'semantic_library_context' => class_exists('IDG_Disciplinary_Library') ? IDG_Disciplinary_Library::prompt_block($workflow) : '',
+            'editorial_plan' => class_exists('IDG_Editorial_Plan') ? IDG_Editorial_Plan::prompt_block($workflow) : '',
+            'identity_required' => !empty($base_structure['identity_required']),
             'category_name' => $category_name,
+            'editorial_context' => (string) ($workflow['editorial_context'] ?? (((string) ($workflow['workflow_origin'] ?? '') === 'recurring_update') ? (((string) ($workflow['recurring_target_post_type'] ?? '') === 'evento') ? 'event_calendar' : 'contest_call') : '')),
+            'editorial_context_name' => (string) ($workflow['editorial_context_name'] ?? (((string) ($workflow['workflow_origin'] ?? '') === 'recurring_update') ? (((string) ($workflow['recurring_target_post_type'] ?? '') === 'evento') ? 'Calendario de eventos' : 'Concursos y convocatorias') : '')),
+            'wordpress_content_type' => (string) ($workflow['wordpress_content_type'] ?? (((string) ($workflow['recurring_target_post_type'] ?? '') === 'evento') ? 'Evento' : (((string) ($workflow['workflow_origin'] ?? '') === 'recurring_update') ? 'Entrada de concurso' : 'Entrada'))),
+            'event_taxonomy_context' => isset($workflow['event_taxonomy_context']) && is_array($workflow['event_taxonomy_context']) ? $workflow['event_taxonomy_context'] : [],
+            'event_editorial_category' => (string) ($workflow['event_editorial_category'] ?? ''),
             'tag_names' => $tag_names,
             'official_source' => $workflow['official_source'] ?? '',
             'internal_links' => $workflow['internal_links'] ?? '',
             'internal_links_structured' => $workflow['internal_links_structured'] ?? [],
             'editor_notes' => $workflow['editor_notes'] ?? '',
+            'sponsor_client' => $workflow['sponsor_client'] ?? '',
+            'sponsored_topic' => $workflow['sponsored_topic'] ?? '',
+            'sponsored_brief' => $workflow['sponsored_brief'] ?? '',
+            'sponsored_must_include' => $workflow['sponsored_must_include'] ?? '',
+            'sponsored_avoid' => $workflow['sponsored_avoid'] ?? '',
+            'sponsored_required_link' => $workflow['sponsored_required_link'] ?? '',
+            'sponsored_anchor' => $workflow['sponsored_anchor'] ?? '',
+            'sponsored_link_rel' => $workflow['sponsored_link_rel'] ?? '',
+            'sponsored_visible_label' => $workflow['sponsored_visible_label'] ?? '',
+            'sponsored_restrictions' => $workflow['sponsored_restrictions'] ?? '',
             'document_card' => $workflow['document_card'] ?? '',
             'assignment_card' => $workflow['assignment_card'] ?? '',
             'web_research_status' => $workflow['web_research_status'] ?? '',

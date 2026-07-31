@@ -8,25 +8,51 @@ final class IDG_Temporary_Material {
     public const MAX_PROMPT_CHARS = 55000;
     public const CHUNK_SIZE = 18000;
     public const MAX_CHUNKS = 7;
-    private const MAX_FILE_SIZE = 6291456; // 6 MB
+    public const MAX_FILE_SIZE = 6291456; // 6 MB
 
     public static function collect_from_request(array $workflow): array {
         $warnings = isset($workflow['temp_material_warnings']) && is_array($workflow['temp_material_warnings']) ? $workflow['temp_material_warnings'] : [];
+        $previous_file_error = trim((string) ($workflow['temp_material_file_error'] ?? ''));
+        if ($previous_file_error !== '') {
+            $warnings = array_values(array_filter($warnings, static fn($warning) => trim((string) $warning) !== $previous_file_error));
+        }
         $text = isset($_POST['temp_material_text']) ? self::clean_text((string) wp_unslash($_POST['temp_material_text'])) : (string) ($workflow['temp_material_text'] ?? '');
         $filename = (string) ($workflow['temp_material_filename'] ?? '');
+
+        if (!empty($_POST['temp_material_remove_file']) || !empty($_POST['temp_material_clear_file_error'])) {
+            $text = self::strip_appended_file_material($text);
+            $filename = '';
+            $workflow['temp_material_file_status'] = 'none';
+            $workflow['temp_material_file_error'] = '';
+            $workflow['temp_material_rejected_filename'] = '';
+            $workflow['temp_material_file_chars'] = 0;
+        }
 
         if (!empty($_FILES['temp_material_file']) && is_array($_FILES['temp_material_file'])) {
             $upload = $_FILES['temp_material_file'];
             if (!empty($upload['name']) && (int) ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
                 $extracted = self::extract_uploaded_file($upload);
-                if (!empty($extracted['warning'])) {
-                    $warnings[] = $extracted['warning'];
-                }
-                if (!empty($extracted['text'])) {
-                    $file_label = sanitize_file_name((string) ($upload['name'] ?? 'material'));
-                    $addition = "\n\n--- MATERIAL ADJUNTO TEMPORAL: {$file_label} ---\n" . $extracted['text'];
+                $file_label = sanitize_file_name((string) ($upload['name'] ?? 'material'));
+                if (empty($extracted['ok'])) {
+                    $message = sanitize_text_field((string) ($extracted['error'] ?? 'No se pudo procesar el archivo temporal.'));
+                    $warnings[] = $message;
+                    $workflow['temp_material_file_status'] = 'error';
+                    $workflow['temp_material_file_error'] = $message;
+                    $workflow['temp_material_rejected_filename'] = $file_label;
+                    $workflow['temp_material_file_chars'] = 0;
+                } else {
+                    // Reemplazo real antes de generar: elimina el bloque adjunto anterior y conserva el texto pegado.
+                    $text = self::strip_appended_file_material($text);
+                    $addition = "\n\n--- MATERIAL ADJUNTO TEMPORAL: {$file_label} ---\n" . (string) ($extracted['text'] ?? '');
                     $text = trim($text . $addition);
                     $filename = $file_label;
+                    $workflow['temp_material_file_status'] = 'ready';
+                    $workflow['temp_material_file_error'] = '';
+                    $workflow['temp_material_rejected_filename'] = '';
+                    $workflow['temp_material_file_chars'] = mb_strlen((string) ($extracted['text'] ?? ''));
+                    if (!empty($extracted['warning'])) {
+                        $warnings[] = sanitize_text_field((string) $extracted['warning']);
+                    }
                 }
             }
         }
@@ -38,6 +64,26 @@ final class IDG_Temporary_Material {
         $workflow['temp_material_warnings'] = array_values(array_unique(array_filter(array_map('sanitize_text_field', $warnings))));
 
         return $workflow;
+    }
+
+    public static function has_blocking_file_error(array $workflow): bool {
+        return (string) ($workflow['temp_material_file_status'] ?? '') === 'error'
+            && trim((string) ($workflow['temp_material_file_error'] ?? '')) !== '';
+    }
+
+    public static function blocking_file_error(array $workflow): string {
+        return self::has_blocking_file_error($workflow)
+            ? trim((string) ($workflow['temp_material_file_error'] ?? ''))
+            : '';
+    }
+
+    private static function strip_appended_file_material(string $text): string {
+        $marker = "\n\n--- MATERIAL ADJUNTO TEMPORAL:";
+        $position = mb_strpos($text, $marker);
+        if ($position === false) {
+            return trim($text);
+        }
+        return trim(mb_substr($text, 0, $position));
     }
 
     public static function has_material(array $workflow): bool {
@@ -96,24 +142,24 @@ final class IDG_Temporary_Material {
     private static function extract_uploaded_file(array $file): array {
         $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
         if ($error !== UPLOAD_ERR_OK) {
-            return ['text' => '', 'warning' => self::upload_error_message($error)];
+            return ['ok' => false, 'text' => '', 'error' => self::upload_error_message($error)];
         }
         $size = (int) ($file['size'] ?? 0);
         if ($size <= 0) {
-            return ['text' => '', 'warning' => 'El archivo temporal está vacío.'];
+            return ['ok' => false, 'text' => '', 'error' => 'El archivo temporal está vacío.'];
         }
         if ($size > self::MAX_FILE_SIZE) {
-            return ['text' => '', 'warning' => 'El archivo temporal supera 6 MB. Pega el texto o divide el material.'];
+            return ['ok' => false, 'text' => '', 'error' => 'El archivo temporal supera 6 MB. Reemplázalo por otra versión o continúa solo con el texto pegado.'];
         }
         $tmp = (string) ($file['tmp_name'] ?? '');
         if ($tmp === '' || !is_uploaded_file($tmp)) {
-            return ['text' => '', 'warning' => 'No se pudo leer el archivo temporal subido.'];
+            return ['ok' => false, 'text' => '', 'error' => 'No se pudo leer el archivo temporal subido.'];
         }
         $name = (string) ($file['name'] ?? '');
         $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
         $allowed = ['txt', 'md', 'markdown', 'html', 'htm', 'csv', 'docx', 'pdf'];
         if (!in_array($ext, $allowed, true)) {
-            return ['text' => '', 'warning' => 'Formato no soportado para material temporal. Usa TXT, MD, DOCX, HTML, CSV o PDF simple.'];
+            return ['ok' => false, 'text' => '', 'error' => 'Formato no soportado para material temporal. Usa TXT, MD, DOCX, HTML, CSV o PDF simple.'];
         }
 
         $text = '';
@@ -124,18 +170,21 @@ final class IDG_Temporary_Material {
         } elseif ($ext === 'docx') {
             $text = self::extract_docx_text($tmp);
             if ($text === '') {
-                $warning = 'No se pudo extraer texto del DOCX temporal. Pega el contenido en el campo Material de apoyo.';
+                return ['ok' => false, 'text' => '', 'error' => 'No se pudo extraer texto del DOCX temporal. Reemplázalo o pega el contenido en Material de apoyo.'];
             }
         } elseif ($ext === 'pdf') {
             $raw = (string) file_get_contents($tmp);
             $text = self::extract_pdf_text_basic($raw);
             if (mb_strlen($text) < 250) {
-                $warning = 'El PDF temporal no entregó texto suficiente. Si es un PDF escaneado o muy maquetado, pega el texto manualmente.';
+                return ['ok' => false, 'text' => '', 'error' => 'El PDF temporal no entregó texto suficiente. Reemplázalo por una versión con texto o pega el contenido manualmente.'];
             }
         }
 
         $text = self::limit_text($text, self::MAX_STORED_CHARS);
-        return ['text' => $text, 'warning' => $warning];
+        if (trim($text) === '') {
+            return ['ok' => false, 'text' => '', 'error' => 'El archivo temporal no contiene texto legible.'];
+        }
+        return ['ok' => true, 'text' => $text, 'warning' => $warning];
     }
 
     private static function extract_docx_text(string $path): string {

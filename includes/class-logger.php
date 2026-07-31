@@ -17,7 +17,7 @@ final class IDG_Logger {
             'time' => current_time('mysql'),
             'user_id' => get_current_user_id(),
             'event' => sanitize_key($event),
-            'message' => sanitize_text_field($message),
+            'message' => self::clean_scalar($message),
             'context' => self::clean_context($context),
         ];
 
@@ -34,12 +34,31 @@ final class IDG_Logger {
     }
 
     private static function clean_context(array $context): array {
-        unset($context['api_key']);
-        return array_map(static function ($value) {
-            if (is_scalar($value) || $value === null) {
-                return sanitize_text_field((string) $value);
+        $clean = [];
+        foreach ($context as $key => $value) {
+            $key_string = strtolower((string) $key);
+            if (preg_match('/api[_-]?key|token|authorization|secret|password/', $key_string)) {
+                continue;
             }
-            return wp_json_encode($value);
-        }, $context);
+            if (is_array($value)) {
+                $clean[$key] = self::clean_context($value);
+            } elseif (is_scalar($value) || $value === null) {
+                $clean[$key] = self::clean_scalar((string) $value);
+            } else {
+                $clean[$key] = self::clean_scalar(wp_json_encode($value));
+            }
+        }
+        return $clean;
+    }
+
+    private static function clean_scalar(string $value): string {
+        $value = sanitize_text_field($value);
+        if (class_exists('IDG_Traceability')) {
+            $token = IDG_Traceability::config_string('IDG_RADAR_TRACEABILITY_TOKEN');
+            if ($token !== '') {
+                $value = str_replace($token, '[redacted]', $value);
+            }
+        }
+        return function_exists('mb_substr') ? mb_substr($value, 0, 1000) : substr($value, 0, 1000);
     }
 }

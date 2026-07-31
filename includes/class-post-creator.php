@@ -9,7 +9,7 @@ final class IDG_Post_Creator {
         if ($seo_result === '') {
             return [
                 'success' => false,
-                'message' => 'No existe una versión SEO final para crear el borrador.',
+                'message' => 'No existe una versión SEO final para crear la entrada.',
             ];
         }
 
@@ -31,14 +31,18 @@ final class IDG_Post_Creator {
         $processed_seo_result = '';
 
         $html_content = self::markdownish_to_html($content, $title);
+        $html_before_postprocessing = $html_content;
         $html_content = self::ensure_official_source_link($html_content, $workflow);
         $html_content = self::ensure_internal_links($html_content, $workflow);
+        $html_content = self::deduplicate_configured_internal_links($html_content, $workflow);
         $html_content = self::ensure_sponsored_required_link($html_content, $workflow);
         $html_content = self::ensure_minimum_bold($html_content, $workflow);
         $html_content = self::strip_bold_from_html_headings($html_content);
         $html_content = self::open_links_new_tab($html_content);
         $html_content = self::apply_sponsored_link_rel($html_content, $workflow);
         $html_content = self::maybe_add_sponsored_disclosure($html_content, $workflow);
+        $postprocessing_audit = self::postprocessing_audit($html_before_postprocessing, $html_content, $workflow);
+        $workflow['postprocessing_audit'] = $postprocessing_audit;
         $seo_report = self::repair_seo_report_link_counts($seo_report, $html_content, $workflow);
         $feedback_notes = self::repair_feedback_link_notes($feedback_notes, $html_content, $workflow);
         $processed_seo_result = self::rebuild_seo_result($content, $meta_description, $seo_report, $social_copy, $reel_package, $feedback_notes);
@@ -55,13 +59,13 @@ final class IDG_Post_Creator {
                 if (!empty($workflow['force_validation_override'])) {
                     $validation['warnings'] = array_merge((array) ($validation['warnings'] ?? []), (array) ($validation['errors'] ?? []));
                     $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "
-" . '- AVISO: Borrador creado con validación ignorada manualmente por el editor. Revisar antes de publicar.');
+" . '- AVISO: Entrada creada en Pendiente de revisión con validación ignorada manualmente por el editor. Revisar antes de publicar.');
                     $validation['ok'] = true;
                     $validation['overridden'] = true;
                 } else {
                     return [
                         'success' => false,
-                        'message' => 'Validación real bloqueó la creación del borrador: ' . implode(' · ', (array) ($validation['errors'] ?? [])),
+                        'message' => 'Validación real bloqueó la creación de la entrada: ' . implode(' · ', (array) ($validation['errors'] ?? [])),
                         'validation_summary' => (string) ($validation['summary'] ?? ''),
                     ];
                 }
@@ -121,6 +125,7 @@ final class IDG_Post_Creator {
         update_post_meta($post_id, '_idg_sponsored_visible_label', !empty($workflow['sponsored_visible_label']) ? '1' : '0');
         update_post_meta($post_id, '_idg_prompt_versions', wp_json_encode([
             'material_card' => IDG_Prompt_Library::version('material_card'),
+            'editorial_plan' => IDG_Prompt_Library::version('editorial_plan'),
             'generate' => IDG_Prompt_Library::version('generate'),
             'editorial' => IDG_Prompt_Library::version('editorial'),
             'seo' => IDG_Prompt_Library::version('seo'),
@@ -132,6 +137,22 @@ final class IDG_Post_Creator {
             'workflow_id' => $workflow['workflow_id'] ?? '',
         ]));
 
+        $radar_brief_id = absint($workflow['radar_brief_id'] ?? 0);
+        $radar_hallazgo_id = absint($workflow['radar_hallazgo_id'] ?? 0);
+        $workflow_id = sanitize_text_field((string) ($workflow['workflow_id'] ?? ''));
+        $is_radar_workflow = (string) ($workflow['radar_source'] ?? '') === 'radar-editorial-ideasdi' && $radar_brief_id > 0 && $workflow_id !== '';
+        update_post_meta($post_id, '_idg_radar_brief_id', $radar_brief_id);
+        update_post_meta($post_id, '_idg_radar_hallazgo_id', $radar_hallazgo_id);
+        update_post_meta($post_id, '_idg_workflow_id', $workflow_id);
+        update_post_meta($post_id, '_idg_traceability_contract_version', $is_radar_workflow && class_exists('IDG_Traceability') ? IDG_Traceability::contract_version() : '');
+        update_post_meta($post_id, '_idg_traceability_post_created_key', '');
+        update_post_meta($post_id, '_idg_traceability_post_created_status', '');
+        update_post_meta($post_id, '_idg_traceability_post_created_synced_at_utc', '');
+        update_post_meta($post_id, '_idg_traceability_published_key', '');
+        update_post_meta($post_id, '_idg_traceability_published_status', '');
+        update_post_meta($post_id, '_idg_traceability_published_synced_at_utc', '');
+        update_post_meta($post_id, '_idg_published_at_utc', '');
+
         self::update_yoast_meta($post_id, $meta_description, $workflow['keyword'] ?? '', $title);
 
         return [
@@ -141,6 +162,260 @@ final class IDG_Post_Creator {
             'edit_link' => get_edit_post_link($post_id, 'raw'),
             'validation_summary' => isset($validation) && is_array($validation) ? (string) ($validation['summary'] ?? '') : '',
             'postprocessed_html' => $html_content,
+            'postprocessing_audit' => $postprocessing_audit,
+            'seo_result' => $processed_seo_result,
+            'reel_package' => $reel_package,
+        ];
+    }
+
+    public static function update_existing_event(array $workflow): array {
+        $post_id = (int) ($workflow['recurring_target_post_id'] ?? 0);
+        $target_post_type = (string) ($workflow['recurring_target_post_type'] ?? '');
+        $is_event = $target_post_type === 'evento';
+        $is_contest = $target_post_type === 'post';
+        $target_label = $is_contest ? 'concurso o convocatoria' : 'evento';
+        if ($post_id <= 0 || (!$is_event && !$is_contest)) {
+            return ['success' => false, 'message' => 'El workflow no contiene una publicación de destino válida.'];
+        }
+        if (!current_user_can('edit_post', $post_id)) {
+            return ['success' => false, 'message' => 'No tienes permisos para editar la publicación vinculada.'];
+        }
+        $post_before = get_post($post_id);
+        if (!$post_before instanceof WP_Post || (string) $post_before->post_type !== $target_post_type) {
+            return ['success' => false, 'message' => 'La publicación vinculada ya no existe o cambió de tipo.'];
+        }
+        if ($is_contest && !has_category(34, $post_before)) {
+            return ['success' => false, 'message' => 'La entrada vinculada ya no pertenece a la categoría Concursos y convocatorias.'];
+        }
+        $selected_post_id = (int) ($workflow['recurring_selected_post_id'] ?? $post_id);
+        if ($selected_post_id !== $post_id) {
+            return ['success' => false, 'message' => 'El ID seleccionado originalmente no coincide con la publicación vinculada. La redacción no fue aplicada.'];
+        }
+        if (class_exists('IDG_Recurring_Updates')) {
+            $expected_fingerprint = (string) ($workflow['recurring_target_identity_fingerprint'] ?? '');
+            if ($expected_fingerprint === '' && $is_event) {
+                $expected_fingerprint = (string) ($workflow['recurring_target_immutable_fingerprint'] ?? '');
+            }
+            $content_type = $is_contest ? 'contest' : 'event';
+            $current_fingerprint = IDG_Recurring_Updates::target_post_fingerprint($post_id, $content_type);
+            if ($expected_fingerprint === '' || $current_fingerprint === '' || !hash_equals($expected_fingerprint, $current_fingerprint)) {
+                return ['success' => false, 'message' => 'La identidad protegida de la publicación no coincide con el encargo editorial. Vuelve a seleccionarla por ID exacto.'];
+            }
+            $expected_signature = (string) ($workflow['recurring_target_signature'] ?? '');
+            $current_signature = IDG_Recurring_Updates::editorial_target_signature($post_id, $target_post_type);
+            if ($expected_signature === '' || $current_signature === '' || !hash_equals($expected_signature, $current_signature)) {
+                return ['success' => false, 'message' => 'La publicación cambió después de preparar el encargo editorial. Vuelve a Actualizaciones recurrentes y genera un análisis nuevo antes de aplicar la redacción.'];
+            }
+        }
+
+        $seo_result = (string) ($workflow['seo_result'] ?? '');
+        if ($seo_result === '') {
+            return ['success' => false, 'message' => 'No existe una versión SEO final para aplicar a la publicación.'];
+        }
+        if (class_exists('IDG_Assignment_Card')) {
+            $workflow = IDG_Assignment_Card::attach($workflow);
+        }
+
+        $sections = self::extract_sections($seo_result);
+        $content = (string) ($sections['article'] ?? '');
+        $content = self::prepare_public_article_content($content, $workflow);
+        $title = self::extract_title($content, $workflow['keyword'] ?? $post_before->post_title);
+        if (class_exists('IDG_Recurring_Updates')) {
+            $start_date = $is_contest
+                ? (string) ($workflow['recurring_contest_start_date'] ?? '')
+                : (string) ($workflow['event_start_date'] ?? $workflow['recurring_fecha_inicio'] ?? '');
+            $end_date = $is_contest
+                ? (string) ($workflow['recurring_contest_deadline'] ?? $workflow['recurring_contest_award_date'] ?? '')
+                : (string) ($workflow['event_end_date'] ?? $workflow['recurring_fecha_fin'] ?? '');
+            $title_years = IDG_Recurring_Updates::validate_event_title_years($title, $start_date, $end_date);
+            if (!empty($title_years['errors'])) {
+                return ['success' => false, 'message' => implode(' ', (array) $title_years['errors'])];
+            }
+            $identity_validation = IDG_Recurring_Updates::validate_editorial_identity($post_id, $workflow, $title);
+            if (empty($identity_validation['ok'])) {
+                return ['success' => false, 'message' => (string) ($identity_validation['message'] ?? 'La identidad editorial de la publicación no coincide.')];
+            }
+            if (!empty($identity_validation['warnings']) && class_exists('IDG_Logger')) {
+                IDG_Logger::log('recurring_editorial_identity_warning', 'La identidad editorial presentó diferencias no bloqueantes.', [
+                    'post_id' => $post_id,
+                    'target_post_type' => $target_post_type,
+                    'warnings' => array_values((array) $identity_validation['warnings']),
+                ]);
+            }
+        }
+        $meta_description = self::clean_meta_description((string) ($sections['meta_description'] ?? ''));
+        $seo_report = trim((string) ($sections['seo_report'] ?? ''));
+        $social_copy = trim((string) ($sections['social_copy'] ?? ''));
+        $reel_package = trim((string) ($sections['reel_package'] ?? ''));
+        $reel_package = self::ensure_valid_reel_package($reel_package, $content, $workflow);
+        $sections['reel_package'] = $reel_package;
+        $feedback_notes = trim((string) ($sections['feedback_notes'] ?? $workflow['feedback_notes'] ?? ''));
+
+        $html_content = self::markdownish_to_html($content, $title);
+        $html_before_postprocessing = $html_content;
+        $html_content = self::ensure_official_source_link($html_content, $workflow);
+        $html_content = self::ensure_internal_links($html_content, $workflow);
+        $html_content = self::ensure_sponsored_required_link($html_content, $workflow);
+        $html_content = self::ensure_minimum_bold($html_content, $workflow);
+        $html_content = self::strip_bold_from_html_headings($html_content);
+        $html_content = self::open_links_new_tab($html_content);
+        $html_content = self::apply_sponsored_link_rel($html_content, $workflow);
+        $html_content = self::maybe_add_sponsored_disclosure($html_content, $workflow);
+        $postprocessing_audit = self::postprocessing_audit($html_before_postprocessing, $html_content, $workflow);
+        $workflow['postprocessing_audit'] = $postprocessing_audit;
+        $seo_report = self::repair_seo_report_link_counts($seo_report, $html_content, $workflow);
+        $feedback_notes = self::repair_feedback_link_notes($feedback_notes, $html_content, $workflow);
+        $processed_seo_result = self::rebuild_seo_result($content, $meta_description, $seo_report, $social_copy, $reel_package, $feedback_notes);
+        $post_content = self::html_to_gutenberg_blocks($html_content);
+
+        if (class_exists('IDG_Final_Guard')) {
+            $validation = IDG_Final_Guard::validate_before_draft($content, $html_content, $sections, $workflow);
+            $gutenberg_validation = IDG_Final_Guard::validate_gutenberg_blocks($post_content);
+            if (empty($gutenberg_validation['ok'])) {
+                $validation['ok'] = false;
+                $validation['errors'] = array_merge((array) ($validation['errors'] ?? []), (array) ($gutenberg_validation['errors'] ?? []));
+                $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "\n" . implode("\n", array_map(static fn($e) => '- ERROR: ' . $e, (array) ($gutenberg_validation['errors'] ?? []))));
+            }
+            if (empty($validation['ok'])) {
+                if (!empty($workflow['force_validation_override'])) {
+                    $validation['warnings'] = array_merge((array) ($validation['warnings'] ?? []), (array) ($validation['errors'] ?? []));
+                    $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "\n- AVISO: Redacción aplicada a la publicación con validación ignorada manualmente por el editor. Revisar antes de publicar.");
+                    $validation['ok'] = true;
+                    $validation['overridden'] = true;
+                } else {
+                    return [
+                        'success' => false,
+                        'message' => 'Validación real bloqueó la actualización de la publicación: ' . implode(' · ', (array) ($validation['errors'] ?? [])),
+                        'validation_summary' => (string) ($validation['summary'] ?? ''),
+                    ];
+                }
+            }
+        }
+
+        $protected_before = [
+            'post_title_before' => (string) $post_before->post_title,
+            'post_title_expected' => wp_strip_all_tags($title),
+            'post_name' => (string) $post_before->post_name,
+            'post_status' => (string) $post_before->post_status,
+            'post_author' => (int) $post_before->post_author,
+            'thumbnail_id' => (int) get_post_thumbnail_id($post_id),
+            'taxonomies' => [],
+        ];
+        foreach (get_object_taxonomies($target_post_type) as $taxonomy) {
+            $protected_before['taxonomies'][$taxonomy] = wp_get_object_terms($post_id, $taxonomy, ['fields' => 'ids']);
+        }
+
+        $updated_id = wp_update_post([
+            'ID' => $post_id,
+            'post_title' => wp_strip_all_tags($title),
+            'post_content' => $post_content,
+            'post_excerpt' => wp_strip_all_tags($meta_description),
+        ], true);
+        if (is_wp_error($updated_id)) {
+            return ['success' => false, 'message' => $updated_id->get_error_message()];
+        }
+        if ((int) $updated_id !== $post_id) {
+            return ['success' => false, 'message' => 'WordPress devolvió un ID distinto a la publicación seleccionada. La redacción no fue aplicada.'];
+        }
+
+        update_post_meta($post_id, '_idg_keyword', sanitize_text_field($workflow['keyword'] ?? ''));
+        update_post_meta($post_id, '_idg_entity', sanitize_text_field($workflow['entity'] ?? ''));
+        update_post_meta($post_id, '_idg_piece_type', sanitize_text_field($workflow['piece_type'] ?? ''));
+        update_post_meta($post_id, '_idg_brief_summary', wp_kses_post(self::brief_summary($workflow)));
+        update_post_meta($post_id, '_idg_official_source', esc_url_raw($workflow['official_source'] ?? ''));
+        update_post_meta($post_id, '_idg_internal_links', wp_kses_post(IDG_Internal_Links::summary($workflow)));
+        update_post_meta($post_id, '_idg_assignment_card', wp_kses_post((string) ($workflow['assignment_card'] ?? '')));
+        if (isset($validation) && is_array($validation)) {
+            update_post_meta($post_id, '_idg_final_validation', wp_kses_post((string) ($validation['summary'] ?? '')));
+        }
+        update_post_meta($post_id, '_idg_meta_description', sanitize_text_field($meta_description));
+        update_post_meta($post_id, '_idg_seo_report', wp_kses_post($seo_report));
+        update_post_meta($post_id, '_idg_social_copy', wp_kses_post($social_copy));
+        update_post_meta($post_id, '_idg_reel_package', wp_kses_post($reel_package));
+        update_post_meta($post_id, '_idg_feedback_notes', wp_kses_post($feedback_notes));
+        update_post_meta($post_id, '_idg_prompt_versions', wp_json_encode([
+            'material_card' => IDG_Prompt_Library::version('material_card'),
+            'editorial_plan' => IDG_Prompt_Library::version('editorial_plan'),
+            'generate' => IDG_Prompt_Library::version('generate'),
+            'editorial' => IDG_Prompt_Library::version('editorial'),
+            'seo' => IDG_Prompt_Library::version('seo'),
+            'web_research' => IDG_Prompt_Library::version('web_research'),
+        ]));
+        update_post_meta($post_id, '_idg_execution_history', wp_json_encode([
+            'updated_at' => current_time('mysql'),
+            'user_id' => get_current_user_id(),
+            'workflow_id' => $workflow['workflow_id'] ?? '',
+            'origin' => 'recurring_update',
+            'analysis_id' => $workflow['recurring_analysis_id'] ?? '',
+            'target_post_type' => $target_post_type,
+        ]));
+        self::update_yoast_meta($post_id, $meta_description, $workflow['keyword'] ?? '', $title);
+
+        clean_post_cache($post_id);
+        $post_after = get_post($post_id);
+        if (!$post_after instanceof WP_Post) {
+            return ['success' => false, 'message' => 'No se pudo verificar la publicación después de aplicar la redacción.'];
+        }
+        $title_updated = (string) $post_after->post_title === wp_strip_all_tags($title);
+        $content_updated = hash_equals(hash('sha256', $post_content), hash('sha256', (string) $post_after->post_content));
+        $excerpt_updated = wp_strip_all_tags((string) $post_after->post_excerpt) === wp_strip_all_tags($meta_description);
+        $protected_ok = (int) $post_after->ID === $selected_post_id
+            && (string) $post_after->post_title === $protected_before['post_title_expected']
+            && (string) $post_after->post_name === $protected_before['post_name']
+            && (string) $post_after->post_status === $protected_before['post_status']
+            && (int) $post_after->post_author === $protected_before['post_author']
+            && (int) get_post_thumbnail_id($post_id) === $protected_before['thumbnail_id'];
+        foreach ($protected_before['taxonomies'] as $taxonomy => $term_ids) {
+            $after_ids = wp_get_object_terms($post_id, $taxonomy, ['fields' => 'ids']);
+            $before_clean = is_wp_error($term_ids) ? [] : array_map('intval', (array) $term_ids);
+            $after_clean = is_wp_error($after_ids) ? [] : array_map('intval', (array) $after_ids);
+            sort($before_clean);
+            sort($after_clean);
+            if ($before_clean !== $after_clean) {
+                $protected_ok = false;
+                break;
+            }
+        }
+        if (!$title_updated || !$content_updated || !$excerpt_updated) {
+            return [
+                'success' => false,
+                'message' => 'WordPress no devolvió el título, contenido o extracto esperado después de aplicar la Versión 3. La operación requiere revisión.',
+                'post_id' => $post_id,
+                'edit_link' => get_edit_post_link($post_id, 'raw'),
+                'title_updated' => $title_updated,
+                'content_updated' => $content_updated,
+                'excerpt_updated' => $excerpt_updated,
+                'validation_summary' => isset($validation) && is_array($validation) ? (string) ($validation['summary'] ?? '') : '',
+            ];
+        }
+        if (!$protected_ok) {
+            return [
+                'success' => false,
+                'message' => 'La redacción se escribió, pero la verificación detectó un cambio inesperado en un dato protegido de la publicación. Revísala inmediatamente.',
+                'post_id' => $post_id,
+                'edit_link' => get_edit_post_link($post_id, 'raw'),
+                'validation_summary' => isset($validation) && is_array($validation) ? (string) ($validation['summary'] ?? '') : '',
+            ];
+        }
+
+        return [
+            'success' => true,
+            'message' => 'Redacción aplicada al ' . $target_label . ' existente.',
+            'post_id' => $post_id,
+            'selected_post_id' => $selected_post_id,
+            'actual_updated_post_id' => (int) $post_after->ID,
+            'same_post_id' => ((int) $post_after->ID === $selected_post_id),
+            'title_before' => (string) $post_before->post_title,
+            'title_after' => (string) $post_after->post_title,
+            'title_updated' => $title_updated,
+            'content_updated' => $content_updated,
+            'excerpt_updated' => $excerpt_updated,
+            'applied_content_hash' => hash('sha256', (string) $post_after->post_content),
+            'source_seo_hash' => hash('sha256', $seo_result),
+            'edit_link' => get_edit_post_link($post_id, 'raw'),
+            'validation_summary' => isset($validation) && is_array($validation) ? (string) ($validation['summary'] ?? '') : '',
+            'postprocessed_html' => $html_content,
+            'postprocessing_audit' => $postprocessing_audit,
             'seo_result' => $processed_seo_result,
             'reel_package' => $reel_package,
         ];
@@ -527,7 +802,7 @@ final class IDG_Post_Creator {
             $plain = preg_replace('/^#{1,6}\s*/u', '', (string) $plain);
             $plain = trim((string) $plain, " 	
 
- *-_:");
+*-_:");
             $normalized = mb_strtolower(function_exists('remove_accents') ? remove_accents($plain) : $plain);
             if (in_array($normalized, ['enlace interno contextual', 'enlace externo contextual', 'enlaces contextuales'], true)) {
                 continue;
@@ -938,7 +1213,7 @@ final class IDG_Post_Creator {
 
     private static function is_contest_workflow(array $workflow): bool {
         $piece_type = mb_strtolower(remove_accents((string) ($workflow['piece_type'] ?? '')));
-        if (str_contains($piece_type, 'concurso') || str_contains($piece_type, 'convocatoria') || str_contains($piece_type, 'agenda')) {
+        if (str_contains($piece_type, 'concurso') || str_contains($piece_type, 'convocatoria')) {
             return true;
         }
         if (!empty($workflow['category_id'])) {
@@ -949,6 +1224,12 @@ final class IDG_Post_Creator {
             }
         }
         return false;
+    }
+
+    private static function is_event_workflow(array $workflow): bool {
+        return (string) ($workflow['recurring_target_post_type'] ?? '') === 'evento'
+            || (string) ($workflow['wordpress_content_type'] ?? '') === 'Evento'
+            || (string) ($workflow['editorial_context'] ?? '') === 'event_calendar';
     }
 
     private static function contest_name_for_closing(array $workflow): string {
@@ -1351,36 +1632,33 @@ final class IDG_Post_Creator {
 
     private static function ensure_official_source_link(string $html, array $workflow): string {
         $url = trim((string) ($workflow['official_source'] ?? ''));
-        if ($url === '' || self::is_ideasdi_url($url)) {
+        if ($url === '' || self::is_ideasdi_url($url) || str_contains($html, $url)) {
             return $html;
         }
-        if (str_contains($html, $url)) {
-            return self::contextualize_official_source_link($html, $workflow);
-        }
-        $entity = trim((string) ($workflow['entity'] ?? ''));
-        $keyword = trim((string) ($workflow['keyword'] ?? ''));
 
-        // RC1.4.3: si hay URL del responsable, el enlace externo debe existir.
-        // La coherencia se valida de forma tolerante, pero no se omite el enlace por diferencias
-        // entre entidad editorial, filial local o página de dealer/contexto.
+        // RC1.5.0: esta capa ya no redacta párrafos de rescate. Solo puede
+        // convertir en enlace una expresión que ya exista en el artículo.
+        $entity = trim((string) ($workflow['entity'] ?? ''));
         $anchor_label = self::external_anchor_label($workflow, $url);
-        foreach (self::entity_anchor_variants($entity !== '' ? $entity : $anchor_label) as $variant) {
-            $new_html = self::link_anchor_occurrence_in_first_two_paragraphs($html, $variant, $url);
-            if ($new_html !== $html) {
-                return $new_html;
-            }
+        $entity_matches_source = $entity !== '' && self::source_matches_entity($url, $entity);
+        $candidates = self::entity_anchor_variants($entity_matches_source ? $entity : $anchor_label);
+        if (!$entity_matches_source) {
+            $candidates = array_merge(['sitio oficial de la marca', 'página oficial de la marca', 'información oficial del proyecto', 'nota oficial'], $candidates);
         }
         if (self::is_contest_workflow($workflow)) {
-            foreach (['web oficial del concurso', 'página oficial del concurso', 'enlace oficial'] as $variant) {
-                $new_html = self::link_anchor_occurrence_in_first_two_paragraphs($html, $variant, $url);
-                if ($new_html !== $html) {
-                    return $new_html;
-                }
+            $candidates = array_merge(['web oficial del concurso', 'página oficial del concurso'], $candidates);
+        }
+        if (self::is_event_workflow($workflow)) {
+            $candidates = array_merge(['página oficial del evento', 'web oficial del evento'], $candidates);
+        }
+        foreach (array_values(array_unique(array_filter(array_map('trim', $candidates)))) as $candidate) {
+            $linked = self::link_first_anchor_occurrence($html, $candidate, $url);
+            if ($linked !== $html) {
+                return $linked;
             }
         }
-        return self::append_external_source_paragraph($html, $anchor_label, $url);
+        return $html;
     }
-
 
     private static function external_anchor_label(array $workflow, string $url): string {
         $entity = trim(wp_strip_all_tags((string) ($workflow['entity'] ?? '')));
@@ -1389,7 +1667,7 @@ final class IDG_Post_Creator {
         if (str_contains($host . $path, 'porsche') && str_contains($host . $path, 'mold')) {
             return 'Porsche Centre Moldova';
         }
-        if ($entity !== '') {
+        if ($entity !== '' && self::source_matches_entity($url, $entity)) {
             return $entity;
         }
         $host = preg_replace('/^www\./', '', $host);
@@ -1410,26 +1688,6 @@ final class IDG_Post_Creator {
             }
         }
         return false;
-    }
-
-    private static function append_external_source_paragraph(string $html, string $entity, string $url): string {
-        $paragraph = '<p>La referencia oficial del proyecto se mantiene en la web de <a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . esc_html($entity) . '</a>.</p>';
-        return self::insert_after_first_intro_paragraph($html, $paragraph);
-    }
-
-    private static function contextualize_official_source_link(string $html, array $workflow): string {
-        $url = trim((string) ($workflow['official_source'] ?? ''));
-        if ($url === '') {
-            return $html;
-        }
-        $entity = trim((string) ($workflow['entity'] ?? 'la entidad responsable'));
-        $pattern = '/<p\b[^>]*>\s*<a\s+[^>]*href=["\']' . preg_quote($url, '/') . '["\'][^>]*>(.*?)<\/a>\s*\.?\s*<\/p>/isu';
-        if (!preg_match($pattern, $html)) {
-            return $html;
-        }
-        $replacement = '<p>La referencia oficial del proyecto se mantiene en la web de <a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . esc_html($entity) . '</a>, donde la información se presenta desde la entidad responsable.</p>';
-        $new_html = preg_replace($pattern, $replacement, $html, 1);
-        return is_string($new_html) ? $new_html : $html;
     }
 
     private static function same_plain(string $a, string $b): bool {
@@ -1455,27 +1713,81 @@ final class IDG_Post_Creator {
             return $html;
         }
 
-        $external_present = self::official_source_applies_as_external($workflow) && str_contains($html, esc_url_raw((string) ($workflow['official_source'] ?? '')));
         foreach ($links as $link) {
             $url = esc_url_raw((string) ($link['url'] ?? ''));
-            if ($url === '') {
+            if ($url === '' || str_contains($html, $url)) {
                 continue;
             }
-            if (str_contains($html, $url)) {
-                $html = self::contextualize_standalone_internal_link($html, $url, $link, $workflow);
-                continue;
+
+            // RC1.5.0: integrar únicamente sobre texto ya redactado. La ausencia
+            // del enlace se resuelve en Revisión SEO, nunca creando prosa en PHP.
+            $candidates = [];
+            $configured = trim((string) ($link['anchor'] ?? ''));
+            if ($configured !== '' && !self::is_tag_literal_anchor($url, $configured, (string) ($link['type'] ?? ''))) {
+                $candidates[] = $configured;
             }
-            $anchor = trim((string) ($link['anchor'] ?? ''));
-            if ($anchor === '' || self::is_tag_literal_anchor($url, $anchor, (string) ($link['type'] ?? ''))) {
-                $anchor = self::contextual_internal_anchor($link, $workflow);
+            $contextual = self::contextual_internal_anchor($link, $workflow);
+            if ($contextual !== '') {
+                $candidates[] = $contextual;
             }
-            if ($external_present) {
-                $html = self::insert_internal_link_paragraph($html, $url, $anchor !== '' ? $anchor : 'lectura relacionada dentro de ideasDi', $link, $workflow);
-            } else {
-                $html = self::insert_internal_link_early($html, $url, $anchor !== '' ? $anchor : 'lectura relacionada dentro de ideasDi', $link, $workflow);
+            if (self::is_event_workflow($workflow)) {
+                $candidates = array_merge($candidates, [
+                    'calendario de eventos de ideasDi',
+                    'agenda de eventos de diseño',
+                    'calendario editorial de eventos',
+                ]);
+            }
+            if (self::is_contest_workflow($workflow)) {
+                $candidates = array_merge($candidates, [
+                    'concursos y convocatorias de diseño',
+                    'convocatorias de diseño abiertas',
+                    'agenda de concursos de ideasDi',
+                ]);
+            }
+            $lens = trim((string) ($workflow['editorial_lens'] ?? ''));
+            if ($lens !== '') {
+                $candidates[] = $lens;
+            }
+            if (class_exists('IDG_Editorial_Recipe_Builder')) {
+                $recipe = IDG_Editorial_Recipe_Builder::build($workflow);
+                $candidates = array_merge($candidates, (array) ($recipe['anchor_candidates'] ?? []));
+            }
+
+            foreach (array_values(array_unique(array_filter(array_map('trim', $candidates)))) as $candidate) {
+                $linked = self::link_first_anchor_occurrence($html, $candidate, $url);
+                if ($linked !== $html) {
+                    $html = $linked;
+                    break;
+                }
             }
         }
         return $html;
+    }
+
+    private static function deduplicate_configured_internal_links(string $html, array $workflow): string {
+        $targets = [];
+        foreach (self::collect_internal_links($workflow) as $link) {
+            $url = esc_url_raw((string) ($link['url'] ?? ''));
+            if ($url !== '') {
+                $targets[untrailingslashit(html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8'))] = true;
+            }
+        }
+        if (empty($targets) || stripos($html, '<a ') === false) {
+            return $html;
+        }
+        $seen = [];
+        return (string) preg_replace_callback('/<a\b([^>]*?)href=("|\')([^"\']+)(\2)([^>]*)>(.*?)<\/a>/isu', function ($m) use ($targets, &$seen) {
+            $href = untrailingslashit(html_entity_decode((string) $m[3], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if (!isset($targets[$href])) {
+                return $m[0];
+            }
+            if (empty($seen[$href])) {
+                $seen[$href] = true;
+                return $m[0];
+            }
+            // Conserva exactamente las palabras del artículo y elimina solo el enlace repetido.
+            return (string) $m[6];
+        }, $html);
     }
 
     private static function contextual_internal_anchor(array $link, array $workflow): string {
@@ -1529,66 +1841,30 @@ final class IDG_Post_Creator {
         return 'lectura relacionada dentro de ideasDi';
     }
 
-    private static function contextualize_standalone_internal_link(string $html, string $url, array $link, array $workflow): string {
-        $anchor = self::contextual_internal_anchor($link, $workflow);
-        $pattern = '/<p\b[^>]*>\s*<a\s+[^>]*href=["\']' . preg_quote($url, '/') . '["\'][^>]*>(.*?)<\/a>\s*\.?\s*<\/p>/isu';
-        if (!preg_match($pattern, $html)) {
-            return $html;
+    private static function postprocessing_audit(string $before_html, string $after_html, array $workflow): array {
+        $plain = static function (string $html): string {
+            $text = html_entity_decode(wp_strip_all_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            return trim((string) preg_replace('/\s+/u', ' ', $text));
+        };
+        $before_plain = $plain($before_html);
+        $after_plain = $plain($after_html);
+        $before_paragraphs = preg_match_all('/<p\b/iu', $before_html, $m1);
+        $after_paragraphs = preg_match_all('/<p\b/iu', $after_html, $m2);
+        $sponsored_disclosure_expected = self::is_sponsored_workflow($workflow) && !empty($workflow['sponsored_visible_label']);
+        $prose_unchanged = hash_equals(hash('sha256', $before_plain), hash('sha256', $after_plain));
+        if ($sponsored_disclosure_expected && !$prose_unchanged) {
+            $after_without_disclosure = (string) preg_replace('/<p\b[^>]*class=(?:"|\')[^"\']*idg-sponsored-disclosure[^"\']*(?:"|\')[^>]*>.*?<\/p>/isu', '', $after_html, 1);
+            $prose_unchanged = hash_equals(hash('sha256', $before_plain), hash('sha256', $plain($after_without_disclosure)));
         }
-        $replacement = '<p>Esta lectura se conecta con una <a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . esc_html($anchor !== '' ? $anchor : 'lectura editorial relacionada') . '</a>, útil para situar el proyecto dentro de su contexto en ideasDi.</p>';
-        $new = preg_replace($pattern, $replacement, $html, 1);
-        return is_string($new) ? $new : $html;
-    }
-
-    private static function insert_internal_link_paragraph(string $html, string $url, string $anchor, array $link, array $workflow): string {
-        $anchor = trim(wp_strip_all_tags($anchor));
-        if ($anchor === '') {
-            $anchor = 'lectura relacionada dentro de ideasDi';
-        }
-        $sentence = '<p>Esta decisión amplía una <a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . esc_html($anchor) . '</a>, conectando el proyecto con su contexto de diseño sin convertir el artículo en recomendación.</p>';
-        return self::insert_after_featured_box_or_second_paragraph($html, $sentence);
-    }
-
-    private static function insert_internal_link_early(string $html, string $url, string $anchor, array $link, array $workflow): string {
-        $anchor = trim(wp_strip_all_tags($anchor));
-        if ($anchor === '') {
-            $anchor = 'lectura relacionada dentro de ideasDi';
-        }
-        $sentence = '<p>Esta lectura se sitúa dentro de una <a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . esc_html($anchor) . '</a>, útil para orientar el tema desde el contexto editorial de ideasDi.</p>';
-        return self::insert_after_first_intro_paragraph($html, $sentence);
-    }
-
-    private static function insert_after_first_intro_paragraph(string $html, string $paragraph): string {
-        return self::insert_after_nth_non_box_paragraph($html, $paragraph, 1);
-    }
-
-    private static function insert_after_featured_box_or_second_paragraph(string $html, string $paragraph): string {
-        if (preg_match('/<p\b[^>]*class=(?:"|\')[^"\']*featured-snippet-box[^"\']*(?:"|\')[^>]*>.*?<\/p>/is', $html, $m, PREG_OFFSET_CAPTURE)) {
-            $pos = $m[0][1] + strlen($m[0][0]);
-            return substr($html, 0, $pos) . "\n" . $paragraph . substr($html, $pos);
-        }
-        return self::insert_after_nth_non_box_paragraph($html, $paragraph, 2);
-    }
-
-    private static function insert_after_nth_non_box_paragraph(string $html, string $paragraph, int $target): string {
-        $parts = preg_split('/(<p\b[^>]*>.*?<\/p>)/is', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
-        if (!is_array($parts) || count($parts) < 3) {
-            return trim($html) . "\n" . $paragraph;
-        }
-        $out = '';
-        $paragraphs = 0;
-        $inserted = false;
-        foreach ($parts as $part) {
-            $out .= $part;
-            if (!$inserted && preg_match('/^<p\b/i', trim($part)) && stripos($part, 'featured-snippet-box') === false) {
-                $paragraphs++;
-                if ($paragraphs >= $target) {
-                    $out .= "\n" . $paragraph;
-                    $inserted = true;
-                }
-            }
-        }
-        return $inserted ? $out : trim($html) . "\n" . $paragraph;
+        return [
+            'prose_unchanged' => $prose_unchanged,
+            'paragraphs_before' => (int) $before_paragraphs,
+            'paragraphs_after' => (int) $after_paragraphs,
+            'paragraphs_added' => max(0, (int) $after_paragraphs - (int) $before_paragraphs),
+            'summary' => $prose_unchanged
+                ? 'El postprocesamiento no añadió ni reescribió prosa editorial.'
+                : 'El postprocesamiento alteró el texto visible y requiere revisión.',
+        ];
     }
 
     private static function official_source_applies_as_external(array $workflow): bool {

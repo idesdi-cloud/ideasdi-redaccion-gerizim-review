@@ -35,6 +35,24 @@ final class IDG_Radar_Importer {
         ];
     }
 
+    public static function inspect_json_string(string $json): array {
+        $json = trim(wp_check_invalid_utf8($json));
+        $payload = json_decode($json, true);
+        if (!is_array($payload)) {
+            return ['success' => false, 'brief_id' => 0, 'message' => 'JSON inválido.'];
+        }
+        $validation = self::validate_payload($payload);
+        if (empty($validation['success'])) {
+            return ['success' => false, 'brief_id' => 0, 'message' => (string) ($validation['message'] ?? 'JSON inválido.')];
+        }
+        $brief = isset($payload['brief']) && is_array($payload['brief']) ? $payload['brief'] : [];
+        return [
+            'success' => true,
+            'brief_id' => absint($brief['id'] ?? 0),
+            'radar_source' => (string) ($payload['sistema'] ?? ''),
+        ];
+    }
+
     public static function import_from_json_string(string $json, array $current_workflow): array {
         $json = trim(wp_check_invalid_utf8($json));
         if ($json === '') {
@@ -52,11 +70,24 @@ final class IDG_Radar_Importer {
             return $validation;
         }
 
-        if (self::has_prefilled_brief($current_workflow)) {
-            return self::error('La ficha actual ya contiene datos. Inicia una nueva redacción o usa Reinicio parcial antes de importar un brief desde Radar.');
+        $brief = isset($payload['brief']) && is_array($payload['brief']) ? $payload['brief'] : [];
+        $incoming_brief_id = absint($brief['id'] ?? 0);
+        $current_brief_id = absint($current_workflow['radar_brief_id'] ?? 0);
+        $same_radar_identity = $incoming_brief_id > 0
+            && $current_brief_id === $incoming_brief_id
+            && (string) ($current_workflow['radar_source'] ?? '') === 'radar-editorial-ideasdi';
+        if ($same_radar_identity && !self::has_valid_original_import_time($current_workflow)) {
+            return self::error(
+                'No se actualizó el brief porque el workflow histórico no conserva una fecha original de importación verificable.',
+                'invalid_import_occurred_at'
+            );
+        }
+        if (self::has_prefilled_brief($current_workflow)
+            && !$same_radar_identity
+            && empty($current_workflow['radar_reimport_allowed'])) {
+            return self::error('La ficha actual ya contiene datos. Inicia una nueva redacción antes de importar otro brief desde Radar.');
         }
 
-        $brief = isset($payload['brief']) && is_array($payload['brief']) ? $payload['brief'] : [];
         $content = isset($payload['contenido_editorial']) && is_array($payload['contenido_editorial']) ? $payload['contenido_editorial'] : [];
         $hallazgo = isset($payload['hallazgo']) && is_array($payload['hallazgo']) ? $payload['hallazgo'] : [];
 
@@ -88,15 +119,40 @@ final class IDG_Radar_Importer {
         $data['radar_brief_id'] = isset($brief['id']) ? absint($brief['id']) : 0;
         $data['radar_hallazgo_id'] = isset($hallazgo['id']) ? absint($hallazgo['id']) : (isset($brief['hallazgo_id']) ? absint($brief['hallazgo_id']) : 0);
         $data['radar_hallazgo_url'] = self::clean_url((string) ($hallazgo['url_hallazgo'] ?? ''));
-        $data['radar_imported_at'] = current_time('mysql');
+        if (!$same_radar_identity) {
+            $data['radar_imported_at'] = current_time('mysql');
+            $data['radar_import_is_new'] = true;
+        } else {
+            unset($data['radar_import_is_new']);
+        }
         $data['radar_exported_at'] = self::clean_text((string) ($payload['fecha_exportacion'] ?? ''));
         $data['radar_export_version'] = self::clean_text((string) ($payload['version_exportacion'] ?? ''));
         $data['radar_source'] = 'radar-editorial-ideasdi';
+        unset($data['radar_reimport_allowed']);
         $data['radar_tag_principal'] = self::clean_text((string) ($brief['tag_principal'] ?? ($tag_names[0] ?? '')));
+        $data['radar_lente_sugerida'] = self::clean_text((string) ($brief['lente_sugerida'] ?? $content['lente_sugerida'] ?? ''));
         $data['radar_tags_secundarios'] = isset($brief['tags_secundarios']) && is_array($brief['tags_secundarios']) ? array_values(array_map([self::class, 'clean_text'], $brief['tags_secundarios'])) : array_slice($tag_names, 1);
         $data['radar_clasificacion_editorial'] = self::clean_text((string) ($brief['clasificacion_editorial'] ?? ''));
+
+        // La misma identidad Radar conserva su fecha y clave originales. Una
+        // identidad nueva se persiste en un workflow nuevo y comienza sin
+        // reflejos de trazabilidad heredados.
+        if (!$same_radar_identity) {
+            unset(
+                $data['radar_imported_at_utc'],
+                $data['radar_import_persisted'],
+                $data['radar_import_identity'],
+                $data['radar_import_persisted_at_utc'],
+                $data['traceability_gerizim_imported_key'],
+                $data['traceability_gerizim_imported_status'],
+                $data['traceability_gerizim_imported_synced_at_utc']
+            );
+        }
         $data['radar_restricciones_editoriales'] = isset($payload['restricciones_editoriales']) && is_array($payload['restricciones_editoriales']) ? self::clean_list($payload['restricciones_editoriales']) : [];
         $data['radar_contexto_editorial'] = self::legacy_readings_text($content);
+        if ($data['radar_lente_sugerida'] !== '' && self::normalize_name($data['radar_lente_sugerida']) === self::normalize_name($data['entity'])) {
+            $warnings[] = 'La lente sugerida coincide con la entidad responsable; Gerizim la tratará como entidad y resolverá la lente desde categoría, tags y evidencia.';
+        }
         $data['radar_import_warnings'] = $warnings;
         $data['radar_notes'] = self::clean_textarea((string) ($content['notas_editoriales_internas'] ?? ''));
         $data['editor_notes'] = trim((string) ($data['editor_notes'] ?? ''));
@@ -105,6 +161,8 @@ final class IDG_Radar_Importer {
             $recipe = IDG_Editorial_Recipe_Builder::build($data);
             $data['editorial_recipe'] = (string) ($recipe['recipe'] ?? '');
             $data['priority_readings'] = $data['editorial_recipe'];
+            $data['recipe_base'] = (string) ($recipe['base_recipe'] ?? $data['editorial_recipe']);
+            $data['recipe_base_structure'] = $recipe;
             $data['recipe_technical_summary'] = (string) ($recipe['technical_summary'] ?? '');
         }
 
@@ -147,8 +205,8 @@ final class IDG_Radar_Importer {
             $errors[] = 'El campo destino debe ser gerizim-wp.';
         }
         $version = (string) ($payload['version_exportacion'] ?? '');
-        if ($version !== '' && !in_array($version, ['1.0', '1.1'], true)) {
-            $errors[] = 'version_exportacion debe ser 1.1. Se acepta 1.0 solo por compatibilidad temporal.';
+        if ($version !== '' && !in_array($version, ['1.0', '1.1', '1.2'], true)) {
+            $errors[] = 'version_exportacion debe ser 1.1 o 1.2. Se acepta 1.0 solo por compatibilidad temporal.';
         }
         if (!isset($payload['brief']) || !is_array($payload['brief'])) {
             $errors[] = 'Falta el objeto brief.';
@@ -194,6 +252,30 @@ final class IDG_Radar_Importer {
             return true;
         }
         return false;
+    }
+
+    private static function has_valid_original_import_time(array $workflow): bool {
+        $utc = trim((string) ($workflow['radar_imported_at_utc'] ?? ''));
+        if ($utc !== '' && !str_starts_with($utc, '0000-00-00')) {
+            try {
+                if ((new DateTimeImmutable($utc))->getTimestamp() > 0) {
+                    return true;
+                }
+            } catch (Throwable $e) {
+                // Continue with the compatible historical local date.
+            }
+        }
+
+        $local = trim((string) ($workflow['radar_imported_at'] ?? ''));
+        if ($local === '' || str_starts_with($local, '0000-00-00')) {
+            return false;
+        }
+        try {
+            $timezone = function_exists('wp_timezone') ? wp_timezone() : new DateTimeZone('UTC');
+            return (new DateTimeImmutable($local, $timezone))->getTimestamp() > 0;
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     private static function ordered_tag_names(array $brief): array {
@@ -295,5 +377,7 @@ final class IDG_Radar_Importer {
     private static function clean_text(string $value): string { return class_exists('IDG_Sanitizer') ? IDG_Sanitizer::text($value) : sanitize_text_field($value); }
     private static function clean_textarea(string $value): string { return class_exists('IDG_Sanitizer') ? IDG_Sanitizer::textarea($value) : sanitize_textarea_field($value); }
     private static function clean_url(string $value): string { return class_exists('IDG_Sanitizer') ? IDG_Sanitizer::url($value) : esc_url_raw($value); }
-    private static function error(string $message): array { return ['success' => false, 'message' => $message, 'warnings' => []]; }
+    private static function error(string $message, string $reason = ''): array {
+        return ['success' => false, 'message' => $message, 'warnings' => [], 'reason' => $reason];
+    }
 }
