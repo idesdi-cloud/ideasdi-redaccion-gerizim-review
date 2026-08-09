@@ -25,6 +25,18 @@ ideasDi Redacción Gerizim.
 9. Instalar el ZIP manualmente en WordPress producción.
 10. Verificar funcionamiento y conservar una opción de reversión.
 
+## Mantenimiento documental y trazabilidad
+
+- Todo cambio funcional, arquitectónico, contractual, de versión, pruebas, release o circuito operativo debe actualizar en la misma intervención la documentación canónica realmente afectada.
+- Antes del cierre, identificar explícitamente qué documentos requieren actualización y cuáles no; la ausencia de cambios documentales debe ser una decisión consciente.
+- Una tarea no está completa si código, pruebas y documentación describen estados diferentes.
+- Priorizar la actualización de documentos canónicos existentes. No crear handoffs, README, notas u otros archivos redundantes cuando ya exista un documento adecuado.
+- Crear o actualizar un handoff solo si aporta continuidad: trabajo pausado, incidencias abiertas, cambio de arquitectura o circuito, decisión no deducible del código o cierre de una fase relevante. No crear handoffs burocráticos para cambios menores completamente cerrados.
+- Para cada RC/release relevante, mantener coherentes, cuando existan, la versión del plugin, rama de desarrollo, commit exacto, tag, pruebas, artefacto ZIP y su SHA-256.
+- El código fuente registrado en Git es la fuente de desarrollo (Git-first). Los ZIP son artefactos generados desde Git y no vuelven a ser fuente primaria salvo reconciliación explícita de un artefacto legado.
+- Los ZIP instalables deben construirse de forma reproducible desde un commit limpio mediante `./scripts/build-zip.sh`, conservando la trazabilidad con el commit o tag correspondiente.
+- Antes de solicitar un commit, mostrar junto al diff de código el diff documental pertinente y confirmar la coherencia entre versión, pruebas y documentación.
+
 ## Comportamientos protegidos
 
 No deben alterarse accidentalmente:
@@ -41,6 +53,7 @@ No deben alterarse accidentalmente:
 
 ## Reglas Git y publicación
 
+- No hacer commit, hacer push, construir ZIP, instalar o actualizar WordPress, actuar en producción ni modificar otros repositorios sin la autorización correspondiente.
 - No cambiar la versión sin una fase de release autorizada.
 - No crear ni mover etiquetas sin autorización.
 - No usar force push.
