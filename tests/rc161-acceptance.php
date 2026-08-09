@@ -3,6 +3,7 @@ $root = dirname(__DIR__);
 $read = static fn(string $path): string => file_get_contents($root . '/' . $path) ?: '';
 $main = $read('ideasdi-redaccion-gerizim.php');
 $runner = $read('includes/class-job-runner.php');
+$planning_redaction = $read('includes/class-workflow-planning-pipeline.php') . $read('includes/class-workflow-redaction-pipeline.php');
 $contract = $read('includes/contracts/interface-workflow-action-strategy.php');
 $strategies = $read('includes/strategies/class-workflow-action-strategies.php');
 $orchestrator = $read('includes/class-workflow-orchestrator.php');
@@ -17,7 +18,7 @@ function rc161_ok(bool $condition, string $message): void {
     echo sprintf("OK S%02d: %s\n", $number, $message);
 }
 
-rc161_ok(str_contains($main, 'Version: 0.4.0-RC1.6.2') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.2')"), 'versión RC1.6.1 consistente');
+rc161_ok(str_contains($main, 'Version: 0.4.0-RC1.6.3') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.3')"), 'versión RC1.6.1 consistente');
 rc161_ok(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'sin migración de base de datos');
 rc161_ok(str_contains($contract, 'interface IDG_Workflow_Action_Strategy_Contract'), 'contrato de estrategia disponible');
 rc161_ok(str_contains($strategies, 'final class IDG_Workflow_Action_Strategy_Center'), 'centro de estrategias disponible');
@@ -66,7 +67,7 @@ foreach (glob($root . '/includes/*.php') ?: [] as $path) {
     $complete_calls += substr_count(file_get_contents($path) ?: '', '->complete(');
 }
 rc161_ok($complete_calls === 8, 'número de llamadas OpenAI permanece en ocho');
-rc161_ok(substr_count($runner, 'IDG_Prompt_Library::') === 6, 'construcción de prompts del runner sin cambios');
+rc161_ok(substr_count($planning_redaction, 'IDG_Prompt_Library::') === 6, 'construcción de prompts preservada en pipelines');
 rc161_ok(str_contains($read('tests/workflow-action-strategy-center-equivalence.php'), 'PASS workflow action strategy center equivalence'), 'prueba de equivalencia del centro incluida');
 rc161_ok(str_contains($read('tests/workflow-strategy-runner-routing-static.php'), 'PASS workflow strategy runner routing static'), 'prueba de enrutamiento incluida');
 

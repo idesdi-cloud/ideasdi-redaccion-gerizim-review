@@ -1,15 +1,17 @@
-# ideasDi Redacción Gerizim v0.4.0-RC1.6.2
+# ideasDi Redacción Gerizim v0.4.0-RC1.6.3
 
 Plugin interno para el flujo editorial de ideasDi: importación de briefs desde Radar/Directus, investigación, receta editorial, planificación, redacción, revisiones, validación y creación o actualización controlada de contenido WordPress.
 
 
-## RC1.6.2 · Políticas centralizadas
+## RC1.6.3 · Planificación y redacción desacopladas
 
-Esta versión continúa la migración progresiva sin cambios editoriales intencionales. `IDG_Workflow_Policies` concentra los estados del workflow, las siete acciones existentes, sus transiciones, las condiciones de avance, el bloqueo durante `processing`, el límite histórico y la política de reintento manual.
+Esta versión continúa la migración progresiva separando la preparación documental y del plan editorial de las fases de redacción. La separación se implementa mediante contratos compatibles, adaptadores internos transparentes, dos pipelines y un orquestador delgado.
 
-El contrato, el centro de estrategias, el runner, el panel y el orquestador consumen esta fuente única. No cambian prompts, orden o número de llamadas, validaciones editoriales, Gutenberg, publicación, contratos Radar, trazabilidad ni formato de workflows. RC1.6.1 permanece como la fase que separó la selección de acciones mediante el centro de estrategias.
+`IDG_Workflow_Planning_Pipeline` conserva investigación, ficha documental, receta y plan editorial. `IDG_Workflow_Redaction_Pipeline` conserva generación, revisión editorial y revisión SEO. `IDG_Job_Runner` mantiene persistencia y publicación, pero ya no contiene prompts, llamadas al modelo ni construcción del plan.
 
-Los reportes funcionales aportados para Nightborne y Actualizaciones recurrentes se conservan como evidencia. Sus oportunidades de redacción, H3, enlaces, meta y reel quedan fuera de esta versión y se reservan para una fase editorial posterior.
+El workflow sigue siendo el mismo array `legacy-array-v1`; no se añaden envolturas ni migraciones. Prompts, interfaz, ocho llamadas OpenAI, validaciones, Gutenberg, creación `pending`, actualización recurrente y trazabilidad permanecen sin cambios editoriales intencionales.
+
+RC1.6.2 continúa como la fuente única de estados, transiciones, elegibilidad, bloqueos y reintentos. RC1.6.1 continúa seleccionando las siete acciones mediante el centro de estrategias.
 
 ## Corrección RC1.6.0.2
 
@@ -117,6 +119,8 @@ El mismo brief puede continuar en su workflow conservando fecha y clave. Si perd
 
 ## Documentación incluida
 
+- `CAMBIOS-v0.4.0-RC1.6.3.md`;
+- `PRUEBAS-v0.4.0-RC1.6.3.md`;
 - `CAMBIOS-v0.4.0-RC1.6.2.md`;
 - `PRUEBAS-v0.4.0-RC1.6.2.md`;
 - `CAMBIOS-v0.4.0-RC1.6.0.2.md`;
@@ -126,6 +130,7 @@ El mismo brief puede continuar en su workflow conservando fecha y clave. Si perd
 - `CAMBIOS-v0.4.0-RC1.6.0.md`;
 - `PRUEBAS-v0.4.0-RC1.6.0.md`;
 - `CONTRATO-RADAR-DIRECTUS-1.1.md`;
+- `REGRESION-EDITORIAL-RC1.6.3.sha256`;
 - `REGRESION-EDITORIAL-RC1.6.2.sha256`;
 - `REGRESION-EDITORIAL-RC1.6.1.sha256`;
 - `REGRESION-EDITORIAL-RC1.6.0.2.sha256`;
@@ -134,8 +139,8 @@ El mismo brief puede continuar en su workflow conservando fecha y clave. Si perd
 ## Instalación controlada
 
 1. Respaldar el plugin actualmente instalado y la base de datos.
-2. Reemplazarlo por el ZIP RC1.6.2.
-3. Confirmar versión **0.4.0-RC1.6.2**.
+2. Reemplazarlo por el ZIP RC1.6.3.
+3. Confirmar versión **0.4.0-RC1.6.3**.
 4. No modificar las constantes existentes de captura, entrega, URL, token o corte.
 5. Confirmar que los workflows existentes abren y conservan su contenido.
 6. Probar primero con un concurso cuyo ID, categoría, fechas y fuente oficial puedan verificarse.

@@ -5,6 +5,7 @@ $main = $read('ideasdi-redaccion-gerizim.php');
 $policy = $read('includes/class-workflow-policies.php');
 $contract = $read('includes/class-workflow-contract.php');
 $runner = $read('includes/class-job-runner.php');
+$planning_redaction = $read('includes/class-workflow-planning-pipeline.php') . $read('includes/class-workflow-redaction-pipeline.php');
 $admin = $read('includes/class-admin-page.php');
 $strategies = $read('includes/strategies/class-workflow-action-strategies.php');
 $orchestrator = $read('includes/class-workflow-orchestrator.php');
@@ -19,7 +20,7 @@ function rc162_ok(bool $condition, string $message): void {
     echo sprintf("OK P%02d: %s\n", $number, $message);
 }
 
-rc162_ok(str_contains($main, 'Version: 0.4.0-RC1.6.2') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.2')"), 'versión RC1.6.2 consistente');
+rc162_ok(str_contains($main, 'Version: 0.4.0-RC1.6.3') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.3')"), 'versión RC1.6.2 consistente');
 rc162_ok(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'sin migración de base de datos');
 rc162_ok(str_contains($main, "includes/class-workflow-policies.php"), 'centro de políticas cargado');
 rc162_ok(str_contains($policy, 'final class IDG_Workflow_Policies'), 'clase de políticas disponible');
@@ -63,7 +64,7 @@ foreach (glob($root . '/includes/*.php') ?: [] as $path) {
     $complete_calls += substr_count(file_get_contents($path) ?: '', '->complete(');
 }
 rc162_ok($complete_calls === 8, 'número de llamadas OpenAI permanece en ocho');
-rc162_ok(substr_count($runner, 'IDG_Prompt_Library::') === 6, 'puntos de construcción de prompts sin cambios');
+rc162_ok(substr_count($planning_redaction, 'IDG_Prompt_Library::') === 6, 'puntos de construcción de prompts preservados en pipelines');
 rc162_ok(str_contains($read('tests/workflow-policies-equivalence.php'), 'PASS workflow policies equivalence'), 'prueba de equivalencia de políticas incluida');
 rc162_ok(str_contains($read('tests/workflow-policies-routing-static.php'), 'PASS workflow policies routing static'), 'prueba estática de políticas incluida');
 rc162_ok(str_contains($read('tests/workflow-action-strategy-center-equivalence.php'), 'PASS workflow action strategy center equivalence'), 'regresión del centro de estrategias incluida');

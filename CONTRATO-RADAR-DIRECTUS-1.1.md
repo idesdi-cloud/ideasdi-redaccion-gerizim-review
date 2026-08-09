@@ -1,6 +1,6 @@
 # Contrato Radar/Directus · trazabilidad 1.1
 
-Estado: congelado para Gerizim `0.4.0-RC1.6.2`. RC1.6.2 no modifica este contrato ni implementa cambios en Directus.
+Estado: congelado para Gerizim `0.4.0-RC1.6.3`. RC1.6.3 no modifica este contrato ni implementa cambios en Directus.
 
 ## Transporte
 

@@ -19,9 +19,9 @@ function rc157_accept(bool $condition, string $label): void {
     echo sprintf("OK O%02d: %s\n", $number, $label);
 }
 
-rc157_accept(str_contains($main, 'Version: 0.4.0-RC1.6.2') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.2')"), 'Observabilidad RC1.5.7 preservada en RC1.6.1');
+rc157_accept(str_contains($main, 'Version: 0.4.0-RC1.6.3') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.3')"), 'Observabilidad RC1.5.7 preservada en RC1.6.1');
 rc157_accept(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'Esquema permanece 1.2.0');
-rc157_accept(str_contains($contract, 'trazabilidad 1.1') && str_contains($contract, '0.4.0-RC1.6.2'), 'Contrato 1.1 preservado');
+rc157_accept(str_contains($contract, 'trazabilidad 1.1') && str_contains($contract, '0.4.0-RC1.6.3'), 'Contrato 1.1 preservado');
 foreach (['candidate_ids', 'candidate_count', 'claim_success_ids', 'claim_failed_ids', 'claim_failure_reasons', 'early_exit_reason', 'sql_error'] as $field) {
     rc157_accept(str_contains($outbox, "'{$field}'"), "Resultado incluye {$field}");
 }

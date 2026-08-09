@@ -9,6 +9,7 @@ $adapters = $read('includes/adapters/class-workflow-input-adapters.php');
 $orchestrator = $read('includes/class-workflow-orchestrator.php');
 $admin = $read('includes/class-admin-page.php');
 $runner = $read('includes/class-job-runner.php');
+$planning_redaction = $read('includes/class-workflow-planning-pipeline.php') . $read('includes/class-workflow-redaction-pipeline.php');
 $recurring = $read('includes/class-recurring-updates.php');
 
 function rc160_ok(bool $condition, string $message): void {
@@ -21,7 +22,7 @@ function rc160_ok(bool $condition, string $message): void {
     echo sprintf("OK C%02d: %s\n", $number, $message);
 }
 
-rc160_ok(str_contains($main, 'Version: 0.4.0-RC1.6.2') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.2')"), 'versión RC1.6.1 consistente');
+rc160_ok(str_contains($main, 'Version: 0.4.0-RC1.6.3') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.3')"), 'versión RC1.6.1 consistente');
 rc160_ok(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'esquema de trazabilidad sin migración');
 rc160_ok(str_contains($adapter_contract, 'interface IDG_Workflow_Input_Adapter_Contract'), 'contrato de adaptador disponible');
 rc160_ok(str_contains($orchestrator_contract, 'interface IDG_Workflow_Orchestrator_Contract'), 'contrato de orquestador disponible');
@@ -58,7 +59,7 @@ foreach (glob($root . '/includes/*.php') ?: [] as $path) {
     $complete_calls += substr_count(file_get_contents($path) ?: '', '->complete(');
 }
 rc160_ok($complete_calls === 8, 'número de llamadas OpenAI permanece en ocho');
-rc160_ok(substr_count($runner, 'IDG_Prompt_Library::') === 6, 'puntos de construcción de prompts del runner sin cambios');
+rc160_ok(substr_count($planning_redaction, 'IDG_Prompt_Library::') === 6, 'puntos de construcción de prompts preservada en pipelines');
 rc160_ok(str_contains($read('includes/class-post-creator.php'), 'has_category(34, $post_before)') && str_contains($read('includes/class-post-creator.php'), 'target_post_fingerprint($post_id, $content_type)'), 'escritor recurrente amplía destino a concursos con identidad protegida');
 rc160_ok(str_contains($recurring, 'build_contest_editorial_workflow_data') && !str_contains($recurring, 'La escritura de concursos o convocatorias permanece desactivada'), 'concursos pueden aplicar datos y preparar workflow editorial');
 rc160_ok(str_contains($read('tests/workflow-adapters-equivalence.php'), 'PASS workflow adapters equivalence'), 'prueba de adaptadores incluida');
