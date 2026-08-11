@@ -1,6 +1,14 @@
-# ideasDi Redacción Gerizim v0.4.0-RC1.6.3
+# ideasDi Redacción Gerizim v0.4.0-RC1.6.3.2
 
 Plugin interno para el flujo editorial de ideasDi: importación de briefs desde Radar/Directus, investigación, receta editorial, planificación, redacción, revisiones, validación y creación o actualización controlada de contenido WordPress.
+
+## RC1.6.3.2 · Corrección mínima del retorno OpenAI
+
+Candidata correctiva construida desde la semántica funcional de RC1.6.3. Mantiene las llamadas OpenAI síncronas y las transiciones visibles del flujo. No incorpora background Responses, polling, reentrada, estados de planificación ni scheduler para las fases editoriales.
+
+El único cambio productivo, además del número de versión, está en `IDG_OpenAI_Client`: añade correlación segura de solicitudes, mensajes HTTP accionables y recuperación de una Response ya completada cuando el cuerpo recibido es válido y utilizable aunque el estado HTTP sea anómalo. No se crean llamadas adicionales.
+
+RC1.6.3.1 queda expresamente como versión no aprobada y se usa solo como evidencia del intento asíncrono descartado.
 
 
 ## RC1.6.3 · Planificación y redacción desacopladas
