@@ -1,10 +1,10 @@
-# Instalación · ideasDi Redacción Gerizim v0.4.0-RC1.6.3
+# Instalación · ideasDi Redacción Gerizim v0.4.0-RC1.6.3.2
 
 ## Actualización controlada
 
 1. Respaldar el directorio completo del plugin activo y la base de datos.
 2. Instalar el ZIP RC1.6.3 reemplazando únicamente el plugin.
-3. Confirmar versión **0.4.0-RC1.6.3**.
+3. Confirmar versión **0.4.0-RC1.6.3.2**.
 4. No modificar `wp-config.php`, constantes de trazabilidad ni datos reales.
 5. Abrir un workflow existente y confirmar que conserva campos, historial y resultados.
 6. Crear un workflow de prueba y recorrer Guardar → Generar → Revisión editorial → SEO → Borrador.
@@ -12,7 +12,7 @@
 8. Probar una Actualización recurrente y confirmar que conserva el mismo ID.
 9. Verificar Reinicio parcial e importación Radar sin modificar producción fuera de la prueba autorizada.
 
-RC1.6.3 no migra datos ni cambia el formato persistido. La separación es interna: planificación y redacción usan contratos y adaptadores transparentes, mientras publicación, validaciones y workflows continúan con el comportamiento anterior.
+RC1.6.3.2 no migra datos ni cambia el formato persistido. La separación es interna: planificación y redacción usan contratos y adaptadores transparentes, mientras publicación, validaciones y workflows continúan con el comportamiento anterior.
 
 ## Validación técnica incluida
 

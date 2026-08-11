@@ -1,5 +1,7 @@
 # Cambios · ideasDi Redacción Gerizim v0.4.0-RC1.6.3.2
 
+**Estado:** aprobada funcionalmente en WordPress el 11 de agosto de 2026.
+
 Corrección mínima basada en RC1.6.3. RC1.6.3.1 queda no aprobada y no es baseline de esta candidata.
 
 ## Cambio productivo

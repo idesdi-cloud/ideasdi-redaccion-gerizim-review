@@ -18,4 +18,4 @@
 5. `WP_Error`: error de transporte explícito y referencia cliente.
 6. HTTP 2xx sin texto: conserva el fallo histórico específico.
 
-La aceptación definitiva sigue siendo humana en WordPress: Generar artículo base → Versión 1 → Revisión editorial → Versión 2 → Revisión SEO → Versión 3, sin recargas manuales obligatorias.
+Aceptación humana superada el 11 de agosto de 2026: Generar artículo base → Versión 1 → Revisión editorial → Versión 2 → Revisión SEO → Versión 3 sin recargas manuales obligatorias, seguida de publicación real correcta en WordPress.

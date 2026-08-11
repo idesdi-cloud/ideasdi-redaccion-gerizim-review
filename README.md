@@ -4,7 +4,9 @@ Plugin interno para el flujo editorial de ideasDi: importación de briefs desde 
 
 ## RC1.6.3.2 · Corrección mínima del retorno OpenAI
 
-Candidata correctiva construida desde la semántica funcional de RC1.6.3. Mantiene las llamadas OpenAI síncronas y las transiciones visibles del flujo. No incorpora background Responses, polling, reentrada, estados de planificación ni scheduler para las fases editoriales.
+**Estado:** aprobada funcionalmente en WordPress el 11 de agosto de 2026, incluido el recorrido completo hasta publicación real.
+
+Corrección mínima funcionalmente aprobada, construida desde la semántica funcional de RC1.6.3. Mantiene las llamadas OpenAI síncronas y las transiciones visibles del flujo. No incorpora background Responses, polling, reentrada, estados de planificación ni scheduler para las fases editoriales.
 
 El único cambio productivo, además del número de versión, está en `IDG_OpenAI_Client`: añade correlación segura de solicitudes, mensajes HTTP accionables y recuperación de una Response ya completada cuando el cuerpo recibido es válido y utilizable aunque el estado HTTP sea anómalo. No se crean llamadas adicionales.
 
