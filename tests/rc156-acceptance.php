@@ -9,6 +9,7 @@ $files = [
     'admin_page' => $read('includes/class-admin-page.php'),
     'post' => $read('includes/class-post-creator.php'),
     'runner' => $read('includes/class-job-runner.php'),
+    'redaction' => $read('includes/class-workflow-redaction-pipeline.php'),
     'client' => $read('includes/class-traceability-client.php'),
     'logger' => $read('includes/class-logger.php'),
     'capture_test' => $read('tests/traceability-capture-mock.php'),
@@ -82,10 +83,10 @@ $cases = [
  47 => [has($files['url_test'], 'HTTP localhost permitido'), 'HTTP local de testing permitido'],
  48 => [has($files['logger_test'], 'sensitive value persisted') && has($files['client_test'], 'token redactado de error'), 'Token no aparece en logs'],
  49 => [has($files['defaults_test'], 'PASS traceability defaults'), 'Plugin arranca con trazabilidad apagada'],
- 50 => [has($files['smoke_test'], 'PASS plugin load smoke') && has($files['runner'], 'run_generate'), 'Flujo editorial actual continúa'],
+ 50 => [has($files['smoke_test'], 'PASS plugin load smoke') && has($files['runner'], 'execute_generate_stage') && has($files['redaction'], 'run_generate'), 'Flujo editorial actual continúa'],
  51 => [has($files['post'], "'post_status' => 'pending'"), 'Entrada se crea en pending'],
  52 => [has($files['client_test'], 'radar.example.test') && !has($files['client_test'], 'radar.ideasdi.com'), 'Pruebas no generan conexiones reales'],
- 53 => [has($files['post'], 'create_pending_post') && has($files['runner'], 'run_editorial'), 'Componentes editoriales protegidos permanecen disponibles'],
+ 53 => [has($files['post'], 'create_pending_post') && has($files['redaction'], 'run_editorial'), 'Componentes editoriales protegidos permanecen disponibles'],
 ];
 
 foreach ($cases as $number => [$condition, $label]) { accept($number, $condition, $label); }
