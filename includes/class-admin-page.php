@@ -3,7 +3,16 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-final class IDG_Admin_Page {
+// Compatibilidad con pruebas y consumidores que cargan este archivo aislado.
+require_once __DIR__ . '/class-workflow-admin-support.php';
+require_once __DIR__ . '/class-workflow-admin-view.php';
+require_once __DIR__ . '/class-admin-page-facade.php';
+
+/**
+ * Implementación histórica del panel editorial. Se conserva aquí durante la
+ * extracción para que la fachada pública no altere contratos ni comportamiento.
+ */
+final class IDG_Workflow_Admin_Controller {
     public static function register_menu(): void {
         add_menu_page(
             'ideasDi Redacción Gerizim',
@@ -505,11 +514,11 @@ final class IDG_Admin_Page {
         return array_values(array_unique(array_map('intval', $ids)));
     }
 
-    private static function radar_partial_reset_snapshot_key(string $workflow_id): string {
+    public static function radar_partial_reset_snapshot_key(string $workflow_id): string {
         return 'idg_radar_partial_snapshot_' . hash('sha256', $workflow_id);
     }
 
-    private static function store_radar_partial_reset_snapshot(string $workflow_id, array $workflow): array {
+    public static function store_radar_partial_reset_snapshot(string $workflow_id, array $workflow): array {
         if ($workflow_id === '') {
             return ['success' => false, 'reason' => 'invalid_workflow_id'];
         }
@@ -543,7 +552,7 @@ final class IDG_Admin_Page {
         return ['success' => true, 'reason' => ''];
     }
 
-    private static function restore_radar_partial_reset_snapshot(string $workflow_id): bool {
+    public static function restore_radar_partial_reset_snapshot(string $workflow_id): bool {
         $key = self::radar_partial_reset_snapshot_key($workflow_id);
         $record = get_option($key, null);
         if (!self::valid_radar_partial_reset_snapshot_record($workflow_id, $record)) {

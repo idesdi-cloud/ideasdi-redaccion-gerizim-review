@@ -22,7 +22,7 @@ function rc160_ok(bool $condition, string $message): void {
     echo sprintf("OK C%02d: %s\n", $number, $message);
 }
 
-rc160_ok(str_contains($main, 'Version: 0.4.0-RC1.6.3.2') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.3.2')"), 'versión RC1.6.3.2 consistente');
+rc160_ok(str_contains($main, 'Version: 0.4.0-RC1.6.4') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.4')"), 'versión RC1.6.4 consistente');
 rc160_ok(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'esquema de trazabilidad sin migración');
 rc160_ok(str_contains($adapter_contract, 'interface IDG_Workflow_Input_Adapter_Contract'), 'contrato de adaptador disponible');
 rc160_ok(str_contains($orchestrator_contract, 'interface IDG_Workflow_Orchestrator_Contract'), 'contrato de orquestador disponible');

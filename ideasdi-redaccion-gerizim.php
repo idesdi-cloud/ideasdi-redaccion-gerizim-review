@@ -3,7 +3,7 @@
  * Plugin Name: ideasDi Redacción Gerizim
  * Plugin URI: https://ideasdi.com
  * Description: Flujo editorial interno para generar artículo base, revisión editorial, revisión SEO y creación de entradas pendientes en ideasDi usando OpenAI API.
- * Version: 0.4.0-RC1.6.3.2
+ * Version: 0.4.0-RC1.6.4
  * Author: ideasDi
  * Requires at least: 6.0
  * Requires PHP: 8.1
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('IDG_VERSION', '0.4.0-RC1.6.3.2');
+define('IDG_VERSION', '0.4.0-RC1.6.4');
 define('IDG_TRACEABILITY_DB_VERSION', '1.2.0');
 define('IDG_EDITORIAL_RULES_OPTION_KEY', 'idg_editorial_rules');
 define('IDG_EDITORIAL_RULES_HISTORY_OPTION_KEY', 'idg_editorial_rules_history');
@@ -72,6 +72,9 @@ require_once IDG_PLUGIN_DIR . 'includes/strategies/class-workflow-action-strateg
 require_once IDG_PLUGIN_DIR . 'includes/class-job-runner.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-workflow-orchestrator.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-admin-page.php';
+require_once IDG_PLUGIN_DIR . 'includes/class-workflow-admin-support.php';
+require_once IDG_PLUGIN_DIR . 'includes/class-workflow-admin-view.php';
+require_once IDG_PLUGIN_DIR . 'includes/class-admin-page-facade.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-metabox.php';
 
 final class IDG_Plugin {

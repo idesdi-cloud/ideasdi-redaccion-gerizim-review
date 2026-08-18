@@ -20,7 +20,7 @@ function rc163_ok(bool $condition, string $message): void {
     echo sprintf("OK D%02d: %s\n", $number, $message);
 }
 
-rc163_ok(str_contains($main, 'Version: 0.4.0-RC1.6.3.2') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.3.2')"), 'versión RC1.6.3.2 consistente');
+rc163_ok(str_contains($main, 'Version: 0.4.0-RC1.6.4') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.4')"), 'versión RC1.6.4 consistente');
 rc163_ok(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'sin migración de base de datos');
 rc163_ok(str_contains($contract, 'trazabilidad 1.1') && str_contains($contract, '0.4.0-RC1.6.3'), 'contrato Radar/Directus 1.1 preservado');
 rc163_ok(str_contains($read('includes/class-workflow-contract.php'), "public const FORMAT = 'legacy-array-v1'"), 'formato legacy-array-v1 preservado');
