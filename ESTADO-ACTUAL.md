@@ -4,7 +4,9 @@ Actualizado: 2026-08-11
 
 ## Versión aprobada
 
-- Versión activa y funcionalmente aprobada: `0.4.0-RC1.6.3.2`.
+- Versión activa y funcionalmente aprobada: `0.4.0-RC1.6.4`.
+- RC1.6.4 fue aprobada funcionalmente mediante prueba humana. ZIP probado: `99a89843bd999769267e501a1d4d72aad8e4af63517105bef3fe4dd205d5c64e`.
+- `0.4.0-RC1.6.3.1` está descartada y no es baseline.
 - Rama de release: `rc/0.4.0-RC1.6.3.2`.
 - Commit de release: `a2a4639fe6f44b64e4b8558ac7962442239e6524`.
 - Tag: `v0.4.0-RC1.6.3.2`.
