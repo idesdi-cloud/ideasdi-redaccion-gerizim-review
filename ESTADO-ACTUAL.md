@@ -4,10 +4,13 @@ Actualizado: 2026-08-25
 
 ## Versión aprobada
 
-- Versión activa y funcionalmente aprobada: `0.4.0-RC1.6.4`.
+- Versión activa y funcionalmente aprobada: `0.4.0-RC1.6.5`.
 - RC1.6.4 fue aprobada funcionalmente mediante prueba humana. ZIP probado: `99a89843bd999769267e501a1d4d72aad8e4af63517105bef3fe4dd205d5c64e`.
 - `0.4.0-RC1.6.3.1` está descartada y no es baseline.
-- RC1.6.5 está en desarrollo sobre `rc/0.4.0-RC1.6.5`; no es todavía versión productiva ni aprobada.
+- RC1.6.5 fue validada funcionalmente en WordPress mediante prueba humana.
+- Commit funcional validado: `d3a0bc3abb701456af2679190cf410803ed66d12`.
+- ZIP validado SHA-256: `22ff48663ca8f9fa657901db00a6a22bec4e2f19927c587c53508abb221b80c0`.
+- Build reproducible confirmado antes de la instalación humana.
 - Rama aprobada: `rc/0.4.0-RC1.6.4`.
 - Commit RC1.6.4: `b368227bc74fc1c0e29396f8db87fd24658ed245`.
 - Merge aprobado en `main`: `16d61ca8325c9577b8041e841de73d2ab5c4a8b9`.

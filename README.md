@@ -10,7 +10,7 @@ Se elimina el wrapper administrativo `IDG_Workflow_Admin_Support`, se evita la c
 
 El workflow continúa en formato `legacy-array-v1`. No cambian intencionalmente prompts, interfaz, ocho llamadas OpenAI, validaciones, Gutenberg, publicación, Actualizaciones recurrentes ni trazabilidad.
 
-RC1.6.5 es candidata hasta completar la prueba humana en WordPress; RC1.6.4 continúa como versión productiva aprobada.
+RC1.6.5 fue validada funcionalmente mediante prueba humana en WordPress.
 
 ## RC1.6.3.2 · Corrección mínima del retorno OpenAI
 

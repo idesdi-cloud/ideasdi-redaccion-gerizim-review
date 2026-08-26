@@ -1,6 +1,6 @@
 # Pruebas · ideasDi Redacción Gerizim v0.4.0-RC1.6.5
 
-Estado de candidata previo a prueba humana en WordPress.
+Estado: validada funcionalmente mediante prueba humana en WordPress.
 
 - `./scripts/test.sh`: `VALIDACION_GERIZIM_OK`.
 - 91 archivos PHP revisados sin errores de sintaxis.
@@ -13,4 +13,8 @@ Estado de candidata previo a prueba humana en WordPress.
 - Formato `legacy-array-v1` preservado.
 - Adaptadores Admin, Radar, Actualizaciones recurrentes y Trazabilidad preservados.
 - `git diff --check` sin errores.
-- RC1.6.4 permanece como versión productiva aprobada hasta completar la prueba humana de RC1.6.5.
+- RC1.6.5 queda funcionalmente aprobada; publicación Git pendiente del cierre autorizado.
+
+- Prueba humana WordPress: aprobada.
+- Commit probado: `d3a0bc3abb701456af2679190cf410803ed66d12`.
+- ZIP probado SHA-256: `22ff48663ca8f9fa657901db00a6a22bec4e2f19927c587c53508abb221b80c0`.
