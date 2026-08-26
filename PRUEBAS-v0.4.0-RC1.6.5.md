@@ -13,7 +13,7 @@ Estado: validada funcionalmente mediante prueba humana en WordPress.
 - Formato `legacy-array-v1` preservado.
 - Adaptadores Admin, Radar, Actualizaciones recurrentes y Trazabilidad preservados.
 - `git diff --check` sin errores.
-- RC1.6.5 queda funcionalmente aprobada; publicación Git pendiente del cierre autorizado.
+- RC1.6.5 queda funcionalmente aprobada; la trazabilidad Git separa el commit funcional probado del cierre documental de la release.
 
 - Prueba humana WordPress: aprobada.
 - Commit probado: `d3a0bc3abb701456af2679190cf410803ed66d12`.
