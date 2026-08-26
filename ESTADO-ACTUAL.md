@@ -12,9 +12,11 @@ Actualizado: 2026-08-25
 - ZIP validado SHA-256: `22ff48663ca8f9fa657901db00a6a22bec4e2f19927c587c53508abb221b80c0`.
 - Build reproducible confirmado antes de la instalación humana.
 - Rama de release aprobada: `rc/0.4.0-RC1.6.5`.
+- Head final de la rama de release: `02db8d7419e8a4e2b03dd089d28a9242cd304088`.
 - Tag de release: `v0.4.0-RC1.6.5`, asociado al commit funcional validado indicado arriba.
-- La integración en `main` forma parte del cierre Git controlado de esta release.
-- WordPress: instalación, activación, Generar artículo base → Versión 1 → Revisión editorial → Versión 2 → Revisión SEO → Versión 3 y publicación real verificadas correctamente el 2026-08-11.
+- Merge aprobado y publicado en `main`: `2b3eb6f35796499d4b49caa3092e57fab172e956`.
+- WordPress RC1.6.5: instalación, activación y funcionamiento validados mediante prueba humana el 2026-08-25.
+- La validación editorial completa del 2026-08-11 corresponde al historial previo del flujo y no a la aceptación específica de RC1.6.5.
 
 ## Decisión sobre RC1.6.3.1
 
@@ -50,8 +52,8 @@ Leer, en este orden:
 
 1. `AGENTS.md`;
 2. `ESTADO-ACTUAL.md`;
-3. `CAMBIOS-v0.4.0-RC1.6.3.2.md`;
-4. `PRUEBAS-v0.4.0-RC1.6.3.2.md`;
-5. `ANALISIS-RC1.6.3-vs-RC1.6.3.1.md` solo si se necesita el historial del incidente.
+3. `CAMBIOS-v0.4.0-RC1.6.5.md`;
+4. `PRUEBAS-v0.4.0-RC1.6.5.md`;
+5. `ANALISIS-RC1.6.3-vs-RC1.6.3.1.md` solo si se necesita el historial del incidente OpenAI.
 
 No usar RC1.6.3.1 como baseline. Para futuros cambios, partir de main/tag aprobado y mantener la prueba humana de WordPress como condición de aceptación de cambios que afecten el flujo editorial.

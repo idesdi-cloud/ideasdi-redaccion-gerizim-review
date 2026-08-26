@@ -18,3 +18,11 @@ Estado: validada funcionalmente mediante prueba humana en WordPress.
 - Prueba humana WordPress: aprobada.
 - Commit probado: `d3a0bc3abb701456af2679190cf410803ed66d12`.
 - ZIP probado SHA-256: `22ff48663ca8f9fa657901db00a6a22bec4e2f19927c587c53508abb221b80c0`.
+
+## Cierre Git
+
+- Commit funcional probado: `d3a0bc3abb701456af2679190cf410803ed66d12`.
+- ZIP probado SHA-256: `22ff48663ca8f9fa657901db00a6a22bec4e2f19927c587c53508abb221b80c0`.
+- Head final de `rc/0.4.0-RC1.6.5`: `02db8d7419e8a4e2b03dd089d28a9242cd304088`.
+- Merge aprobado y publicado en `main`: `2b3eb6f35796499d4b49caa3092e57fab172e956`.
+- Tag `v0.4.0-RC1.6.5` permanece asociado al commit funcional probado.
