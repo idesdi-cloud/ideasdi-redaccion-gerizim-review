@@ -1,18 +1,17 @@
 # Estado actual · ideasDi Redacción Gerizim
 
-Actualizado: 2026-08-11
+Actualizado: 2026-08-25
 
 ## Versión aprobada
 
 - Versión activa y funcionalmente aprobada: `0.4.0-RC1.6.4`.
 - RC1.6.4 fue aprobada funcionalmente mediante prueba humana. ZIP probado: `99a89843bd999769267e501a1d4d72aad8e4af63517105bef3fe4dd205d5c64e`.
 - `0.4.0-RC1.6.3.1` está descartada y no es baseline.
-- Rama de release: `rc/0.4.0-RC1.6.3.2`.
-- Commit de release: `a2a4639fe6f44b64e4b8558ac7962442239e6524`.
-- Tag: `v0.4.0-RC1.6.3.2`.
-- ZIP probado por humano en WordPress SHA-256: `12cc036ec4adcae528eb40a3c7db72544e870d1c056cc9deb8680855be3962c6`.
-- ZIP reproducible generado desde el commit SHA-256: `3a9a52089335b4e4c70d05ccff078bcabe7f3883483d0e6bf7f00eb28011f9c8`.
-- Los contenidos internos de ambos ZIP fueron comparados y son idénticos.
+- RC1.6.5 está en desarrollo sobre `rc/0.4.0-RC1.6.5`; no es todavía versión productiva ni aprobada.
+- Rama aprobada: `rc/0.4.0-RC1.6.4`.
+- Commit RC1.6.4: `b368227bc74fc1c0e29396f8db87fd24658ed245`.
+- Merge aprobado en `main`: `16d61ca8325c9577b8041e841de73d2ab5c4a8b9`.
+- Tag: `v0.4.0-RC1.6.4`.
 - WordPress: instalación, activación, Generar artículo base → Versión 1 → Revisión editorial → Versión 2 → Revisión SEO → Versión 3 y publicación real verificadas correctamente el 2026-08-11.
 
 ## Decisión sobre RC1.6.3.1

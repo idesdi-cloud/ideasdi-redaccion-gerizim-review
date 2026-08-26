@@ -3,8 +3,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Compatibilidad con pruebas y consumidores que cargan este archivo aislado.
-require_once __DIR__ . '/class-workflow-admin-support.php';
+// Carga autónoma para pruebas y consumidores que incluyen este módulo aislado.
 require_once __DIR__ . '/class-workflow-admin-view.php';
 require_once __DIR__ . '/class-admin-page-facade.php';
 

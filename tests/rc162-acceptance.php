@@ -20,7 +20,7 @@ function rc162_ok(bool $condition, string $message): void {
     echo sprintf("OK P%02d: %s\n", $number, $message);
 }
 
-rc162_ok(str_contains($main, 'Version: 0.4.0-RC1.6.4') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.4')"), 'versión RC1.6.4 consistente');
+rc162_ok(str_contains($main, 'Version: 0.4.0-RC1.6.5') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.5')"), 'versión RC1.6.5 consistente');
 rc162_ok(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'sin migración de base de datos');
 rc162_ok(str_contains($main, "includes/class-workflow-policies.php"), 'centro de políticas cargado');
 rc162_ok(str_contains($policy, 'final class IDG_Workflow_Policies'), 'clase de políticas disponible');
@@ -39,7 +39,12 @@ rc162_ok(str_contains($contract, 'IDG_Workflow_Policies::is_known_action'), 'con
 rc162_ok(str_contains($strategies, 'IDG_Workflow_Policies::is_force_action'), 'estrategias usan política de override');
 rc162_ok(str_contains($runner, 'IDG_Workflow_Policies::mark_processing') && str_contains($runner, 'IDG_Workflow_Policies::mark_failed') && str_contains($runner, 'IDG_Workflow_Policies::mark_completed'), 'runner usa transiciones centralizadas');
 rc162_ok(str_contains($runner, 'IDG_Workflow_Policies::history_limit') && str_contains($runner, 'IDG_Workflow_Policies::should_retry'), 'runner usa historial y reintentos centrales');
-rc162_ok(str_contains($orchestrator, 'IDG_Workflow_Policies::automatic_retry_limit') && str_contains($orchestrator, 'IDG_Job_Runner::schedule'), 'orquestador conserva delegación y política de cola');
+rc162_ok(
+    str_contains($policy, 'automatic_retry_limit')
+    && str_contains($orchestrator, 'IDG_Job_Runner::schedule')
+    && !str_contains($orchestrator, 'IDG_Workflow_Policies::automatic_retry_limit'),
+    'política de reintentos permanece central y orquestador elimina consulta sin efecto'
+);
 rc162_ok(!str_contains($runner, "['status'] = 'processing'") && !str_contains($runner, "['status'] = 'failed'") && !str_contains($runner, "['status'] = 'completed'"), 'estados retirados del runner');
 rc162_ok(!str_contains($contract, 'private const KNOWN_ACTIONS'), 'catálogo duplicado retirado del contrato');
 rc162_ok(!str_contains($admin, "in_array(\$step, ['generate', 'editorial', 'seo'"), 'catálogo duplicado retirado del panel');

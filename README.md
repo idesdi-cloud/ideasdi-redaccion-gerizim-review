@@ -1,6 +1,16 @@
-# ideasDi Redacción Gerizim v0.4.0-RC1.6.3.2
+# ideasDi Redacción Gerizim v0.4.0-RC1.6.5
 
 Plugin interno para el flujo editorial de ideasDi: importación de briefs desde Radar/Directus, investigación, receta editorial, planificación, redacción, revisiones, validación y creación o actualización controlada de contenido WordPress.
+
+## RC1.6.5 · Cierre de la migración progresiva
+
+RC1.6.5 parte de RC1.6.4, versión funcionalmente aprobada, y cierra la migración progresiva retirando únicamente infraestructura temporal sin consumidores funcionales.
+
+Se elimina el wrapper administrativo `IDG_Workflow_Admin_Support`, se evita la carga duplicada de vista y fachada desde el bootstrap principal y se retiran consultas sin efecto del orquestador. `IDG_Admin_Page`, los snapshots de Reinicio parcial Radar, contratos, adaptadores, estrategias, políticas y pipelines permanecen compatibles.
+
+El workflow continúa en formato `legacy-array-v1`. No cambian intencionalmente prompts, interfaz, ocho llamadas OpenAI, validaciones, Gutenberg, publicación, Actualizaciones recurrentes ni trazabilidad.
+
+RC1.6.5 es candidata hasta completar la prueba humana en WordPress; RC1.6.4 continúa como versión productiva aprobada.
 
 ## RC1.6.3.2 · Corrección mínima del retorno OpenAI
 
@@ -129,6 +139,11 @@ El mismo brief puede continuar en su workflow conservando fecha y clave. Si perd
 
 ## Documentación incluida
 
+- `CAMBIOS-v0.4.0-RC1.6.5.md`;
+- `PRUEBAS-v0.4.0-RC1.6.5.md`;
+- `CAMBIOS-v0.4.0-RC1.6.4.md`;
+- `PRUEBAS-v0.4.0-RC1.6.4.md`;
+- `REGRESION-EDITORIAL-RC1.6.5.sha256`;
 - `CAMBIOS-v0.4.0-RC1.6.3.md`;
 - `PRUEBAS-v0.4.0-RC1.6.3.md`;
 - `CAMBIOS-v0.4.0-RC1.6.2.md`;
@@ -149,8 +164,8 @@ El mismo brief puede continuar en su workflow conservando fecha y clave. Si perd
 ## Instalación controlada
 
 1. Respaldar el plugin actualmente instalado y la base de datos.
-2. Reemplazarlo por el ZIP RC1.6.3.
-3. Confirmar versión **0.4.0-RC1.6.3**.
+2. Reemplazarlo por el ZIP RC1.6.5.
+3. Confirmar versión **0.4.0-RC1.6.5**.
 4. No modificar las constantes existentes de captura, entrega, URL, token o corte.
 5. Confirmar que los workflows existentes abren y conservan su contenido.
 6. Probar primero con un concurso cuyo ID, categoría, fechas y fuente oficial puedan verificarse.

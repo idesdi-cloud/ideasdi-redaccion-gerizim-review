@@ -24,15 +24,10 @@ final class IDG_Workflow_Orchestrator implements IDG_Workflow_Orchestrator_Contr
     }
 
     public static function schedule(string $workflow_id, string $action): bool {
-        // El contrato clasifica acciones conocidas, pero no bloquea acciones
-        // históricas o futuras: la semántica final permanece en Job_Runner.
-        IDG_Workflow_Contract::is_known_action($action);
-        IDG_Workflow_Policies::automatic_retry_limit();
         return IDG_Job_Runner::schedule($workflow_id, $action);
     }
 
     public static function process_scheduled_action(string $workflow_id, string $action): void {
-        IDG_Workflow_Contract::is_known_action($action);
         IDG_Job_Runner::process_scheduled_action($workflow_id, $action);
     }
 }

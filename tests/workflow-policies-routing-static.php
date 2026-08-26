@@ -30,7 +30,12 @@ policy_static_ok(str_contains($runner, 'IDG_Workflow_Policies::history_limit') &
 policy_static_ok(str_contains($runner, 'IDG_Workflow_Policies::should_retry'), 'excepciones consultan política de reintentos');
 policy_static_ok(str_contains($admin, 'IDG_Workflow_Policies::is_known_action') && str_contains($admin, 'IDG_Workflow_Policies::advance_block_reason'), 'panel consume acciones y condiciones de avance');
 policy_static_ok(substr_count($admin, 'IDG_Workflow_Policies::blocks_interactive_mutation') >= 4, 'bloqueos interactivos del panel usan una fuente única');
-policy_static_ok(str_contains($orchestrator, 'IDG_Workflow_Policies::automatic_retry_limit'), 'orquestador declara política de cola sin alterar delegación');
+policy_static_ok(
+    str_contains($policy, 'automatic_retry_limit')
+    && str_contains($orchestrator, 'IDG_Job_Runner::schedule')
+    && !str_contains($orchestrator, 'IDG_Workflow_Policies::automatic_retry_limit'),
+    'política de reintentos sigue centralizada sin consulta redundante del orquestador'
+);
 policy_static_ok(!str_contains($runner, "['status'] = 'processing'") && !str_contains($runner, "['status'] = 'failed'") && !str_contains($runner, "['status'] = 'completed'"), 'runner ya no define estados operativos en línea');
 policy_static_ok(!str_contains($admin, "in_array(\$step, ['generate', 'editorial', 'seo'"), 'panel ya no duplica catálogo de acciones');
 
