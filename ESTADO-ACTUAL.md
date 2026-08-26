@@ -1,18 +1,19 @@
 # Estado actual · ideasDi Redacción Gerizim
 
-Actualizado: 2026-08-11
+Actualizado: 2026-08-25
 
 ## Versión aprobada
 
-- Versión activa y funcionalmente aprobada: `0.4.0-RC1.6.4`.
+- Versión activa y funcionalmente aprobada: `0.4.0-RC1.6.5`.
 - RC1.6.4 fue aprobada funcionalmente mediante prueba humana. ZIP probado: `99a89843bd999769267e501a1d4d72aad8e4af63517105bef3fe4dd205d5c64e`.
 - `0.4.0-RC1.6.3.1` está descartada y no es baseline.
-- Rama de release: `rc/0.4.0-RC1.6.3.2`.
-- Commit de release: `a2a4639fe6f44b64e4b8558ac7962442239e6524`.
-- Tag: `v0.4.0-RC1.6.3.2`.
-- ZIP probado por humano en WordPress SHA-256: `12cc036ec4adcae528eb40a3c7db72544e870d1c056cc9deb8680855be3962c6`.
-- ZIP reproducible generado desde el commit SHA-256: `3a9a52089335b4e4c70d05ccff078bcabe7f3883483d0e6bf7f00eb28011f9c8`.
-- Los contenidos internos de ambos ZIP fueron comparados y son idénticos.
+- RC1.6.5 fue validada funcionalmente en WordPress mediante prueba humana.
+- Commit funcional validado: `d3a0bc3abb701456af2679190cf410803ed66d12`.
+- ZIP validado SHA-256: `22ff48663ca8f9fa657901db00a6a22bec4e2f19927c587c53508abb221b80c0`.
+- Build reproducible confirmado antes de la instalación humana.
+- Rama de release aprobada: `rc/0.4.0-RC1.6.5`.
+- Tag de release: `v0.4.0-RC1.6.5`, asociado al commit funcional validado indicado arriba.
+- La integración en `main` forma parte del cierre Git controlado de esta release.
 - WordPress: instalación, activación, Generar artículo base → Versión 1 → Revisión editorial → Versión 2 → Revisión SEO → Versión 3 y publicación real verificadas correctamente el 2026-08-11.
 
 ## Decisión sobre RC1.6.3.1
