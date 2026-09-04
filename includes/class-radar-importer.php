@@ -302,6 +302,7 @@ final class IDG_Radar_Importer {
             return ['id' => 0, 'warning' => 'El JSON no incluye categoría WordPress.'];
         }
         $aliases = [
+            'arquitectura e interiores' => ['arquitectura y diseno interior', 'interior arquitectura'],
             'interior arquitectura' => ['arquitectura y diseno interior', 'arquitectura e interiores'],
             'diseno digital y 3d' => ['diseno digital y 3d', 'diseno digital'],
             'diseno de producto' => ['diseno de producto', 'diseno de productos'],

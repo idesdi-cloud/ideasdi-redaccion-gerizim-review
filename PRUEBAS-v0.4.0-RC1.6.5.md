@@ -3,9 +3,11 @@
 Estado: validada funcionalmente mediante prueba humana en WordPress.
 
 - `./scripts/test.sh`: `VALIDACION_GERIZIM_OK`.
-- 91 archivos PHP revisados sin errores de sintaxis.
-- 40 pruebas PHP aprobadas.
+- 92 archivos PHP revisados sin errores de sintaxis.
+- 41 pruebas PHP aprobadas.
 - Prueba específica: `tests/rc165-legacy-cleanup-equivalence.php`.
+- Prueba específica de importación Radar: `tests/radar-category-mapping-mock.php`.
+- Mapeos verificados: Arquitectura e interiores, Diseño de producto, Diseño digital y 3D, Movilidad y transporte, Concursos y convocatorias y Moda.
 - Regresión editorial RC1.6.5: `REGRESION_EDITORIAL_OK`.
 - Exactamente ocho llamadas `->complete(` preservadas.
 - `IDG_Workflow_Admin_Support` eliminado sin referencias runtime.

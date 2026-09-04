@@ -9,5 +9,7 @@ RC1.6.5 cierra la migración progresiva mediante eliminación controlada de infr
 - Se preservan las delegaciones privadas usadas por las pruebas de snapshot del Reinicio parcial Radar.
 - Se preservan contratos, adaptadores, estrategias, políticas, pipelines y formato `legacy-array-v1`.
 - No cambian prompts, interfaz, ocho llamadas OpenAI, validaciones, publicación, Actualizaciones recurrentes ni trazabilidad.
+- Se corrige de forma aditiva el mapeo de importación Radar para que `Arquitectura e interiores` resuelva la categoría WordPress `Arquitectura y diseño interior`, conservando los aliases existentes.
+- Se añade regresión específica de las seis categorías editoriales principales importadas desde Radar.
 
-RC1.6.4 continúa siendo la versión productiva aprobada mientras RC1.6.5 completa sus pruebas y validación humana.
+RC1.6.5 es la versión productiva aprobada y validada en WordPress; esta corrección mantiene la misma versión y ajusta únicamente el mapeo de categorías importadas desde Radar.
