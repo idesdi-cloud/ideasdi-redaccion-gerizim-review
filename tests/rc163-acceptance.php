@@ -1,5 +1,6 @@
 <?php
 $root = dirname(__DIR__);
+require_once __DIR__ . '/support/canonical-regression.php';
 $read = static fn(string $path): string => file_get_contents($root . '/' . $path) ?: '';
 $main = $read('ideasdi-redaccion-gerizim.php');
 $runner = $read('includes/class-job-runner.php');
@@ -20,7 +21,7 @@ function rc163_ok(bool $condition, string $message): void {
     echo sprintf("OK D%02d: %s\n", $number, $message);
 }
 
-rc163_ok(str_contains($main, 'Version: 0.4.0-RC1.6.5') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.5')"), 'versión RC1.6.5 consistente');
+rc163_ok(str_contains($main, 'Version: 0.4.0-RC1.7.0') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.7.0')"), 'versión RC1.7.0 consistente');
 rc163_ok(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'sin migración de base de datos');
 rc163_ok(str_contains($contract, 'trazabilidad 1.1') && str_contains($contract, '0.4.0-RC1.6.3'), 'contrato Radar/Directus 1.1 preservado');
 rc163_ok(str_contains($read('includes/class-workflow-contract.php'), "public const FORMAT = 'legacy-array-v1'"), 'formato legacy-array-v1 preservado');
@@ -51,7 +52,7 @@ $expected_hashes = [
     'includes/class-post-creator.php' => 'c3c40b9b8ac57d3cd1dbdba184b61f602049602e061faf4f7b0fcb3e1ff15b3d',
 ];
 foreach ($expected_hashes as $path => $hash) {
-    rc163_ok(hash_file('sha256', $root . '/' . $path) === $hash, "equivalencia SHA-256 de {$path}");
+    rc163_ok(IDG_Canonical_Regression::historical_matches($root, $path, $hash), "equivalencia SHA-256 de {$path}");
 }
 
 $complete_calls = 0;

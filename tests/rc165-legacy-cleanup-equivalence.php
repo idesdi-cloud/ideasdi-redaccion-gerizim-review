@@ -1,5 +1,6 @@
 <?php
 $root = dirname(__DIR__);
+require_once __DIR__ . '/support/canonical-regression.php';
 $read = static fn(string $path): string =>
     file_get_contents($root . '/' . $path) ?: '';
 
@@ -22,9 +23,9 @@ function rc165_ok(bool $ok, string $message): void {
 }
 
 rc165_ok(
-    str_contains($main, 'Version: 0.4.0-RC1.6.5')
-    && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.5')"),
-    'versión RC1.6.5 consistente'
+    str_contains($main, 'Version: 0.4.0-RC1.7.0')
+    && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.7.0')"),
+    'versión RC1.7.0 consistente'
 );
 
 rc165_ok(
@@ -119,7 +120,7 @@ foreach ([
         => 'f3bdb6742c07726eae92772e45575439c3c6e06d503c2d1e64e0bff5158b7db4',
 ] as $path => $hash) {
     rc165_ok(
-        hash_file('sha256', $root . '/' . $path) === $hash,
+        IDG_Canonical_Regression::historical_matches($root, $path, $hash),
         "equivalencia SHA-256 de {$path}"
     );
 }

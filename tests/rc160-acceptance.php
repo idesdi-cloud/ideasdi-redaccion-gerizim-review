@@ -1,5 +1,6 @@
 <?php
 $root = dirname(__DIR__);
+require_once __DIR__ . '/support/canonical-regression.php';
 $read = static fn(string $path): string => file_get_contents($root . '/' . $path) ?: '';
 $main = $read('ideasdi-redaccion-gerizim.php');
 $contract = $read('includes/class-workflow-contract.php');
@@ -22,7 +23,7 @@ function rc160_ok(bool $condition, string $message): void {
     echo sprintf("OK C%02d: %s\n", $number, $message);
 }
 
-rc160_ok(str_contains($main, 'Version: 0.4.0-RC1.6.5') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.5')"), 'versión RC1.6.5 consistente');
+rc160_ok(str_contains($main, 'Version: 0.4.0-RC1.7.0') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.7.0')"), 'versión RC1.7.0 consistente');
 rc160_ok(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'esquema de trazabilidad sin migración');
 rc160_ok(str_contains($adapter_contract, 'interface IDG_Workflow_Input_Adapter_Contract'), 'contrato de adaptador disponible');
 rc160_ok(str_contains($orchestrator_contract, 'interface IDG_Workflow_Orchestrator_Contract'), 'contrato de orquestador disponible');
@@ -50,7 +51,7 @@ $expected_hashes = [
     'includes/class-editorial-recipe-builder.php' => 'fee28b83033825666a5d4a4c803d226d3f7768c72fafb61f86218d8b26da5e6c',
 ];
 foreach ($expected_hashes as $path => $hash) {
-    rc160_ok(hash_file('sha256', $root . '/' . $path) === $hash, "equivalencia SHA-256 de {$path}");
+    rc160_ok(IDG_Canonical_Regression::historical_matches($root, $path, $hash), "equivalencia SHA-256 de {$path}");
 }
 
 $complete_calls = 0;

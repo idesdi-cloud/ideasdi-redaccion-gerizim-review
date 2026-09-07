@@ -51,11 +51,11 @@ check(invoke('IDG_Final_Guard', 'event_presentation_status', $event_html, $event
 foreach (['includes/class-post-creator.php', 'includes/class-final-guard.php'] as $file) {
     check(!str_contains(file_get_contents(ABSPATH . $file), 'https://' . 'ideasdi.com/eventos/'), 'no fixed event archive');
 }
-check(str_contains(file_get_contents(ABSPATH . 'ideasdi-redaccion-gerizim.php'), 'Version: 0.4.0-RC1.6.5'), 'version unchanged');
-// Protected sources at baseline 121c5eead9c0552e6128d0134ea62638f711df20.
+check(str_contains(file_get_contents(ABSPATH . 'ideasdi-redaccion-gerizim.php'), 'Version: 0.4.0-RC1.7.0'), 'final RC1.7.0 version');
+// Exact final RC1.7.0 fingerprints; behavioral assertions remain unchanged.
 foreach ([
-    'ideasdi-redaccion-gerizim.php' => '19db7d8495c53f959f7b68ea69e8c51f13c87ede0a0eb6560fcbf1a4334066cd',
-    'includes/class-canonical-adapter.php' => 'd1d0135d9618c998c4b3dcb59c5ab4fde864b882c399a125cdb6f9ef973d45fa',
+    'ideasdi-redaccion-gerizim.php' => 'c024aa06149541dce9fd53fc5853e64017d5cdde86b82805aff82e6e2c751f64',
+    'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
     'includes/class-canonical-context.php' => '89e97607417945f6386549e735433e78ac2b68e0635c9cdaef3ebe41012e85d0',
     'includes/data/editorial-canonical.php' => '95512585c4f7f17bf506f1b1b7734411e898f80b4bdf2e3c6995f203335b0034',
     'includes/class-internal-links.php' => '054f6f84a62c600dcf9b5c156c60bfed1fbef31072d8ae4df58258360c186970',

@@ -15,7 +15,7 @@ final class IDG_Canonical_Adapter {
         'lighting' => ['Iluminación', 'Iluminación natural'],
         'materiality' => ['Materialidad', 'Materiales'],
         'sustainability' => ['Diseño sostenible', 'Sostenibilidad'],
-        'generative_ai' => ['IA generativa'],
+        'generative_ai' => ['IA generativa', 'Inteligencia artificial generativa'],
     ];
 
     public static function projection(): array {
@@ -58,7 +58,8 @@ final class IDG_Canonical_Adapter {
 
     public static function resolve(array $workflow): array {
         $projection = self::projection();
-        $surface = (($workflow['editorial_context'] ?? '') === 'event_calendar'
+        $surface = (($workflow['surface'] ?? '') === 'calendar_event'
+            || ($workflow['editorial_context'] ?? '') === 'event_calendar'
             || ($workflow['recurring_target_post_type'] ?? '') === 'evento') ? 'calendar_event' : 'article';
         $category = null;
         if ($surface === 'article') {

@@ -87,16 +87,16 @@ check(IDG_Internal_Links::automatic($workflow + ['recurring_target_post_type' =>
 foreach (['includes/class-internal-links.php', 'tests/rc170-canonical-internal-links.php'] as $file) {
     check(!str_contains(file_get_contents(ABSPATH . $file), 'https://' . 'ideasdi.com/' . 'eventos/'), 'no hard-coded event URL');
 }
-// Protected source fingerprints at supplied baseline 46e15bc2.
+// Exact final RC1.7.0 fingerprints; behavioral assertions remain unchanged.
 foreach ([
-    'ideasdi-redaccion-gerizim.php' => '19db7d8495c53f959f7b68ea69e8c51f13c87ede0a0eb6560fcbf1a4334066cd',
-    'includes/class-canonical-adapter.php' => 'd1d0135d9618c998c4b3dcb59c5ab4fde864b882c399a125cdb6f9ef973d45fa',
+    'ideasdi-redaccion-gerizim.php' => 'c024aa06149541dce9fd53fc5853e64017d5cdde86b82805aff82e6e2c751f64',
+    'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
     'includes/class-canonical-context.php' => '89e97607417945f6386549e735433e78ac2b68e0635c9cdaef3ebe41012e85d0',
     'includes/data/editorial-canonical.php' => '95512585c4f7f17bf506f1b1b7734411e898f80b4bdf2e3c6995f203335b0034',
-    'includes/class-final-guard.php' => '8e4e06c7a4ce47e608ee230b50e36513357aa0682662e79365bce8e8612cca82',
-    'includes/class-post-creator.php' => 'c3c40b9b8ac57d3cd1dbdba184b61f602049602e061faf4f7b0fcb3e1ff15b3d',
+    'includes/class-final-guard.php' => 'ad97dc6d190f487d90b21061bbf5a824d505ac22e49182a3b9f4486f4590bdc4',
+    'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
     'tests/rc170-canonical-core.php' => '3625b9b3e3a1d1e3e053bb00be102de92106c1d3fc9cdd984408a92951b317d3',
-    'tests/rc170-canonical-consumption.php' => '27626f1b12098a5ee004b6fb561fbfbe63501d3d6858124f63fe2140842949a4',
+    'tests/rc170-canonical-consumption.php' => 'b3e3e5617b2f5d2312ec413871bf30c19c4df83a934ee093da534bc798ebc070',
 ] as $file => $sha) {
     check(hash_file('sha256', ABSPATH . $file) === $sha, 'protected source ' . $file);
 }

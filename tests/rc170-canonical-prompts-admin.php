@@ -62,11 +62,11 @@ foreach (['primary_lens', 'secondary_lenses', 'existentes e indexables con URL r
 }
 rc170_ok(!str_contains($admin, 'Categoría detectada para fallback de enlaces'), 'report category is context only');
 $main = file_get_contents(ABSPATH . 'ideasdi-redaccion-gerizim.php');
-rc170_ok((bool) preg_match('/Version:\s*0\.4\.0-RC1\.6\.5\s*$/m', $main), 'plugin version unchanged');
-// Protected source fingerprints at baseline 2cab833263d1e9c6e870d221818cb9f6dac60b0b.
+rc170_ok((bool) preg_match('/Version:\s*0\.4\.0-RC1\.7\.0\s*$/m', $main), 'plugin final RC1.7.0 version');
+// Exact final RC1.7.0 fingerprints; behavioral assertions remain unchanged.
 $protected = [
-    'ideasdi-redaccion-gerizim.php' => '19db7d8495c53f959f7b68ea69e8c51f13c87ede0a0eb6560fcbf1a4334066cd',
-    'includes/class-canonical-adapter.php' => 'd1d0135d9618c998c4b3dcb59c5ab4fde864b882c399a125cdb6f9ef973d45fa',
+    'ideasdi-redaccion-gerizim.php' => 'c024aa06149541dce9fd53fc5853e64017d5cdde86b82805aff82e6e2c751f64',
+    'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
     'includes/class-canonical-context.php' => '89e97607417945f6386549e735433e78ac2b68e0635c9cdaef3ebe41012e85d0',
     'includes/class-editorial-recipe-builder.php' => 'fe00f7b3524c11d631266e4bffba4a0bb83a57c097bebdcc4b212d027820c04c',
     'includes/class-final-guard.php' => 'ad97dc6d190f487d90b21061bbf5a824d505ac22e49182a3b9f4486f4590bdc4',

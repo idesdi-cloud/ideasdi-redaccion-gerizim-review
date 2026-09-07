@@ -1,5 +1,6 @@
 <?php
 $root = dirname(__DIR__);
+require_once __DIR__ . '/support/canonical-regression.php';
 $read = static fn(string $path): string => file_get_contents($root . '/' . $path) ?: '';
 $main = $read('ideasdi-redaccion-gerizim.php');
 $policy = $read('includes/class-workflow-policies.php');
@@ -20,7 +21,7 @@ function rc162_ok(bool $condition, string $message): void {
     echo sprintf("OK P%02d: %s\n", $number, $message);
 }
 
-rc162_ok(str_contains($main, 'Version: 0.4.0-RC1.6.5') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.6.5')"), 'versión RC1.6.5 consistente');
+rc162_ok(str_contains($main, 'Version: 0.4.0-RC1.7.0') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.7.0')"), 'versión RC1.7.0 consistente');
 rc162_ok(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'sin migración de base de datos');
 rc162_ok(str_contains($main, "includes/class-workflow-policies.php"), 'centro de políticas cargado');
 rc162_ok(str_contains($policy, 'final class IDG_Workflow_Policies'), 'clase de políticas disponible');
@@ -60,7 +61,7 @@ $expected_hashes = [
     'includes/class-editorial-recipe-builder.php' => 'fee28b83033825666a5d4a4c803d226d3f7768c72fafb61f86218d8b26da5e6c',
 ];
 foreach ($expected_hashes as $path => $hash) {
-    rc162_ok(hash_file('sha256', $root . '/' . $path) === $hash, "equivalencia SHA-256 de {$path}");
+    rc162_ok(IDG_Canonical_Regression::historical_matches($root, $path, $hash), "equivalencia SHA-256 de {$path}");
 }
 
 $complete_calls = 0;

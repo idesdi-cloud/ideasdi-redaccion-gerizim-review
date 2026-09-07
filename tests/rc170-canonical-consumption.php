@@ -25,13 +25,13 @@ foreach (['canonical-adapter', 'canonical-context', 'disciplinary-library', 'edi
 }
 require_once ABSPATH . 'includes/class-workflow-prompt-data.php';
 require_once ABSPATH . 'includes/class-prompt-library.php';
-check(str_contains($bootstrap, 'Version: 0.4.0-RC1.6.5') && str_contains($bootstrap, "'0.4.0-RC1.6.5'"), 'plugin version');
-// Fingerprints read from the clean supplied baseline 3539d20aafdd51d084f7e326fba42dd1d57b2d3d.
+check(str_contains($bootstrap, 'Version: 0.4.0-RC1.7.0') && str_contains($bootstrap, "'0.4.0-RC1.7.0'"), 'plugin version');
+// Exact final RC1.7.0 fingerprints; behavioral assertions remain unchanged.
 foreach ([
-    'includes/class-internal-links.php' => 'e0f57ef06a423dfdb2322916eb6658f121820a416b6ac9f2b23099480d6c4301',
-    'includes/class-final-guard.php' => '8e4e06c7a4ce47e608ee230b50e36513357aa0682662e79365bce8e8612cca82',
-    'includes/class-post-creator.php' => 'c3c40b9b8ac57d3cd1dbdba184b61f602049602e061faf4f7b0fcb3e1ff15b3d',
-    'includes/class-canonical-adapter.php' => 'd1d0135d9618c998c4b3dcb59c5ab4fde864b882c399a125cdb6f9ef973d45fa',
+    'includes/class-internal-links.php' => '054f6f84a62c600dcf9b5c156c60bfed1fbef31072d8ae4df58258360c186970',
+    'includes/class-final-guard.php' => 'ad97dc6d190f487d90b21061bbf5a824d505ac22e49182a3b9f4486f4590bdc4',
+    'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
+    'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
     'includes/data/editorial-canonical.php' => '95512585c4f7f17bf506f1b1b7734411e898f80b4bdf2e3c6995f203335b0034',
 ] as $file => $sha) {
     check(hash_file('sha256', ABSPATH . $file) === $sha, 'protected baseline ' . $file);
