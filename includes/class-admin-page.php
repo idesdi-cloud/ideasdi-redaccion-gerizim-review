@@ -1208,8 +1208,8 @@ final class IDG_Workflow_Admin_Controller {
             'Investigación web controlada siempre activa al generar artículo base' => (string) ($workflow['web_research_status'] ?? 'no registrada'),
             'Enlace externo real detectado en versión final' => $has_external,
             'Enlace interno real detectado en versión final' => $has_internal,
-            'Si el tag principal es No Index, el enlace interno debe apuntar a categoría/página curada' => implode(', ', $tag_names) !== '' ? 'revisar sección Biblioteca de enlaces internos aplicada' : 'sin tags',
-            'Categoría detectada para fallback de enlaces' => $category_name !== '' ? $category_name : 'sin categoría',
+            'El enlace interno requiere tag canónico elegible; sin resolución, requiere resolución editorial' => implode(', ', $tag_names) !== '' ? 'revisar sección Biblioteca de enlaces internos aplicada' : 'sin tags',
+            'Categoría detectada como contexto editorial, no fallback' => $category_name !== '' ? $category_name : 'sin categoría',
             'Receta base v2 registrada' => trim((string) ($workflow['recipe_base'] ?? '')) !== '' ? 'sí' : 'no',
             'Plan editorial aplicado antes del artículo base' => trim((string) ($workflow['editorial_plan_raw'] ?? '')) !== '' ? 'sí' : 'no',
             'Tesis y lente disciplinar registradas' => trim((string) ($workflow['editorial_thesis'] ?? '')) !== '' && trim((string) ($workflow['editorial_lens'] ?? '')) !== '' ? 'sí' : 'no',
@@ -1992,10 +1992,10 @@ final class IDG_Workflow_Admin_Controller {
         ?>
         <div class="idg-link-builder">
             <label>Enlaces internos automáticos</label>
-            <p class="description">Se generan desde las etiquetas y la categoría seleccionadas. Gerizim creará anchors contextuales dentro del artículo; no es necesario escribir URL, anchor ni tipo de enlace manualmente.</p>
+            <p class="description">Para artículos, Gerizim resuelve primero la lente canónica primaria (primary_lens) y después las secundarias aprobadas (secondary_lenses) en orden, contra tags WordPress reales, existentes e indexables con URL real. La categoría es contexto, no fallback. Gerizim creará el anchor contextual; no es necesario escribir URL, anchor ni tipo de enlace manualmente.</p>
             <?php if (empty($links)) : ?>
                 <div class="idg-auto-link-empty">
-                    Selecciona etiquetas y categoría. Al guardar o ejecutar una revisión, el plugin detectará la página del tag principal o, si el tag es noindex, la página principal de la categoría.
+                    Si ninguna lente canónica resuelve un tag elegible, el artículo queda unresolved y requiere resolución editorial; no se sustituye por una categoría o entrada. En eventos, solo se usa navegación real suministrada de archivo CPT o taxonomía propia.
                 </div>
             <?php else : ?>
                 <div class="idg-auto-link-list">

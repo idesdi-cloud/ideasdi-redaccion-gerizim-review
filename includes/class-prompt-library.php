@@ -4,6 +4,20 @@ if (!defined('ABSPATH')) {
 }
 
 final class IDG_Prompt_Library {
+    private static function responsible_url(array $data): string {
+        $canonical = is_array($data['canonical_context'] ?? null) ? $data['canonical_context'] : [];
+        foreach ([$canonical['responsible_official_url'] ?? '', $data['responsible_official_url'] ?? '', $data['official_source'] ?? ''] as $candidate) {
+            if (!is_string($candidate)) {
+                continue;
+            }
+            $url = trim($candidate);
+            if (filter_var($url, FILTER_VALIDATE_URL) !== false && in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+                return $url;
+            }
+        }
+        return '';
+    }
+
     private static function prompt_settings(): array {
         $settings = get_option(defined('IDG_PROMPTS_OPTION_KEY') ? IDG_PROMPTS_OPTION_KEY : 'idg_prompt_settings', []);
         return is_array($settings) ? $settings : [];
@@ -54,8 +68,9 @@ Reglas centrales:
 - No usar “Fuente oficial:” como rótulo visible.
 - No usar metalenguaje en el artículo: “la documentación oficial describe”, “desde la categoría”, “la lectura editorial”, “ese detalle importa porque”, “quienes siguen de cerca”.
 - La caja editorial debe empezar con la keyword principal y responder de forma directa: qué es, quién lo impulsa y qué aporta; no debe ser resumen del artículo, no debe tener enlaces ni negritas.
-- Si hay URL del responsable, el ARTÍCULO FINAL debe incluir un enlace externo real hacia esa URL con anchor coherente del responsable o una frase oficial contextual; no enlaces una entidad distinta hacia una URL que no le corresponde.
-- El enlace interno debe seguir la matriz categoría/tag: tag Index enlaza a la página del tag; tag No Index enlaza a la página de categoría. Excepción: cuando el contexto indique perfil editorial Calendario de eventos y CPT evento, usa únicamente el archivo real del CPT o una taxonomía propia real; Categoría WordPress no aplica.
+- En article, usa la URL responsable resuelta en orden canonical_context.responsible_official_url > responsible_official_url > official_source, solo si es válida y no vacía. Integra exactamente un enlace externo contextual al responsable en ARTÍCULO FINAL, sin duplicar la URL, sin línea suelta visible “Fuente oficial:”, sin enlazar otra entidad y sin usar la keyword principal como anchor. No inventes hechos para el anchor. Si falta URL válida, solicita resolución editorial, no la inventes. source_information_url es solo fuente documental/complementaria, nunca la URL responsable.
+- En article, el enlace interno es exactamente un enlace contextual a una etiqueta editorial real resuelta por IDG_Internal_Links: primero primary_lens canónica, después secondary_lenses canónicas aprobadas en su orden. Solo es elegible un tag WordPress existente e indexable con URL real. Si ninguno resuelve, marca unresolved y solicita resolución editorial en el informe interno; no fabriques ni sustituyas categoría, entrada, tag o URL. La categoría es contexto, no fallback. Los tags desconocidos o ajenos son solo contexto y no se convierten en lentes canónicas.
+- calendar_event es distinto de article: no aplica el contrato de tags del artículo. Solo puede usarse una vez, contextualmente, una URL real de archivo CPT o taxonomía propia suministrada en los datos; si no existe, no fabriques una URL.
 - En Eventos, Agenda define la función de la pieza; la tipología del evento y su Categoría editorial definen el vocabulario. Una feria, una semana de la moda, una exposición o una conferencia no deben redactarse con los mismos conceptos. La presentación debe ser narrativa y útil, no una ficha ni una reflexión abstracta sobre fechas o ciudad.
 - El paquete reel debe incluir textualmente el CTA fijo: “Conoce más de este proyecto en ideasDi.com”.
 - En artículos de actualidad/editorial, evita entregar un solo párrafo por cada H3: cada bloque H3 debe tener 2 párrafos breves o agruparse con el bloque anterior.
@@ -63,8 +78,8 @@ Reglas centrales:
 - La salida final debe incluir META DESCRIPTION, INFORME SEO INTERNO, COPY PARA REDES, PAQUETE REEL y RETROALIMENTACIÓN GERIZIM.
 - No usar tono comercial, precios, urgencia ni superlativos de venta.
 - En modo Artículo patrocinado, mantener la voz editorial de ideasDi, no inventar datos de marca y no convertir el texto en anuncio.
-- Integrar enlaces de forma natural cuando existan. Si recibes URLs internas, conviértelas en enlaces contextuales usando formato Markdown [anchor natural](URL).
-- Los enlaces internos se entregan como oportunidades editoriales, no como anchors cerrados: debes crear el anchor dentro del párrafo.
+- En article, consume como máximo la única URL interna ya resuelta y suministrada por IDG_Internal_Links, en formato Markdown [anchor natural](URL). No reinterpretes una URL de categoría como fallback. Si está unresolved o no hay URL, informa que requiere resolución editorial sin fabricar enlaces.
+- Crea el anchor contextual del enlace ya resuelto dentro del párrafo, sin cambiar su destino. La navegación interna de eventos permanece separada y solo usa URLs reales suministradas de CPT o taxonomía propia.
 - Para páginas de tags, evita usar el nombre literal del tag como anchor. Usa una frase contextual de 3 a 6 palabras que sostenga el argumento del párrafo.
 - Preserva la calidad de la versión editorial: no neutralices frases con tensión, ritmo o precisión; no reemplaces una buena formulación por una versión más plana solo por optimizar SEO.
 - La revisión humana final es obligatoria.
@@ -173,7 +188,7 @@ PROMPT;
         $tag_names = isset($data['tag_names']) ? implode(', ', (array) $data['tag_names']) : '';
         $semantic_context = (string) ($data['semantic_library_context'] ?? '');
         $source_url = (string) ($data['source_information_url'] ?? '');
-        $official_source = (string) ($data['official_source'] ?? '');
+        $official_source = self::responsible_url($data);
         $source_url_status = (string) ($data['source_url_status'] ?? '');
         $source_text = trim((string) ($data['source_url_text'] ?? ''));
         $manual_present = (string) ($data['manual_material_present'] ?? 'no');
@@ -204,12 +219,12 @@ Etiquetas WordPress: {$tag_names}
 Guía disciplinar abierta:
 {$semantic_context}
 Hecho base: {$brief_fact}
-URL oficial o fuente complementaria: {$source_url}
+URL documental / fuente complementaria: {$source_url}
 URL responsable para enlace externo: {$official_source}
 Lectura directa de URL: {$source_url_status}
 Material de apoyo aportado por editor: {$manual_present}
 
-TEXTO EXTRAÍDO DE URL OFICIAL O FUENTE COMPLEMENTARIA, SI EXISTE
+TEXTO EXTRAÍDO DE URL DOCUMENTAL O FUENTE COMPLEMENTARIA, SI EXISTE
 {$source_text}
 
 EXTRACTO DE MATERIAL DE APOYO, SI EXISTE
@@ -502,14 +517,14 @@ Reglas específicas para Concursos y convocatorias:
 - Elimina requisitos técnicos, formatos, entregables, elegibilidad detallada y criterios de evaluación del desarrollo público; esos detalles se consultan en la web oficial.
 - Mantén un tono claro, cordial, cercano e inspirador. No conviertas fechas, instituciones o ciudades en reflexiones abstractas, no las infles como H3 independientes cuando hay poca información y no uses “las fuentes consultadas”.
 - Si el tag principal es noindex u operativo, no lo uses como enlace interno ni como eje editorial.
-- Integra una sola vez el enlace interno a https://ideasdi.com/concursos-y-convocatorias-diseno/ dentro de uno de los dos primeros párrafos, con anchor contextual. Si ya existe, no añadas otro.
+- Concursos y convocatorias define la superficie/categoría de la pieza; el enlace interno de article sigue el mismo contrato canónico de tag resuelto: primary_lens, secondary_lenses aprobadas en orden y, si ninguna es elegible, unresolved / resolución editorial. No fuerces una landing de categoría.
 - El último párrafo debe cerrar: “Para consultar las bases completas y participar en [Nombre del concurso], visita la [web oficial del concurso](URL oficial).” No dupliques esa URL antes si coincide con la URL del responsable.
 
 Reglas específicas para Calendario de eventos / Agenda:
 - Elimina cualquier H3 tipo “Datos clave del evento”, “Información del evento”, “Ficha del evento” o equivalente.
 - No uses listas, tablas ni bullets para resumir fechas, ciudad, sede, organizador, acceso o formato. Integra esos datos en prosa natural dentro de la introducción y el desarrollo.
 - Mantén la lente de la Categoría editorial del evento durante la optimización SEO y no la aplanes a una agenda genérica.
-- Integra el enlace interno a https://ideasdi.com/eventos/ dentro de uno de los dos primeros párrafos, con un anchor contextual propio de la tipología —por ejemplo próximas citas de moda y diseño, ferias y encuentros de diseño o exposiciones del calendario—. Evita “calendario de eventos de ideasDi” y otras fórmulas autorreferenciales.
+- En calendar_event, si los datos suministran una URL real de archivo CPT o taxonomía propia, puedes integrarla contextualmente una sola vez. Si no se suministra, no fabriques una URL ni apliques el contrato de tags de article. Evita “calendario de eventos de ideasDi” y otras fórmulas autorreferenciales.
 - El último párrafo debe cerrar: “Para consultar la programación y la información actualizada de [Nombre del evento], visita la [página oficial del evento](URL oficial).” No dupliques esa URL antes si coincide con la URL del responsable.
 
 Reglas de formato para WordPress dentro de ARTÍCULO FINAL:
@@ -521,12 +536,12 @@ Reglas de formato para WordPress dentro de ARTÍCULO FINAL:
 - Cada H3 de desarrollo debe tener 2 párrafos breves como mínimo. Si la idea solo da para un párrafo, intégrala al bloque anterior; no entregues una sucesión de subtítulos con un solo párrafo debajo.
 - Usa **negrita** con criterio editorial solo dentro de párrafos o listas cuando aporte lectura. Prioriza materiales, procesos, tipologías, gestos de uso, conceptos de diseño y entidades secundarias.
 - No uses negritas en H1, H2, H3, enlaces internos, caja editorial ni frases largas. No repitas siempre la keyword principal.
-- Si recibes URL del responsable / fuente oficial para enlace externo, integra un enlace externo real con anchor contextual asociado al responsable o la frase oficial del proyecto; nunca uses la keyword principal como anchor.
+- En article, usa la URL responsable resuelta en orden canonical_context.responsible_official_url > responsible_official_url > official_source, solo si es válida y no vacía. Integra exactamente un enlace externo contextual al responsable en ARTÍCULO FINAL, sin duplicar la URL, sin línea suelta visible “Fuente oficial:”, sin enlazar otra entidad y sin usar la keyword principal como anchor. No inventes hechos para el anchor. Si falta URL válida, solicita resolución editorial, no la inventes. source_information_url es solo fuente documental/complementaria, nunca la URL responsable.
 - Verifica coherencia del enlace externo: no enlaces una entidad hacia una URL que pertenece a otra entidad. Ejemplo: no enlaces LoveFrom hacia Ferrari si la URL entregada no es de LoveFrom.
-- Si recibes enlaces internos disponibles, integra una sola vez cada URL interna dentro del artículo usando formato Markdown [anchor natural](URL). No los dejes solo en el informe cuando exista un lugar natural. Si el enlace disponible es una página de categoría, úsalo como enlace interno principal con un anchor contextual de la categoría, no con el nombre literal. Si la URL ya está enlazada, no la repitas en otra sección.
-- Distribución de enlaces: uno de los enlaces internos/externos debe aparecer dentro de los dos primeros párrafos; el segundo debe aparecer después de la caja editorial y antes de la mitad del artículo. Nunca incluyas enlaces dentro de la caja editorial.
+- En article, integra una sola vez la única URL interna ya resuelta por IDG_Internal_Links, con anchor contextual Markdown. Consume como máximo esa URL; la categoría no es fallback ni enlace principal del artículo. Si no hay URL o está unresolved, informa resolución editorial en RETROALIMENTACIÓN GERIZIM sin fabricar ni sustituir destinos. En calendar_event, usa solo navegación real suministrada de CPT/taxonomía propia, una vez y de forma contextual.
+- Distribución de enlaces disponibles, salvo los cierres oficiales de concursos y eventos: uno puede aparecer dentro de los dos primeros párrafos y el segundo después de la caja editorial y antes de la mitad del artículo. No fabriques enlaces ausentes para cumplir esta distribución. Nunca incluyas enlaces dentro de la caja editorial.
 - No fuerces un enlace si degrada una frase buena. Integra cada enlace modificando una oración existente; nunca añadas un párrafo nuevo solo para cumplir el enlace. Si no existe un lugar natural, indícalo en RETROALIMENTACIÓN GERIZIM para que la validación lo devuelva a revisión.
-- Para cada URL interna, crea tú el anchor contextual dentro del párrafo; no copies nombres de tags ni títulos de entradas como anchor literal. Nunca uses la keyword principal como anchor interno.
+- Para la URL interna resuelta, crea tú el anchor contextual dentro del párrafo; no copies nombres de tags ni títulos de entradas como anchor literal. Nunca uses la keyword principal como anchor interno.
 - Si el enlace interno es una página de tag, no uses como anchor el nombre literal del tag. Usa una frase contextual, natural y distinta, por ejemplo una idea del párrafo donde el enlace aporte continuidad.
 - Evita conectores de recomendación genérica como “Si te interesa”, “Si el recorrido te interesa”, “también conviene mirar” cuando suenen a sugerencia externa; integra el enlace como parte del argumento.
 - Si hay enlace obligatorio de patrocinado, intégralo una vez dentro de ARTÍCULO FINAL con formato Markdown [anchor natural](URL). No lo repitas y no lo fuerces si rompe la lectura; en ese caso indícalo claramente en RETROALIMENTACIÓN GERIZIM.
@@ -607,7 +622,7 @@ PROMPT;
         $event_editorial_category = trim((string) ($data['event_editorial_category'] ?? ''));
         $category_display = $editorial_context === 'event_calendar' ? 'No aplica' : (string) $category_name;
         $tag_names = isset($data['tag_names']) ? implode(', ', (array) $data['tag_names']) : '';
-        $official_source = $data['official_source'] ?? '';
+        $official_source = self::responsible_url($data);
         $source_information_url = $data['source_information_url'] ?? '';
         $internal_links = self::format_internal_links($data);
         $editor_notes = $data['editor_notes'] ?? '';
@@ -659,7 +674,7 @@ PLAN EDITORIAL APLICADO DESPUÉS DE INVESTIGAR
 
 Etiquetas WordPress: {$tag_names}
 URL Diseñador / estudio / marca responsable para enlace externo: {$official_source}
-URL oficial o fuente complementaria: {$source_information_url}
+URL documental / fuente complementaria: {$source_information_url}
 Enlaces internos disponibles:
 {$internal_links}
 
