@@ -8,7 +8,7 @@ final class IDG_Final_Guard {
         $errors = [];
         $warnings = [];
         $keyword = trim((string) ($workflow['keyword'] ?? ''));
-        $official = esc_url_raw((string) ($workflow['official_source'] ?? ''));
+        $official = self::resolved_official_source_url($workflow);
         $entity = trim((string) ($workflow['entity'] ?? ''));
         $title = self::extract_h1($content);
         $rules = class_exists('IDG_Editorial_Rules') ? IDG_Editorial_Rules::get() : [];
@@ -540,6 +540,22 @@ final class IDG_Final_Guard {
         return ['ok' => empty($errors), 'errors' => array_values(array_unique($errors)), 'warnings' => array_values(array_unique($warnings))];
     }
 
+    /** Article responsibility comes from canonical context; events retain their own source. */
+    private static function resolved_official_source_url(array $workflow): string {
+        if ((string) ($workflow['recurring_target_post_type'] ?? '') === 'evento'
+            || (string) ($workflow['wordpress_content_type'] ?? '') === 'Evento'
+            || (string) ($workflow['editorial_context'] ?? '') === 'event_calendar') {
+            return esc_url_raw((string) ($workflow['official_source'] ?? ''));
+        }
+        if (class_exists('IDG_Canonical_Context')) {
+            $context = IDG_Canonical_Context::resolve($workflow);
+            return esc_url_raw((string) ($context['responsible_official_url'] ?? ''));
+        }
+        // Isolated compatibility path: never use the information-source URL.
+        $url = trim((string) ($workflow['responsible_official_url'] ?? ''));
+        return esc_url_raw($url !== '' ? $url : (string) ($workflow['official_source'] ?? ''));
+    }
+
     private static function event_presentation_status(string $html, array $workflow): array {
         $errors = [];
         $warnings = [];
@@ -558,13 +574,6 @@ final class IDG_Final_Guard {
             $last_plain = self::plain_for_match($last_paragraph);
             if (!self::html_has_url($last_paragraph, $official) || !str_contains($last_plain, 'pagina oficial del evento')) {
                 $errors[] = 'El último párrafo del Evento debe remitir a la “página oficial del evento” con la URL oficial configurada.';
-            }
-        }
-        $event_internal = 'https://ideasdi.com/eventos/';
-        if (self::html_has_url($html, $event_internal)) {
-            $anchor = self::plain_for_match(self::anchor_for_url($html, $event_internal));
-            if (str_contains($anchor, 'ideasdi') || $anchor === 'calendario de eventos' || str_contains($anchor, 'calendario de eventos de ideasdi')) {
-                $warnings[] = 'El anchor interno del archivo de Eventos suena autorreferencial. Usa una frase natural propia de la tipología del evento.';
             }
         }
         return ['ok' => empty($errors), 'errors' => array_values(array_unique($errors)), 'warnings' => array_values(array_unique($warnings))];

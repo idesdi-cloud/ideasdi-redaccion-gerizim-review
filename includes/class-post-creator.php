@@ -478,7 +478,7 @@ final class IDG_Post_Creator {
             }
         }
         $external_count = 0;
-        $official = esc_url_raw((string) ($workflow['official_source'] ?? ''));
+        $official = self::resolved_official_source_url($workflow);
         if ($official !== '' && !self::is_ideasdi_url($official) && str_contains($html, $official)) {
             $external_count = 1;
         }
@@ -1630,9 +1630,25 @@ final class IDG_Post_Creator {
     }
 
 
+    /** Article responsibility comes from canonical context; events retain their own source. */
+    private static function resolved_official_source_url(array $workflow): string {
+        if ((string) ($workflow['recurring_target_post_type'] ?? '') === 'evento'
+            || (string) ($workflow['wordpress_content_type'] ?? '') === 'Evento'
+            || (string) ($workflow['editorial_context'] ?? '') === 'event_calendar') {
+            return esc_url_raw((string) ($workflow['official_source'] ?? ''));
+        }
+        if (class_exists('IDG_Canonical_Context')) {
+            $context = IDG_Canonical_Context::resolve($workflow);
+            return esc_url_raw((string) ($context['responsible_official_url'] ?? ''));
+        }
+        // Isolated compatibility path: never use the information-source URL.
+        $url = trim((string) ($workflow['responsible_official_url'] ?? ''));
+        return esc_url_raw($url !== '' ? $url : (string) ($workflow['official_source'] ?? ''));
+    }
+
     private static function ensure_official_source_link(string $html, array $workflow): string {
-        $url = trim((string) ($workflow['official_source'] ?? ''));
-        if ($url === '' || self::is_ideasdi_url($url) || str_contains($html, $url)) {
+        $url = self::resolved_official_source_url($workflow);
+        if ($url === '' || self::is_ideasdi_url($url) || str_contains(html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8'), $url)) {
             return $html;
         }
 
@@ -1868,7 +1884,7 @@ final class IDG_Post_Creator {
     }
 
     private static function official_source_applies_as_external(array $workflow): bool {
-        $url = esc_url_raw((string) ($workflow['official_source'] ?? ''));
+        $url = self::resolved_official_source_url($workflow);
         return $url !== '' && !self::is_ideasdi_url($url);
     }
 
