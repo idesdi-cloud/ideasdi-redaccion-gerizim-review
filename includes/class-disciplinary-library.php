@@ -84,7 +84,12 @@ final class IDG_Disciplinary_Library {
         $risks = self::merge((array) ($profile['risks'] ?? []), (array) ($theme_profile['risks'] ?? []), self::modifier_terms($modifiers, 'risks'));
         $avoid = self::merge((array) ($profile['avoid_generic'] ?? []), (array) ($theme_profile['avoid_generic'] ?? []));
 
+        $canonical = class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::resolve($workflow) : [];
+        $canonical_axes = class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::lens_axes($workflow) : [];
+        $decisions = self::merge($canonical_axes, $decisions);
+
         return [
+            'canonical_context' => $canonical,
             'version' => 'disciplinary-library-v1.0.0-RC1.5.2',
             'open_guidance' => true,
             'category' => $category,
@@ -129,6 +134,9 @@ final class IDG_Disciplinary_Library {
         $lines[] = 'Términos condicionados que requieren evidencia: ' . self::display(implode('; ', (array) ($ctx['conditional_terms'] ?? [])));
         $lines[] = 'Abstracciones o muletillas a revisar: ' . self::display(implode('; ', (array) ($ctx['avoid_generic'] ?? [])));
         $lines[] = 'Preguntas orientativas: ' . self::display(implode(' ', (array) ($ctx['questions'] ?? [])));
+        if (class_exists('IDG_Canonical_Context')) {
+            $lines[] = IDG_Canonical_Context::prompt_block($workflow);
+        }
         return implode("\n", $lines);
     }
 

@@ -44,9 +44,9 @@ Reglas centrales:
 - La biblioteca disciplinar es una guía contextual abierta, no una lista cerrada. No insertes términos por obligación. Puedes proponer vocabulario más preciso cuando la evidencia del caso lo justifique; la documentación prevalece sobre la biblioteca.
 - Usa sustantivos y verbos propios de la disciplina. Evita trasladar lenguaje de arquitectura, producto o software a Eventos, Concursos o Moda cuando no corresponda.
 - En proyectos de diseño, relaciona decisiones verificables con efectos perceptivos, uso y significado cuando esa cadena sea pertinente. En Concursos y Eventos prioriza utilidad, contexto, programación y oportunidad; no fuerces una traducción perceptiva sobre fechas, sedes o instituciones.
-- En Diseño de producto, Arquitectura e interiores, Moda, Movilidad y Diseño digital y 3D, explica cómo las decisiones expresan, mantienen o transforman la identidad del diseñador, estudio o marca cuando haya evidencia.
+- En Diseño de producto, Arquitectura e interiores, Moda, Movilidad y Diseño digital y 3D, la identidad del diseñador, estudio o marca es opcional, solo con evidencia verificable.
 - No conviertas el artículo en catálogo de especificaciones: ningún dato técnico debe quedar aislado de una consecuencia perceptiva, funcional, cultural o de identidad.
-- H1 máximo 68 caracteres.
+- H1 máximo 68 caracteres; preferido hasta 60 como guía de calidad, sin invalidar 61–68.
 - H2 máximo 100 caracteres.
 - Caja editorial de 40 a 55 palabras. Debe ir después de los dos párrafos de introducción, nunca inmediatamente después del H2. Debe empezar con la keyword principal y explicar de inmediato qué es.
 - Desarrollo mínimo: 6 subtítulos H3 en artículos de Actualidad y Agenda. Distribuye 3 o 4 ejes centrales con contexto, aplicación, autoría o información práctica. En Concursos y Agenda no fuerces un H3 del organizador.
@@ -250,7 +250,7 @@ PROMPT;
         $document_card = trim((string) ($data['document_card'] ?? ''));
         $research_card = trim((string) ($data['web_research_card'] ?? ''));
         $internal_links = self::format_internal_links($data);
-        $identity_required = !empty($data['identity_required']) ? 'sí' : 'no';
+        $canonical_guidance = (string) ($data['canonical_guidance'] ?? (class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::prompt_block($data) : ''));
         $event_editorial_category = trim((string) ($data['event_editorial_category'] ?? ''));
         $editorial_context = (string) ($data['editorial_context'] ?? '');
 
@@ -269,7 +269,8 @@ Perfil especial: {$editorial_context}
 Tags: {$tag_names}
 Hecho base: {$brief_fact}
 Ángulo del editor: {$editorial_angle}
-Identidad de autor o marca obligatoria cuando haya evidencia: {$identity_required}
+Identidad de autor o marca: opcional, solo con evidencia verificable.
+{$canonical_guidance}
 
 RECETA BASE
 {$recipe_base}
@@ -293,7 +294,7 @@ CRITERIO DE TRABAJO
 - La categoría delimita el territorio; la lente surge de los roles de tags, el tipo de pieza y la evidencia. Una entidad no puede ser lente disciplinar y el orden accidental de los tags no decide la lectura.
 - Selecciona solo ejes respaldados por la ficha o investigación. Descarta de forma explícita los ejes genéricos sin evidencia.
 - En proyectos de diseño, conecta decisiones con percepción, uso y significado cuando sea pertinente. En Agenda y Concursos trabaja con programación, oportunidad, disciplinas, ciudad o acceso solo como datos útiles y documentados; no fuerces esa cadena.
-- Excepto en Concursos y Agenda, incluye la identidad del diseñador, estudio o marca: qué rasgos mantiene, transforma o comparte con colaboradores.
+- La identidad del diseñador, estudio o marca es opcional y solo se explora con evidencia verificable.
 - No inventes emociones ni uses un repertorio universal. Elige conceptos y verbos propios de la lente. Puedes ampliar la biblioteca con términos más precisos encontrados en la investigación y debes explicar su evidencia.
 - Selecciona 3 o 4 ejes editoriales centrales. Los demás hallazgos deben funcionar como evidencia, contexto, sección práctica o apoyo visual; no conviertas cada hallazgo en un H3 automático.
 - El artículo puede conservar entre 6 y 7 H3 para ritmo e imágenes, pero los subtítulos deben organizar una progresión narrativa, no reproducir mecánicamente la lista de ejes.
@@ -309,7 +310,7 @@ LENTE DISCIPLINAR
 [Disciplina principal desde la que se analizará el caso.]
 
 IDENTIDAD DE AUTOR O MARCA
-[Cómo aparece, cambia o se comparte la identidad; o “No forzar” para Concursos/Agenda o cuando no haya evidencia.]
+[Identidad opcional con evidencia verificable; omitir cuando no aporte contexto o no haya respaldo.]
 
 CONCEPTOS ACTIVADOS
 - [Conceptos de la biblioteca respaldados por la documentación.]
@@ -364,7 +365,7 @@ Caja editorial después de la introducción, nunca antes
 Párrafo de 40 a 55 palabras
 ### Entre 6 y 7 subtítulos H3 para desarrollo, con mínimo 2 párrafos breves por bloque; si un bloque queda con un solo párrafo, agrúpalo con el H3 anterior o reescribe el desarrollo
 Los H3 deben distribuir 3 o 4 ejes centrales, contexto, autoría y secciones prácticas sin convertir cada hallazgo del plan en un subtítulo independiente.
-Incluye una sección H3 natural sobre el diseñador, estudio o marca cuando su identidad esté documentada. En Concursos y Agenda, no fuerces un H3 para el organizador: intégralo en la introducción o en contexto, y crea una sección propia solo cuando aporte orientación real a la pieza.
+Una sección H3 sobre identidad es opcional, solo si aporta contexto y tiene evidencia verificable. En Concursos y Agenda, no fuerces un H3 para el organizador: intégralo en la introducción o en contexto, y crea una sección propia solo cuando aporte orientación real a la pieza.
 Cierre sin titular “Conclusión”; evita preguntas retóricas automáticas y elige un cierre natural según el artículo.
 
 
@@ -409,7 +410,7 @@ PROMPT;
 
 TAREA: Revisión editorial.
 Revisa el artículo base sin optimizarlo todavía para SEO técnico.
-Objetivo: comprobar primero si el artículo cumple la tesis y el plan editorial, y después corregir estructura, naturalidad, precisión, ritmo y fuerza. Puedes reemplazar H3, reorganizar bloques o reescribir fragmentos cuando la tesis, la disciplina o la identidad no estén visibles; no te limites a pulir superficie.
+Objetivo: comprobar primero si el artículo cumple la tesis y el plan editorial, y después corregir estructura, naturalidad, precisión, ritmo y fuerza. Puedes reemplazar H3, reorganizar bloques o reescribir fragmentos cuando la tesis o la disciplina no estén visibles; no te limites a pulir superficie.
 Usa la ficha documental temporal solo para verificar datos, conservar precisión y evitar que se pierdan hechos relevantes. No vuelvas a copiar el tono de la nota de prensa ni reescribas desde el material temporal completo.
 Si el artículo es patrocinado, cuida que conserve una voz editorial, que el enlace obligatorio no parezca inserción mecánica y que no se afirmen datos no sustentados por el brief o material temporal.
 Evita:
@@ -515,7 +516,7 @@ Reglas de formato para WordPress dentro de ARTÍCULO FINAL:
 - Usa # solo para el H1.
 - Usa ## solo una vez para el subtítulo H2 principal.
 - Usa ### para todos los subtítulos de desarrollo H3.
-- El artículo debe tener entre 6 y 7 subtítulos H3 de desarrollo. Incluye una sección H3 natural sobre el diseñador, estudio o marca cuando su identidad esté documentada. En Concursos y Agenda, no fuerces una sección para el organizador si basta con integrarlo en la introducción o en un bloque de contexto.
+- El artículo debe tener entre 6 y 7 subtítulos H3 de desarrollo. Una sección H3 sobre identidad es opcional, solo si aporta contexto y tiene evidencia verificable. En Concursos y Agenda, no fuerces una sección para el organizador si basta con integrarlo en la introducción o en un bloque de contexto.
 - La caja editorial debe aparecer como una línea “Caja editorial” seguida por un párrafo de 40 a 55 palabras, después de los 2 párrafos de introducción y antes del primer H3. Debe empezar con la keyword principal y explicar qué es; luego quién lo impulsa y qué aporta. No incluyas enlaces ni negritas dentro de la caja.
 - Cada H3 de desarrollo debe tener 2 párrafos breves como mínimo. Si la idea solo da para un párrafo, intégrala al bloque anterior; no entregues una sucesión de subtítulos con un solo párrafo debajo.
 - Usa **negrita** con criterio editorial solo dentro de párrafos o listas cuando aporte lectura. Prioriza materiales, procesos, tipologías, gestos de uso, conceptos de diseño y entidades secundarias.
@@ -632,7 +633,8 @@ PROMPT;
         $material_context = $temporary_material_excerpt !== '' ? $temporary_material_excerpt : 'No se adjuntó material de apoyo para esta fase.';
         $material_mode = $temporary_material_mode !== '' ? $temporary_material_mode : 'Sin material de apoyo.';
 
-        return self::system_prompt() . <<<PROMPT
+        $canonical_guidance = (string) ($data['canonical_guidance'] ?? (class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::prompt_block($data) : ''));
+        return self::system_prompt() . "\n" . $canonical_guidance . <<<PROMPT
 
 CONTEXTO DEL ARTÍCULO
 Keyword principal: {$keyword}

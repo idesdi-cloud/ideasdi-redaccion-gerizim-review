@@ -58,16 +58,8 @@ final class IDG_Editorial_Plan {
         $activated = array_slice((array) ($base['available_axes'] ?? []), 0, 6);
         $verbs = array_slice((array) ($base['natural_verbs'] ?? []), 0, 6);
         $conditioned = array_slice((array) ($base['conditional_terms'] ?? []), 0, 6);
-        $entity = trim((string) ($workflow['entity'] ?? ''));
-        $identity_required = !empty($base['identity_required']);
-
         $thesis = 'Explicar ' . $keyword . ' desde ' . $discipline . ', relacionando las decisiones documentadas con su efecto perceptivo y de uso.';
-        if ($identity_required && $entity !== '') {
-            $thesis = 'Explicar ' . $keyword . ' desde ' . $discipline . ' y mostrar cómo las decisiones documentadas expresan o transforman la identidad de ' . $entity . ', además de su efecto perceptivo y de uso.';
-        }
-        $identity = $identity_required
-            ? ($entity !== '' ? 'Analizar la identidad de ' . $entity . ' únicamente mediante decisiones verificables de forma, material, proceso, interacción o uso.' : 'Analizar la identidad del autor o marca únicamente cuando exista evidencia verificable.')
-            : 'No forzar identidad de autor u organizador; usarla solo cuando aporte contexto.';
+        $identity = 'Identidad opcional, únicamente cuando exista evidencia verificable y aporte contexto pertinente.';
         $translations = [];
         foreach ($experience as $item) {
             $translations[] = 'Decisión documentada → ' . $item . ' → consecuencia para la experiencia y el significado del proyecto.';
@@ -78,9 +70,6 @@ final class IDG_Editorial_Plan {
             $applied .= ', priorizando ' . self::human_list($axes);
         }
         $applied .= ', y traducir cada decisión en percepción, uso y significado editorial';
-        if ($identity_required) {
-            $applied .= ', incluida la identidad del autor o marca';
-        }
         $applied .= '.';
 
         $risks = array_slice((array) ($base['risks'] ?? []), 0, 5);

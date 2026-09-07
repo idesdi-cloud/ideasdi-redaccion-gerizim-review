@@ -48,6 +48,8 @@ final class IDG_Workflow_Prompt_Data {
         }
 
         return [
+            'canonical_context' => class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::resolve($workflow) : [],
+            'canonical_guidance' => class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::prompt_block($workflow) : '',
             'keyword' => $workflow['keyword'] ?? '',
             'entity' => $workflow['entity'] ?? '',
             'piece_type' => $workflow['piece_type'] ?? '',

@@ -73,11 +73,16 @@ final class IDG_Editorial_Recipe_Builder {
             $semantic = [];
         }
 
+        $canonical = class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::resolve($workflow) : [];
+        if (class_exists('IDG_Canonical_Context')) {
+            $axes = self::merge_terms(IDG_Canonical_Context::lens_axes($workflow), $axes);
+        }
         $category = self::category_recipe($category_name);
         $identity_required = !$is_event && !$is_contest && !empty($category['identity_required']);
         $identity_prompt = trim((string) ($category['identity_prompt'] ?? ''));
 
         return [
+            'canonical_context' => $canonical,
             'recipe' => $recipe,
             'base_recipe' => $recipe,
             'territory' => $territory,
@@ -117,7 +122,7 @@ final class IDG_Editorial_Recipe_Builder {
         $built = self::build($workflow);
         if (class_exists('IDG_Disciplinary_Library')) {
             $lines = [IDG_Disciplinary_Library::prompt_block($workflow)];
-            $lines[] = 'Identidad de autor/marca: ' . (!empty($built['identity_required']) ? 'analizar cuando haya evidencia verificable' : 'usar solo cuando aporte contexto real');
+            $lines[] = 'Identidad de autor/marca: ' . (!empty($built['identity_required']) ? 'analizar cuando haya evidencia verificable' : 'opcional, solo con evidencia verificable y contexto pertinente');
             $lines[] = 'Regla de selección: activar únicamente conceptos respaldados, registrar términos nuevos más precisos y descartar los que no tengan evidencia.';
             return implode("
 ", $lines);
@@ -201,7 +206,7 @@ final class IDG_Editorial_Recipe_Builder {
             $parts[] = 'Traducir las decisiones verificadas en ' . self::human_list($experience) . ', explicando su efecto perceptivo y de uso.';
         }
         if (!empty($context['identity_required'])) {
-            $parts[] = 'Relacionar esas decisiones con la identidad del diseñador, estudio o marca, sin atribuir intenciones no documentadas.';
+            $parts[] = 'Opcional: relacionar esas decisiones con identidad solo con evidencia verificable.';
         }
         if ($angle !== '') {
             $parts[] = 'Ángulo aportado por el editor: ' . rtrim($angle, '. ') . '.';
@@ -308,8 +313,8 @@ final class IDG_Editorial_Recipe_Builder {
             'axes' => self::extract_axes($fallback),
             'experience' => ['percepción', 'uso cotidiano', 'relación con el contexto'],
             'questions' => ['¿Qué decisiones de diseño definen el caso?', '¿Cómo afectan la percepción y el uso?'],
-            'identity_required' => !self::is_contest_category($name) && !self::is_event_category($name),
-            'identity_prompt' => 'relacionar las decisiones verificadas con la identidad del autor o marca',
+            'identity_required' => false,
+            'identity_prompt' => 'opcional: relacionar decisiones con identidad solo con evidencia verificable',
             'risks' => ['convertir la pieza en descripción genérica'],
         ];
     }

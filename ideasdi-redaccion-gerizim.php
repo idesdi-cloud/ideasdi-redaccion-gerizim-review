@@ -34,6 +34,8 @@ require_once IDG_PLUGIN_DIR . 'includes/class-assignment-card.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-temporary-material.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-web-research.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-priority-readings.php';
+require_once IDG_PLUGIN_DIR . 'includes/class-canonical-adapter.php';
+require_once IDG_PLUGIN_DIR . 'includes/class-canonical-context.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-disciplinary-library.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-editorial-recipe-builder.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-editorial-plan.php';
