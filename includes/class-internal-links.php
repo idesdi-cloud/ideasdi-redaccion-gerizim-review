@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 final class IDG_Internal_Links {
     /**
      * Devuelve un único enlace interno principal para reducir ruido editorial.
-     * Si el tag principal está marcado como No Index u operativo, se enlaza a la página principal/curada de la categoría.
+     * En artículos, solo se enlaza a un tag editorial canónico real y elegible.
      * Biblioteca protegida heredada desde v0.3.5: sin artículo pilar ni complementario.
      */
     public static function automatic(array $workflow): array {
@@ -18,6 +18,10 @@ final class IDG_Internal_Links {
     }
 
     public static function normalize(array $workflow): array {
+        // Article links are always rebuilt from current canonical and WordPress data.
+        if (!self::is_event_workflow($workflow)) {
+            return self::automatic($workflow);
+        }
         if (!empty($workflow['internal_links_structured']) && is_array($workflow['internal_links_structured'])) {
             $links = array_values(array_filter(array_map([self::class, 'sanitize_link_row'], $workflow['internal_links_structured'])));
             return self::normalize_noindex_links($links, $workflow);
@@ -41,11 +45,8 @@ final class IDG_Internal_Links {
     }
 
     /**
-     * Biblioteca curada/fallback de enlaces internos para reporte y prompts.
-     * Regla protegida v0.4.0-RC1.1:
-     * - Tag principal Index: enlaza a la página del tag.
-     * - Tag principal No Index/operativo: enlaza a la página de categoría.
-     * - Sin artículo pilar ni complementario.
+     * Biblioteca de enlaces: resolución editorial canónica para artículos.
+     * Las categorías son contexto; no son destinos alternativos.
      */
     public static function library(array $workflow): array {
         if (self::is_event_workflow($workflow)) {
@@ -55,48 +56,59 @@ final class IDG_Internal_Links {
         $category = $category_id > 0 ? get_term($category_id, 'category') : null;
         $category_name = ($category && !is_wp_error($category)) ? (string) $category->name : '';
         $category_url = self::category_url($category_id, $category_name);
-        $tag_ids = isset($workflow['tag_ids']) && is_array($workflow['tag_ids']) ? array_values(array_filter(array_map('intval', $workflow['tag_ids']))) : [];
-        $primary_tag = null;
-        if (!empty($tag_ids)) {
-            $term = get_term((int) $tag_ids[0], 'post_tag');
-            if ($term && !is_wp_error($term)) {
-                $primary_tag = $term;
+        $resolved = class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::resolve($workflow) : [];
+        $lenses = array_values(array_unique(array_filter(array_merge(
+            [$resolved['primary_lens'] ?? null], $resolved['secondary_lenses'] ?? []
+        ))));
+        $terms = [];
+        foreach ((array) ($workflow['tag_ids'] ?? []) as $id) {
+            $term = get_term((int) $id, 'post_tag');
+            if ($term instanceof WP_Term && $term->term_id > 0 && $term->taxonomy === 'post_tag') {
+                $terms[$term->term_id] = $term;
             }
         }
-
+        // Optional exact-name lookup still requires an existing WordPress term.
+        if (function_exists('get_term_by')) {
+            foreach (['primary_lens', 'radar_lente_sugerida', 'lens_suggested', 'radar_tag_principal', 'secondary_lenses', 'radar_tags_secundarios', 'tag_names'] as $field) {
+                foreach ((array) ($workflow[$field] ?? []) as $name) {
+                    if (!is_string($name) || trim($name) === '') continue;
+                    $term = get_term_by('name', $name, 'post_tag');
+                    if ($term instanceof WP_Term && $term->term_id > 0 && $term->taxonomy === 'post_tag') {
+                        $terms[$term->term_id] = $term;
+                    }
+                }
+            }
+        }
         $primary = [];
         $tag_url = '';
         $tag_name = '';
-        $tag_is_noindex = true;
-        if ($primary_tag) {
-            $tag_name = (string) $primary_tag->name;
-            $tag_is_noindex = class_exists('IDG_Priority_Readings') && IDG_Priority_Readings::is_noindex_tag_name($tag_name, $category_name);
-            if (!$tag_is_noindex) {
-                $tag_url = self::tag_url($primary_tag, $category_name);
+        $selected_lens = '';
+        foreach ($lenses as $lens) {
+            foreach ($terms as $term) {
+                // Reuse adapter aliases/folding; unknown tags never acquire a lens.
+                $term_context = IDG_Canonical_Adapter::resolve(['primary_lens' => (string) $term->name]);
+                if ($term_context['primary_lens'] !== $lens) continue;
+                if (class_exists('IDG_Priority_Readings') && IDG_Priority_Readings::is_noindex_tag_name((string) $term->name, $category_name)) continue;
+                $url = self::tag_url($term, $category_name);
+                if ($url === '') continue;
+                $tag_name = (string) $term->name;
+                $tag_url = $url;
+                $selected_lens = $lens;
+                $primary = self::sanitize_link_row([
+                    'url' => $tag_url,
+                    'type' => 'tag_principal',
+                    'label' => 'Página del tag editorial canónico',
+                    'source_name' => $tag_name,
+                    'source_type' => 'tag',
+                    'context' => 'Usar como enlace interno principal. No enlazar la keyword ni el nombre literal del tag; crear una frase contextual de 3 a 8 palabras dentro del párrafo.',
+                ]);
+                break 2;
             }
         }
 
-        if ($tag_url !== '') {
-            $primary = self::sanitize_link_row([
-                'url' => $tag_url,
-                'type' => 'tag_principal',
-                'label' => 'Página del tag principal',
-                'source_name' => $tag_name,
-                'source_type' => 'tag',
-                'context' => 'Usar como enlace interno principal. No enlazar la keyword ni el nombre literal del tag; crear una frase contextual de 3 a 8 palabras dentro del párrafo.',
-            ]);
-        } elseif ($category_url !== '') {
-            $primary = self::sanitize_link_row([
-                'url' => $category_url,
-                'type' => 'categoria_principal',
-                'label' => 'Página principal de la categoría',
-                'source_name' => $category_name,
-                'source_type' => 'category',
-                'context' => $primary_tag ? 'El tag principal es noindex u operativo; usar la página principal de la categoría con anchor contextual.' : 'No hay tag principal indexable; usar la página principal de la categoría con anchor contextual.',
-            ]);
-        }
-
         return [
+            'editorial_resolution_status' => $primary ? 'resolved' : 'unresolved',
+            'resolved_lens' => $selected_lens,
             'category_name' => $category_name,
             'category_url' => $category_url,
             'primary_tag' => $tag_name,
@@ -125,13 +137,14 @@ final class IDG_Internal_Links {
         $lines[] = '- Página tag: ' . self::display((string) ($library['tag_url'] ?? ''));
         $link = isset($library['primary']) && is_array($library['primary']) ? $library['primary'] : [];
         $lines[] = '- Enlace interno calculado: ' . self::display((string) ($link['url'] ?? '')) . (!empty($link['context']) ? ' · ' . (string) $link['context'] : '');
-        $lines[] = '- Regla protegida: si el tag es Index se enlaza al tag; si es No Index u operativo se enlaza a la categoría. Sin artículo pilar ni complementario.';
+        $lines[] = '- Resolución editorial: ' . $library['editorial_resolution_status'];
+        $lines[] = '- Regla: lente canónica primaria y después secundarias en orden; solo tags reales elegibles con URL real. Sin destino elegible, no hay enlace interno.';
         return implode("\n", $lines);
     }
 
     private static function is_event_workflow(array $workflow): bool {
         return (string) ($workflow['recurring_target_post_type'] ?? '') === 'evento'
-            && ((string) ($workflow['editorial_context'] ?? '') === 'event_calendar' || (string) ($workflow['workflow_origin'] ?? '') === 'recurring_update');
+            || (string) ($workflow['editorial_context'] ?? '') === 'event_calendar';
     }
 
     private static function event_library(array $workflow): array {
@@ -209,14 +222,6 @@ final class IDG_Internal_Links {
     }
 
     private static function tag_url(WP_Term $tag, string $category_name = ''): string {
-        $slug = '';
-        if (class_exists('IDG_Priority_Readings')) {
-            $row = IDG_Priority_Readings::matrix_row_for_public((string) $tag->name, $category_name);
-            $slug = (string) ($row['tag_slug'] ?? '');
-        }
-        if ($slug !== '') {
-            return esc_url_raw(home_url('/tag/' . trim($slug, '/') . '/'));
-        }
         $tag_link = get_term_link($tag, 'post_tag');
         return (!is_wp_error($tag_link) && is_string($tag_link)) ? esc_url_raw($tag_link) : '';
     }
