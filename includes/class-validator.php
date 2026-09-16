@@ -13,7 +13,7 @@ final class IDG_Validator {
             $warnings[] = 'El posible H1 supera 68 caracteres.';
         }
         if ($keyword !== '' && stripos($content, $keyword) === false && !self::keyword_flexible_match($content, $keyword)) {
-            $warnings[] = 'La keyword principal no aparece de forma exacta en el texto.';
+            $warnings[] = 'La keyword principal no aparece ni de forma exacta ni mediante una variante suficientemente reconocible.';
         }
         if (stripos($content, 'Fuente oficial:') !== false) {
             $warnings[] = 'Evitar el rótulo visible “Fuente oficial:”.';

@@ -483,7 +483,7 @@ PROMPT;
 TAREA: Revisión SEO final.
 Trabaja sobre la versión editorial revisada, no sobre el texto base.
 Objetivo: dejar el artículo listo para crear borrador en WordPress sin endurecer la voz ni volverlo artificial.
-Modo de trabajo obligatorio: conservación editorial y cambios localizados. Mantén tesis, H1, H2, estructura, pulso y mejores frases de la versión editorial. Solo modifica la oración o el fragmento imprescindible para integrar enlaces, keyword, caja o claridad. No agregues párrafos de rescate, no redactes cierres documentales y no reescribas un bloque completo que ya funciona. Usa la ficha documental temporal únicamente como verificación de precisión, no como base para rehacer el artículo.
+Modo de trabajo obligatorio: conservación editorial y cambios localizados. Preserva sin alterar la tesis editorial ya aprobada, la caja editorial, H1, H2 y la estructura del artículo, además de su pulso y mejores frases. Solo modifica la oración o el fragmento imprescindible para integrar enlaces, keyword o claridad. No agregues párrafos de rescate, no redactes cierres documentales, no introduzcas nueva semántica editorial y no reescribas un bloque completo que ya funciona. Usa la ficha documental temporal únicamente como verificación de precisión, no como base para rehacer el artículo.
 
 Debes entregar exactamente en este orden y con estos rótulos en líneas independientes. No cambies los nombres de los rótulos. El rótulo RETROALIMENTACIÓN GERIZIM es interno y no debe entrar al artículo público:
 
@@ -493,7 +493,7 @@ ARTÍCULO FINAL
 [Incluye únicamente el contenido público del artículo. No incluyas meta description, informe SEO, copy ni paquete reel dentro de esta sección.]
 
 META DESCRIPTION
-[Una sola línea de 106 a 150 caracteres; objetivo recomendado 120 a 145. Incluye la keyword principal y un ángulo concreto, sin relleno ni extractos largos.]
+[Una sola línea de 106 a 150 caracteres; objetivo recomendado 120 a 145. Incluye la keyword principal o una variante suficientemente reconocible y un ángulo concreto, sin relleno ni extractos largos.]
 
 INFORME SEO INTERNO
 - Keyword principal:
