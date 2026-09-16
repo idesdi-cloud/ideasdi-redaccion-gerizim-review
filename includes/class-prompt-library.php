@@ -62,18 +62,20 @@ Reglas centrales:
 - No conviertas el artículo en catálogo de especificaciones: ningún dato técnico debe quedar aislado de una consecuencia perceptiva, funcional, cultural o de identidad.
 - H1 máximo 68 caracteres; preferido hasta 60 como guía de calidad, sin invalidar 61–68.
 - H2 máximo 100 caracteres.
-- Caja editorial de 40 a 55 palabras. Debe ir después de los dos párrafos de introducción, nunca inmediatamente después del H2. Debe empezar con la keyword principal y explicar de inmediato qué es.
-- Desarrollo mínimo: 6 subtítulos H3 en artículos de Actualidad y Agenda. Distribuye 3 o 4 ejes centrales con contexto, aplicación, autoría o información práctica. En Concursos y Agenda no fuerces un H3 del organizador.
+- Empieza por decisiones de diseño concretas y explica las decisiones, no solo prestaciones. Sigue cada decisión hasta su consecuencia relevante y detente; las cualidades y la abstracción van después de evidencia concreta.
+- La intención de autor exige documentación; la autoría es transversal y se vincula a decisiones concretas. Evita metalenguaje editorial cuando reemplace la observación, usa vocabulario de experiencia y percepción propio de la categoría y no sobreexplique: interpreta solo para aportar una relación nueva.
+- Introducción: dos párrafos es la preferencia no rígida. Debe identificar el asunto, relevancia, ángulo y decisiones centrales sin repetir la caja.
+- Caja editorial factual de 40 a 55 palabras después de la introducción: qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. Sin enlaces, negritas ni lenguaje promocional; no repite la tesis ni adelanta el análisis. No exige abrir con la keyword.
+- H3 jerárquicos, descriptivos y concisos, con eje claro sin forzar la tesis completa. Evita bloques de un solo párrafo poco desarrollados: fusiónalos o amplíalos cuando haga falta, sin cuota fija de H3 ni mínimo universal de párrafos.
+- Transiciones flexibles: continuidad cuando sea natural y cortes directos cuando el eje cambie con claridad. El cierre recupera la lógica principal del diseño y prefiere una observación abierta antes que un veredicto definitivo.
 - No usar “Conclusión” como subtítulo final.
 - No usar “Fuente oficial:” como rótulo visible.
 - No usar metalenguaje en el artículo: “la documentación oficial describe”, “desde la categoría”, “la lectura editorial”, “ese detalle importa porque”, “quienes siguen de cerca”.
-- La caja editorial debe empezar con la keyword principal y responder de forma directa: qué es, quién lo impulsa y qué aporta; no debe ser resumen del artículo, no debe tener enlaces ni negritas.
 - En article, usa la URL responsable resuelta en orden canonical_context.responsible_official_url > responsible_official_url > official_source, solo si es válida y no vacía. Integra exactamente un enlace externo contextual al responsable en ARTÍCULO FINAL, sin duplicar la URL, sin línea suelta visible “Fuente oficial:”, sin enlazar otra entidad y sin usar la keyword principal como anchor. No inventes hechos para el anchor. Si falta URL válida, solicita resolución editorial, no la inventes. source_information_url es solo fuente documental/complementaria, nunca la URL responsable.
 - En article, el enlace interno es exactamente un enlace contextual a una etiqueta editorial real resuelta por IDG_Internal_Links: primero primary_lens canónica, después secondary_lenses canónicas aprobadas en su orden. Solo es elegible un tag WordPress existente e indexable con URL real. Si ninguno resuelve, marca unresolved y solicita resolución editorial en el informe interno; no fabriques ni sustituyas categoría, entrada, tag o URL. La categoría es contexto, no fallback. Los tags desconocidos o ajenos son solo contexto y no se convierten en lentes canónicas.
 - calendar_event es distinto de article: no aplica el contrato de tags del artículo. Solo puede usarse una vez, contextualmente, una URL real de archivo CPT o taxonomía propia suministrada en los datos; si no existe, no fabriques una URL.
 - En Eventos, Agenda define la función de la pieza; la tipología del evento y su Categoría editorial definen el vocabulario. Una feria, una semana de la moda, una exposición o una conferencia no deben redactarse con los mismos conceptos. La presentación debe ser narrativa y útil, no una ficha ni una reflexión abstracta sobre fechas o ciudad.
 - El paquete reel debe incluir textualmente el CTA fijo: “Conoce más de este proyecto en ideasDi.com”.
-- En artículos de actualidad/editorial, evita entregar un solo párrafo por cada H3: cada bloque H3 debe tener 2 párrafos breves o agruparse con el bloque anterior.
 - El paquete reel debe tener VO 1 a VO 6; VO 1 a VO 5 con exactamente 14 palabras; VO 6 con el CTA fijo; y 6 escenas con 3 overlays cada una de máximo 40 caracteres.
 - La salida final debe incluir META DESCRIPTION, INFORME SEO INTERNO, COPY PARA REDES, PAQUETE REEL y RETROALIMENTACIÓN GERIZIM.
 - No usar tono comercial, precios, urgencia ni superlativos de venta.
@@ -372,16 +374,15 @@ Usa el brief como punto de partida y la ficha documental temporal como base fact
 
 Si el tipo de pieza es Artículo patrocinado, trabaja desde el brief del cliente y las restricciones internas. No es obligatorio tener fuente oficial. No inventes cifras, premios, certificaciones, historia de marca, beneficios ni claims. Integra el enlace obligatorio solo si existe y puede entrar de forma natural; si el anchor solicitado suena forzado, conviértelo en una frase contextual cercana sin perder el objetivo. Evita sonar promocional.
 
-Estructura obligatoria:
+Estructura editorial:
 # H1 de máximo 68 caracteres
 ## H2 de máximo 100 caracteres
-Introducción en 2 párrafos
-Caja editorial después de la introducción, nunca antes
-Párrafo de 40 a 55 palabras
-### Entre 6 y 7 subtítulos H3 para desarrollo, con mínimo 2 párrafos breves por bloque; si un bloque queda con un solo párrafo, agrúpalo con el H3 anterior o reescribe el desarrollo
-Los H3 deben distribuir 3 o 4 ejes centrales, contexto, autoría y secciones prácticas sin convertir cada hallazgo del plan en un subtítulo independiente.
+Introducción preferentemente en 2 párrafos, sin convertirla en cuota rígida: identifica el asunto, su relevancia, ángulo y decisiones centrales sin repetir la caja.
+Caja editorial factual después de la introducción: 40 a 55 palabras que respondan qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No debe repetir la tesis ni adelantar el análisis, ni contener enlaces, negritas o lenguaje promocional; no requiere abrir con keyword.
+### H3 de desarrollo jerárquicos, descriptivos y concisos, sin cuota fija. Aclaran el eje sin forzar la tesis completa; evita bloques de un solo párrafo poco desarrollados y fusiónalos o amplíalos cuando haga falta.
+Los H3 distribuyen los ejes que la evidencia sostenga, sin convertir cada hallazgo del plan en un subtítulo independiente.
 Una sección H3 sobre identidad es opcional, solo si aporta contexto y tiene evidencia verificable. En Concursos y Agenda, no fuerces un H3 para el organizador: intégralo en la introducción o en contexto, y crea una sección propia solo cuando aporte orientación real a la pieza.
-Cierre sin titular “Conclusión”; evita preguntas retóricas automáticas y elige un cierre natural según el artículo.
+Cierre sin titular “Conclusión”; recupera la lógica principal del diseño y prefiere una observación abierta antes que un veredicto definitivo. Usa transiciones con flexibilidad: continuidad cuando sea natural y cortes directos cuando el eje cambie con claridad.
 
 
 Reglas específicas para Concursos y convocatorias:
@@ -531,9 +532,8 @@ Reglas de formato para WordPress dentro de ARTÍCULO FINAL:
 - Usa # solo para el H1.
 - Usa ## solo una vez para el subtítulo H2 principal.
 - Usa ### para todos los subtítulos de desarrollo H3.
-- El artículo debe tener entre 6 y 7 subtítulos H3 de desarrollo. Una sección H3 sobre identidad es opcional, solo si aporta contexto y tiene evidencia verificable. En Concursos y Agenda, no fuerces una sección para el organizador si basta con integrarlo en la introducción o en un bloque de contexto.
-- La caja editorial debe aparecer como una línea “Caja editorial” seguida por un párrafo de 40 a 55 palabras, después de los 2 párrafos de introducción y antes del primer H3. Debe empezar con la keyword principal y explicar qué es; luego quién lo impulsa y qué aporta. No incluyas enlaces ni negritas dentro de la caja.
-- Cada H3 de desarrollo debe tener 2 párrafos breves como mínimo. Si la idea solo da para un párrafo, intégrala al bloque anterior; no entregues una sucesión de subtítulos con un solo párrafo debajo.
+- Los H3 de desarrollo son jerárquicos, descriptivos y concisos: aclaran el eje sin forzar la tesis completa. No hay cuota fija; una sección sobre identidad es opcional y requiere evidencia verificable. Evita bloques de un solo párrafo poco desarrollados: fusiónalos o amplíalos cuando haga falta, sin mínimo universal de párrafos.
+- La caja editorial aparece como una línea “Caja editorial” seguida por un párrafo factual de 40 a 55 palabras, después de la introducción y antes del primer H3. Responde qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No repite la tesis ni adelanta el análisis, y no incluye enlaces, negritas ni lenguaje promocional; no exige abrir con keyword.
 - Usa **negrita** con criterio editorial solo dentro de párrafos o listas cuando aporte lectura. Prioriza materiales, procesos, tipologías, gestos de uso, conceptos de diseño y entidades secundarias.
 - No uses negritas en H1, H2, H3, enlaces internos, caja editorial ni frases largas. No repitas siempre la keyword principal.
 - En article, usa la URL responsable resuelta en orden canonical_context.responsible_official_url > responsible_official_url > official_source, solo si es válida y no vacía. Integra exactamente un enlace externo contextual al responsable en ARTÍCULO FINAL, sin duplicar la URL, sin línea suelta visible “Fuente oficial:”, sin enlazar otra entidad y sin usar la keyword principal como anchor. No inventes hechos para el anchor. Si falta URL válida, solicita resolución editorial, no la inventes. source_information_url es solo fuente documental/complementaria, nunca la URL responsable.

@@ -12,14 +12,14 @@ final class IDG_Editorial_Rules {
             'h1_keyword_policy' => 'flexible',
             'editorial_box_min_words' => 40,
             'editorial_box_max_words' => 55,
-            'min_paragraphs_per_h3' => 2,
+            'min_paragraphs_per_h3' => 0,
             'reel_vo_words' => 14,
             'reel_scenes' => 6,
             'reel_overlays_per_scene' => 3,
             'reel_overlay_max_chars' => 40,
             'reel_cta' => 'Conoce más de este proyecto en ideasDi.com',
-            'structure_rules' => 'Mantener H1, H2, introducción de dos párrafos, caja editorial después de la introducción y desarrollo por H3 con mínimo dos párrafos breves. Si un H3 queda con un solo párrafo, agruparlo o ampliar el desarrollo.',
-            'editorial_box_rules' => 'La caja editorial debe responder qué es, quién lo impulsa y qué aporta. No debe contener enlaces, negritas ni tono promocional. Debe aparecer después de los dos párrafos de introducción.',
+            'structure_rules' => 'Mantener H1, H2, una introducción preferentemente de dos párrafos sin convertirla en cuota rígida, caja editorial después de la introducción y H3 descriptivos y concisos. Evita bloques poco desarrollados: fusiónalos o amplíalos cuando haga falta, sin imponer un mínimo universal de párrafos.',
+            'editorial_box_rules' => 'La caja editorial factual, de 40 a 55 palabras, debe responder qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No debe contener enlaces, negritas ni tono promocional; no repite la tesis ni adelanta el análisis. Va después de la introducción, sin requisito de apertura por keyword.',
             'internal_link_rules' => 'El enlace interno debe integrarse dentro de un párrafo de análisis, nunca como línea suelta, botón, “ver más” ni cierre genérico. El anchor debe tener entre 3 y 8 palabras, no usar la keyword principal exacta y ampliar una idea del bloque.',
             'external_link_rules' => 'El enlace externo debe apuntar a la URL del responsable configurado y entrar de forma contextual. No debe enlazar una entidad distinta ni quedar como enlace suelto al final del artículo.',
             'reel_rules' => 'El paquete reel debe incluir VO 1 a VO 6. VO 1 a VO 5 deben tener exactamente 14 palabras. VO 6 debe incluir el CTA fijo. Debe haber 6 escenas con 3 overlays cada una.',
@@ -64,7 +64,6 @@ final class IDG_Editorial_Rules {
         $lines[] = '- Política keyword en H1: ' . (string) ($r['h1_keyword_policy'] ?? 'flexible') . ' (exacta, flexible o aviso).';
         $lines[] = '- H2 máximo: ' . (int) $r['h2_max_chars'] . ' caracteres.';
         $lines[] = '- Caja editorial: ' . (int) $r['editorial_box_min_words'] . '–' . (int) $r['editorial_box_max_words'] . ' palabras.';
-        $lines[] = '- Mínimo de párrafos por H3: ' . (int) $r['min_paragraphs_per_h3'] . '.';
         $lines[] = '- Reel: ' . (int) $r['reel_scenes'] . ' escenas, ' . (int) $r['reel_overlays_per_scene'] . ' overlays por escena, VO 1–5 de ' . (int) $r['reel_vo_words'] . ' palabras.';
         $lines[] = '- CTA fijo reel: ' . (string) $r['reel_cta'];
         foreach (['structure_rules','editorial_box_rules','internal_link_rules','external_link_rules','reel_rules','forbidden_phrases','category_rules'] as $key) {
@@ -148,7 +147,6 @@ final class IDG_Editorial_Rules {
             'H1 máximo' => (string) (int) $r['h1_max_chars'],
             'Keyword en H1' => (string) ($r['h1_keyword_policy'] ?? 'flexible'),
             'Caja editorial' => (int) $r['editorial_box_min_words'] . '–' . (int) $r['editorial_box_max_words'] . ' palabras',
-            'H3 mínimo' => (string) (int) $r['min_paragraphs_per_h3'] . ' párrafos',
             'Reel VO 1–5' => (string) (int) $r['reel_vo_words'] . ' palabras',
             'Reel overlays' => (int) $r['reel_scenes'] . ' × ' . (int) $r['reel_overlays_per_scene'],
         ];

@@ -339,7 +339,7 @@ final class IDG_Final_Guard {
         $after_h2 = $h2[0][1] + strlen($h2[0][0]);
         $box_pos = $box[0][1];
         if ($box_pos <= $after_h2) {
-            return ['ok' => false, 'message' => 'La caja editorial debe ubicarse después de los dos párrafos de introducción, no antes del desarrollo.'];
+            return ['ok' => false, 'message' => 'La caja editorial debe ubicarse después de la introducción, no antes del desarrollo.'];
         }
         $between = trim(substr($normalized, $after_h2, $box_pos - $after_h2));
         $paragraphs = 0;
@@ -351,7 +351,7 @@ final class IDG_Final_Guard {
             $paragraphs++;
         }
         if ($paragraphs < 2) {
-            return ['ok' => false, 'message' => 'La caja editorial aparece antes de completar los dos párrafos de introducción.'];
+            return ['ok' => true, 'message' => 'La introducción suele preferir dos párrafos, pero esta es una guía no rígida.'];
         }
         return ['ok' => true, 'message' => ''];
     }
@@ -359,19 +359,6 @@ final class IDG_Final_Guard {
     private static function h3_count_status(string $html): array {
         preg_match_all('/<h3\b[^>]*>.*?<\/h3>/isu', $html, $matches);
         $count = count($matches[0] ?? []);
-        $min = 6;
-        if ($count < $min) {
-            return [
-                'ok' => false,
-                'message' => 'El artículo debe tener al menos ' . $min . ' secciones H3 de desarrollo. Detectadas: ' . $count . '.',
-            ];
-        }
-        if ($count > 7) {
-            return [
-                'ok' => true,
-                'message' => 'El artículo tiene ' . $count . ' H3. El rango editorial recomendado es de 6 a 7; revisa si algún hallazgo secundario puede integrarse en otro bloque.',
-            ];
-        }
         return ['ok' => true, 'message' => ''];
     }
 
@@ -398,10 +385,7 @@ final class IDG_Final_Guard {
         if ($shallow_count === 0) {
             return ['ok' => true, 'message' => ''];
         }
-        $message = 'Hay bloques H3 con desarrollo insuficiente: ' . implode('; ', array_slice($shallow, 0, 4)) . '. Cada H3 debe tener mínimo dos párrafos breves o integrarse al bloque anterior.';
-        if ($shallow_count >= max(2, (int) ceil($total * 0.5))) {
-            return ['ok' => false, 'message' => $message];
-        }
+        $message = 'Hay bloques H3 que podrían quedar poco desarrollados: ' . implode('; ', array_slice($shallow, 0, 4)) . '. Considera fusionarlos o ampliarlos cuando la evidencia lo pida; no existe un mínimo universal de párrafos.';
         return ['ok' => true, 'message' => $message];
     }
 
