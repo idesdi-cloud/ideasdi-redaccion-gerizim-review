@@ -76,7 +76,7 @@ final class IDG_Workflow_Output_Parser {
         if ($tail === '') {
             return '';
         }
-        if (preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:ARTÍCULO FINAL|ARTICULO FINAL|META DESCRIPTION|INFORME SEO INTERNO|COPY PARA REDES|PAQUETE REEL)\s*(?:\*\*)?\s*:?\s*$/imu', $tail, $next, PREG_OFFSET_CAPTURE)) {
+        if (preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:ARTÍCULO FINAL|ARTICULO FINAL|TÍTULO SEO|TITULO SEO|META DESCRIPTION|INFORME SEO INTERNO|COPY PARA REDES|PAQUETE REEL)\s*(?:\*\*)?\s*:?\s*$/imu', $tail, $next, PREG_OFFSET_CAPTURE)) {
             $tail = trim(substr($tail, 0, $next[0][1]));
         }
         return sanitize_textarea_field($tail);

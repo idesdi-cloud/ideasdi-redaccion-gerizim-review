@@ -21,6 +21,10 @@ final class IDG_Post_Creator {
         $content = (string) ($sections['article'] ?? '');
         $content = self::prepare_public_article_content($content, $workflow);
         $title = self::extract_title($content, $workflow['keyword'] ?? 'Artículo ideasDi');
+        $seo_title = trim((string) ($sections['seo_title'] ?? ''));
+        if ($seo_title === '') {
+            $seo_title = $title;
+        }
         $meta_description = self::clean_meta_description((string) ($sections['meta_description'] ?? ''));
         $seo_report = trim((string) ($sections['seo_report'] ?? ''));
         $social_copy = trim((string) ($sections['social_copy'] ?? ''));
@@ -45,7 +49,7 @@ final class IDG_Post_Creator {
         $workflow['postprocessing_audit'] = $postprocessing_audit;
         $seo_report = self::repair_seo_report_link_counts($seo_report, $html_content, $workflow);
         $feedback_notes = self::repair_feedback_link_notes($feedback_notes, $html_content, $workflow);
-        $processed_seo_result = self::rebuild_seo_result($content, $meta_description, $seo_report, $social_copy, $reel_package, $feedback_notes);
+        $processed_seo_result = self::rebuild_seo_result($content, $seo_title, $meta_description, $seo_report, $social_copy, $reel_package, $feedback_notes);
         $post_content = self::html_to_gutenberg_blocks($html_content);
         if (class_exists('IDG_Final_Guard')) {
             $validation = IDG_Final_Guard::validate_before_draft($content, $html_content, $sections, $workflow);
@@ -153,7 +157,7 @@ final class IDG_Post_Creator {
         update_post_meta($post_id, '_idg_traceability_published_synced_at_utc', '');
         update_post_meta($post_id, '_idg_published_at_utc', '');
 
-        self::update_yoast_meta($post_id, $meta_description, $workflow['keyword'] ?? '', $title);
+        self::update_yoast_meta($post_id, $meta_description, $workflow['keyword'] ?? '', $seo_title);
 
         return [
             'success' => true,
@@ -220,6 +224,10 @@ final class IDG_Post_Creator {
         $content = (string) ($sections['article'] ?? '');
         $content = self::prepare_public_article_content($content, $workflow);
         $title = self::extract_title($content, $workflow['keyword'] ?? $post_before->post_title);
+        $seo_title = trim((string) ($sections['seo_title'] ?? ''));
+        if ($seo_title === '') {
+            $seo_title = $title;
+        }
         if (class_exists('IDG_Recurring_Updates')) {
             $start_date = $is_contest
                 ? (string) ($workflow['recurring_contest_start_date'] ?? '')
@@ -265,7 +273,7 @@ final class IDG_Post_Creator {
         $workflow['postprocessing_audit'] = $postprocessing_audit;
         $seo_report = self::repair_seo_report_link_counts($seo_report, $html_content, $workflow);
         $feedback_notes = self::repair_feedback_link_notes($feedback_notes, $html_content, $workflow);
-        $processed_seo_result = self::rebuild_seo_result($content, $meta_description, $seo_report, $social_copy, $reel_package, $feedback_notes);
+        $processed_seo_result = self::rebuild_seo_result($content, $seo_title, $meta_description, $seo_report, $social_copy, $reel_package, $feedback_notes);
         $post_content = self::html_to_gutenberg_blocks($html_content);
 
         if (class_exists('IDG_Final_Guard')) {
@@ -349,7 +357,7 @@ final class IDG_Post_Creator {
             'analysis_id' => $workflow['recurring_analysis_id'] ?? '',
             'target_post_type' => $target_post_type,
         ]));
-        self::update_yoast_meta($post_id, $meta_description, $workflow['keyword'] ?? '', $title);
+        self::update_yoast_meta($post_id, $meta_description, $workflow['keyword'] ?? '', $seo_title);
 
         clean_post_cache($post_id);
         $post_after = get_post($post_id);
@@ -523,10 +531,13 @@ final class IDG_Post_Creator {
         return trim(implode("\n", $clean));
     }
 
-    private static function rebuild_seo_result(string $content, string $meta_description, string $seo_report, string $social_copy, string $reel_package, string $feedback_notes): string {
+    private static function rebuild_seo_result(string $content, string $seo_title, string $meta_description, string $seo_report, string $social_copy, string $reel_package, string $feedback_notes): string {
         $parts = [];
         $parts[] = 'ARTÍCULO FINAL';
         $parts[] = trim($content);
+        $parts[] = '';
+        $parts[] = 'TÍTULO SEO';
+        $parts[] = trim($seo_title);
         $parts[] = '';
         $parts[] = 'META DESCRIPTION';
         $parts[] = trim($meta_description);
@@ -558,6 +569,7 @@ final class IDG_Post_Creator {
         $sections = [
             'article_pre' => [],
             'article_final' => [],
+            'seo_title' => [],
             'meta_description' => [],
             'seo_report' => [],
             'social_copy' => [],
@@ -586,6 +598,7 @@ final class IDG_Post_Creator {
 
         return [
             'article' => self::remove_internal_sections_from_article($article),
+            'seo_title' => trim(implode("\n", $sections['seo_title'])),
             'meta_description' => trim(implode("\n", $sections['meta_description'])),
             'seo_report' => trim(implode("\n", $sections['seo_report'])),
             'social_copy' => trim(implode("\n", $sections['social_copy'])),
@@ -619,6 +632,7 @@ final class IDG_Post_Creator {
 
         $map = [
             'articulo final' => 'article_final',
+            'titulo seo' => 'seo_title',
             'meta description' => 'meta_description',
             'metadescription' => 'meta_description',
             'informe seo interno' => 'seo_report',
@@ -640,6 +654,7 @@ final class IDG_Post_Creator {
     private static function inline_body_after_heading(string $line, string $key): string {
         $labels = [
             'article_final' => '(?:ARTÍCULO FINAL|ARTICULO FINAL)',
+            'seo_title' => '(?:TÍTULO SEO|TITULO SEO)',
             'meta_description' => '(?:META DESCRIPTION|METADESCRIPTION)',
             'seo_report' => 'INFORME SEO INTERNO',
             'social_copy' => 'COPY PARA REDES',

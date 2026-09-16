@@ -42,7 +42,7 @@ final class IDG_Prompt_Library {
             'editorial_plan' => 'editorial-plan-v2.1.0-RC1.5.2',
             'generate' => 'generate-v2.1.0-RC1.5.2',
             'editorial' => 'editorial-v2.1.0-RC1.5.2',
-            'seo' => 'seo-v2.1.0-RC1.5.2',
+            'seo' => 'seo-v2.1.0-RC1.7.3',
             'web_research' => 'web-research-v1.2.0-RC1.5.2',
         ];
         return $versions[$type] ?? 'unknown';
@@ -491,6 +491,9 @@ Regla de calidad: la Revisión SEO no debe bajar el nivel de redacción. Conserv
 
 ARTÍCULO FINAL
 [Incluye únicamente el contenido público del artículo. No incluyas meta description, informe SEO, copy ni paquete reel dentro de esta sección.]
+
+TÍTULO SEO
+[Título SEO interno para Yoast. Puede diferir del H1 si mejora la claridad de búsqueda; no modifica el H1 editorial ni entra al artículo público.]
 
 META DESCRIPTION
 [Una sola línea de 106 a 150 caracteres; objetivo recomendado 120 a 145. Incluye la keyword principal o una variante suficientemente reconocible y un ángulo concreto, sin relleno ni extractos largos.]

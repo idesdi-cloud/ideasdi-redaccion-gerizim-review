@@ -942,7 +942,7 @@ final class IDG_Workflow_Admin_Controller {
         $lines[] = '';
         $lines[] = '## 12. Metadatos y entregables internos';
         $sections = self::report_extract_sections($seo_result);
-        foreach (['META DESCRIPTION' => 'Meta description', 'INFORME SEO INTERNO' => 'Informe SEO', 'COPY PARA REDES' => 'Copy redes', 'PAQUETE REEL' => 'Paquete reel', 'RETROALIMENTACIÓN GERIZIM' => 'Retroalimentación'] as $key => $label) {
+        foreach (['TÍTULO SEO' => 'Título SEO', 'META DESCRIPTION' => 'Meta description', 'INFORME SEO INTERNO' => 'Informe SEO', 'COPY PARA REDES' => 'Copy redes', 'PAQUETE REEL' => 'Paquete reel', 'RETROALIMENTACIÓN GERIZIM' => 'Retroalimentación'] as $key => $label) {
             $lines[] = '### ' . $label;
             $lines[] = self::md_block((string) ($sections[$key] ?? ''));
         }
@@ -1052,12 +1052,12 @@ final class IDG_Workflow_Admin_Controller {
         if (preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*ART[ÍI]CULO FINAL\s*(?:\*\*)?\s*:?\s*$/imu', $normalized, $m, PREG_OFFSET_CAPTURE)) {
             $start = $m[0][1] + strlen($m[0][0]);
             $tail = substr($normalized, $start);
-            if (preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:META DESCRIPTION|INFORME SEO INTERNO|COPY PARA REDES|PAQUETE REEL|RETROALIMENTACI[ÓO]N GERIZIM)\s*(?:\*\*)?\s*:?\s*$/imu', $tail, $next, PREG_OFFSET_CAPTURE)) {
+            if (preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:T[ÍI]TULO SEO|META DESCRIPTION|INFORME SEO INTERNO|COPY PARA REDES|PAQUETE REEL|RETROALIMENTACI[ÓO]N GERIZIM)\s*(?:\*\*)?\s*:?\s*$/imu', $tail, $next, PREG_OFFSET_CAPTURE)) {
                 $tail = substr($tail, 0, $next[0][1]);
             }
             return trim($tail);
         }
-        if (preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:META DESCRIPTION|INFORME SEO INTERNO|COPY PARA REDES|PAQUETE REEL|RETROALIMENTACI[ÓO]N GERIZIM)\s*(?:\*\*)?\s*:?\s*$/imu', $normalized, $m, PREG_OFFSET_CAPTURE)) {
+        if (preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:T[ÍI]TULO SEO|META DESCRIPTION|INFORME SEO INTERNO|COPY PARA REDES|PAQUETE REEL|RETROALIMENTACI[ÓO]N GERIZIM)\s*(?:\*\*)?\s*:?\s*$/imu', $normalized, $m, PREG_OFFSET_CAPTURE)) {
             return trim(substr($normalized, 0, $m[0][1]));
         }
         return trim($normalized);
@@ -1218,16 +1218,18 @@ final class IDG_Workflow_Admin_Controller {
     }
 
     private static function report_extract_sections(string $content): array {
-        $labels = ['META DESCRIPTION', 'INFORME SEO INTERNO', 'COPY PARA REDES', 'PAQUETE REEL', 'RETROALIMENTACIÓN GERIZIM'];
+        $labels = ['TÍTULO SEO', 'META DESCRIPTION', 'INFORME SEO INTERNO', 'COPY PARA REDES', 'PAQUETE REEL', 'RETROALIMENTACIÓN GERIZIM'];
         $sections = [];
         $normalized = str_replace(["\r\n", "\r"], "\n", $content);
         foreach ($labels as $i => $label) {
-            $pattern = '/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*' . preg_quote($label, '/') . '\s*(?:\*\*)?\s*:??\s*$/imu';
+            $heading = $label === 'TÍTULO SEO' ? 'T[ÍI]TULO SEO' : preg_quote($label, '/');
+            $pattern = '/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*' . $heading . '\s*(?:\*\*)?\s*:??\s*$/imu';
             if (!preg_match($pattern, $normalized, $m, PREG_OFFSET_CAPTURE)) continue;
             $start = $m[0][1] + strlen($m[0][0]);
             $end = strlen($normalized);
             foreach (array_slice($labels, $i + 1) as $next_label) {
-                $next_pattern = '/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*' . preg_quote($next_label, '/') . '\s*(?:\*\*)?\s*:??\s*$/imu';
+                $next_heading = $next_label === 'TÍTULO SEO' ? 'T[ÍI]TULO SEO' : preg_quote($next_label, '/');
+                $next_pattern = '/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*' . $next_heading . '\s*(?:\*\*)?\s*:??\s*$/imu';
                 if (preg_match($next_pattern, substr($normalized, $start), $next, PREG_OFFSET_CAPTURE)) {
                     $end = $start + $next[0][1];
                     break;
