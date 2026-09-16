@@ -25,8 +25,8 @@ foreach (['canonical-adapter', 'canonical-context', 'disciplinary-library', 'edi
 }
 require_once ABSPATH . 'includes/class-workflow-prompt-data.php';
 require_once ABSPATH . 'includes/class-prompt-library.php';
-check(str_contains($bootstrap, 'Version: 0.4.0-RC1.7.1') && str_contains($bootstrap, "'0.4.0-RC1.7.1'"), 'plugin version');
-// RC1.7.1 reconciled fingerprints; behavioral assertions remain unchanged.
+check(str_contains($bootstrap, 'Version: 0.4.0-RC1.7.2') && str_contains($bootstrap, "'0.4.0-RC1.7.2'"), 'plugin version');
+// RC1.7.2 reconciled fingerprints; behavioral assertions remain unchanged.
 foreach ([
     'includes/class-internal-links.php' => '054f6f84a62c600dcf9b5c156c60bfed1fbef31072d8ae4df58258360c186970',
     'includes/class-final-guard.php' => 'd20e654eaad1f47e4fd534d487ed31a5cbe10280fbfc782386b14eacd82e683f',

@@ -14,8 +14,8 @@ def require(condition, label):
         raise AssertionError(label)
 
 
-require('Version: 0.4.0-RC1.7.1' in MAIN, 'plugin header version')
-require("define('IDG_VERSION', '0.4.0-RC1.7.1');" in MAIN, 'runtime version')
+require('Version: 0.4.0-RC1.7.2' in MAIN, 'plugin header version')
+require("define('IDG_VERSION', '0.4.0-RC1.7.2');" in MAIN, 'runtime version')
 require("define('IDG_TRACEABILITY_DB_VERSION', '1.2.0');" in MAIN, 'DB version unchanged')
 for test_name in ('rc171-canonical-fidelity.py', 'rc171-editorial-consumption.py', 'rc171-release-integration.py'):
     require(test_name in RUNNER, f'test runner includes {test_name}')
