@@ -62,18 +62,18 @@ foreach (['primary_lens', 'secondary_lenses', 'existentes e indexables con URL r
 }
 rc170_ok(!str_contains($admin, 'Categoría detectada para fallback de enlaces'), 'report category is context only');
 $main = file_get_contents(ABSPATH . 'ideasdi-redaccion-gerizim.php');
-rc170_ok((bool) preg_match('/Version:\s*0\.4\.0-RC1\.7\.0\s*$/m', $main), 'plugin final RC1.7.0 version');
-// Exact final RC1.7.0 fingerprints; behavioral assertions remain unchanged.
+rc170_ok((bool) preg_match('/Version:\s*0\.4\.0-RC1\.7\.1\s*$/m', $main), 'plugin final RC1.7.1 version');
+// RC1.7.1 reconciled fingerprints; behavioral assertions remain unchanged.
 $protected = [
-    'ideasdi-redaccion-gerizim.php' => 'c024aa06149541dce9fd53fc5853e64017d5cdde86b82805aff82e6e2c751f64',
+    'ideasdi-redaccion-gerizim.php' => '6766f936e8360a72e848f7a9a2a343298f92a8590d29f7d8414f577cd0621251',
     'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
-    'includes/class-canonical-context.php' => '89e97607417945f6386549e735433e78ac2b68e0635c9cdaef3ebe41012e85d0',
+    'includes/class-canonical-context.php' => '0b41aad89bcc7be6ed36290b8dc42637afa8af45a33344676ac84562c4e8de7a',
     'includes/class-editorial-recipe-builder.php' => 'fe00f7b3524c11d631266e4bffba4a0bb83a57c097bebdcc4b212d027820c04c',
-    'includes/class-final-guard.php' => 'ad97dc6d190f487d90b21061bbf5a824d505ac22e49182a3b9f4486f4590bdc4',
+    'includes/class-final-guard.php' => 'd20e654eaad1f47e4fd534d487ed31a5cbe10280fbfc782386b14eacd82e683f',
     'includes/class-internal-links.php' => '054f6f84a62c600dcf9b5c156c60bfed1fbef31072d8ae4df58258360c186970',
     'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
     'includes/class-workflow-prompt-data.php' => '215fc18bec9fb4f513e774d6f2bd21b10a84420050d7fd5547b8cf5ffe3d688b',
-    'includes/data/editorial-canonical.php' => '95512585c4f7f17bf506f1b1b7734411e898f80b4bdf2e3c6995f203335b0034',
+    'includes/data/editorial-canonical.php' => 'ec01328fca214aa77a27f59ca33d21acce0b1c48ccabb2628aec7651dc845422',
     'includes/data/editorial-recipes.php' => '2cd8b3b28e9fde338528f47e3ef690812fb4cc0c310002688dbe579e36e2840a',
 ];
 foreach ($protected as $path => $sha256) {

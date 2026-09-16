@@ -87,16 +87,16 @@ check(IDG_Internal_Links::automatic($workflow + ['recurring_target_post_type' =>
 foreach (['includes/class-internal-links.php', 'tests/rc170-canonical-internal-links.php'] as $file) {
     check(!str_contains(file_get_contents(ABSPATH . $file), 'https://' . 'ideasdi.com/' . 'eventos/'), 'no hard-coded event URL');
 }
-// Exact final RC1.7.0 fingerprints; behavioral assertions remain unchanged.
+// RC1.7.1 reconciled fingerprints; behavioral assertions remain unchanged.
 foreach ([
-    'ideasdi-redaccion-gerizim.php' => 'c024aa06149541dce9fd53fc5853e64017d5cdde86b82805aff82e6e2c751f64',
+    'ideasdi-redaccion-gerizim.php' => '6766f936e8360a72e848f7a9a2a343298f92a8590d29f7d8414f577cd0621251',
     'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
-    'includes/class-canonical-context.php' => '89e97607417945f6386549e735433e78ac2b68e0635c9cdaef3ebe41012e85d0',
-    'includes/data/editorial-canonical.php' => '95512585c4f7f17bf506f1b1b7734411e898f80b4bdf2e3c6995f203335b0034',
-    'includes/class-final-guard.php' => 'ad97dc6d190f487d90b21061bbf5a824d505ac22e49182a3b9f4486f4590bdc4',
+    'includes/class-canonical-context.php' => '0b41aad89bcc7be6ed36290b8dc42637afa8af45a33344676ac84562c4e8de7a',
+    'includes/data/editorial-canonical.php' => 'ec01328fca214aa77a27f59ca33d21acce0b1c48ccabb2628aec7651dc845422',
+    'includes/class-final-guard.php' => 'd20e654eaad1f47e4fd534d487ed31a5cbe10280fbfc782386b14eacd82e683f',
     'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
-    'tests/rc170-canonical-core.php' => '3625b9b3e3a1d1e3e053bb00be102de92106c1d3fc9cdd984408a92951b317d3',
-    'tests/rc170-canonical-consumption.php' => 'b3e3e5617b2f5d2312ec413871bf30c19c4df83a934ee093da534bc798ebc070',
+    'tests/rc170-canonical-core.php' => '7b00a4253068e5e82081b9b0f65a8f6d88d5cce06b3ce5ed207c3543f9024d62',
+    'tests/rc170-canonical-consumption.php' => '723d7eeb43ccbbfe890a3dbe8468692776da66f14acb32b409db80ef763201a7',
 ] as $file => $sha) {
     check(hash_file('sha256', ABSPATH . $file) === $sha, 'protected source ' . $file);
 }

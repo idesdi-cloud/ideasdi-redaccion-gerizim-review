@@ -23,9 +23,9 @@ function rc165_ok(bool $ok, string $message): void {
 }
 
 rc165_ok(
-    str_contains($main, 'Version: 0.4.0-RC1.7.0')
-    && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.7.0')"),
-    'versión RC1.7.0 consistente'
+    str_contains($main, 'Version: 0.4.0-RC1.7.1')
+    && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.7.1')"),
+    'versión RC1.7.1 consistente'
 );
 
 rc165_ok(

@@ -25,19 +25,19 @@ foreach (['canonical-adapter', 'canonical-context', 'disciplinary-library', 'edi
 }
 require_once ABSPATH . 'includes/class-workflow-prompt-data.php';
 require_once ABSPATH . 'includes/class-prompt-library.php';
-check(str_contains($bootstrap, 'Version: 0.4.0-RC1.7.0') && str_contains($bootstrap, "'0.4.0-RC1.7.0'"), 'plugin version');
-// Exact final RC1.7.0 fingerprints; behavioral assertions remain unchanged.
+check(str_contains($bootstrap, 'Version: 0.4.0-RC1.7.1') && str_contains($bootstrap, "'0.4.0-RC1.7.1'"), 'plugin version');
+// RC1.7.1 reconciled fingerprints; behavioral assertions remain unchanged.
 foreach ([
     'includes/class-internal-links.php' => '054f6f84a62c600dcf9b5c156c60bfed1fbef31072d8ae4df58258360c186970',
-    'includes/class-final-guard.php' => 'ad97dc6d190f487d90b21061bbf5a824d505ac22e49182a3b9f4486f4590bdc4',
+    'includes/class-final-guard.php' => 'd20e654eaad1f47e4fd534d487ed31a5cbe10280fbfc782386b14eacd82e683f',
     'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
     'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
-    'includes/data/editorial-canonical.php' => '95512585c4f7f17bf506f1b1b7734411e898f80b4bdf2e3c6995f203335b0034',
+    'includes/data/editorial-canonical.php' => 'ec01328fca214aa77a27f59ca33d21acce0b1c48ccabb2628aec7651dc845422',
 ] as $file => $sha) {
     check(hash_file('sha256', ABSPATH . $file) === $sha, 'protected baseline ' . $file);
 }
 $projection = IDG_Canonical_Adapter::projection();
-check($projection['canonical_sha256'] === '4329520966d28417fb2570c1be2208975358cfef22161657d38016f6c50f84ca', 'canonical pin');
+check($projection['canonical_sha256'] === '0bc762b7666ffead0c54dbe83ecddc281ed4a9f2e7bdbaaf61406b3e921c9acf', 'canonical pin');
 $lenses = ['furniture', 'lighting', 'materiality', 'automotive', 'generative_ai', 'sustainability'];
 check(array_keys($projection['lenses']['definitions']) === $lenses, 'exact six lenses');
 foreach ($lenses as $id) {

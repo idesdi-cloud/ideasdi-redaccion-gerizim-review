@@ -15,14 +15,16 @@ final class IDG_Canonical_Regression {
         'includes/class-recurring-updates.php' => 'f3bdb6742c07726eae92772e45575439c3c6e06d503c2d1e64e0bff5158b7db4',
     ];
     public const RECONCILED = [
-        'includes/class-prompt-library.php' => '11b941573c9a31e73638c35dc2fec565fa6b3e126f6eb6f94ebcb33ffdcedcd6',
-        'includes/class-final-guard.php' => 'ad97dc6d190f487d90b21061bbf5a824d505ac22e49182a3b9f4486f4590bdc4',
+        'includes/class-prompt-library.php' => 'b70b93df48354306cff9b214d249831988779398a1322a5ec9c55f0a36ca71b6',
+        'includes/class-final-guard.php' => 'd20e654eaad1f47e4fd534d487ed31a5cbe10280fbfc782386b14eacd82e683f',
+        'includes/class-editorial-rules.php' => '8264efe31c780d387af53282b95f66f81da95f98c521a22230cba0a8f4694bfd',
         'includes/class-editorial-plan.php' => '3f8b42d22fa12f2caeb6e837f4412765c13067b2e4cc3d36cc516bafdceeac2d',
         'includes/class-editorial-recipe-builder.php' => 'fe00f7b3524c11d631266e4bffba4a0bb83a57c097bebdcc4b212d027820c04c',
         'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
     ];
     public const PATHS = [
         'REGRESION-EDITORIAL-RC1.6.5.sha256',
+        'REGRESION-EDITORIAL-RC1.7.0.sha256',
         'assets/admin.css',
         'assets/admin.js',
         'ideasdi-redaccion-gerizim.php',
@@ -41,6 +43,7 @@ final class IDG_Canonical_Regression {
         'includes/class-workflow-prompt-data.php',
         'includes/data/editorial-canonical.php',
         'includes/data/editorial-recipes.php',
+        'scripts/test.sh',
         'tests/rc160-acceptance.php',
         'tests/rc161-acceptance.php',
         'tests/rc162-acceptance.php',
@@ -53,6 +56,9 @@ final class IDG_Canonical_Regression {
         'tests/rc170-canonical-internal-links.php',
         'tests/rc170-canonical-prompts-admin.php',
         'tests/rc170-release-regression.php',
+        'tests/rc171-canonical-fidelity.py',
+        'tests/rc171-editorial-consumption.py',
+        'tests/rc171-release-integration.py',
         'tests/support/canonical-regression.php',
     ];
 
@@ -86,7 +92,7 @@ final class IDG_Canonical_Regression {
         if (hash_file('sha256', $root . '/REGRESION-EDITORIAL-RC1.6.5.sha256') !== self::LEGACY_MANIFEST_SHA) {
             return false;
         }
-        $current = self::parse(file_get_contents($root . '/REGRESION-EDITORIAL-RC1.7.0.sha256'));
+        $current = self::parse(file_get_contents($root . '/REGRESION-EDITORIAL-RC1.7.1.sha256'));
         return self::historical_hash_matches($path, $legacy, hash_file('sha256', $root . '/' . $path), $current);
     }
 }

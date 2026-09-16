@@ -65,6 +65,26 @@ done < <(
 echo
 echo "Pruebas ejecutadas: $TEST_TOTAL"
 
+printf '\n%s\n' "=== Pruebas RC1.7.1 ==="
+
+for TEST_FILE in tests/rc171-canonical-fidelity.py tests/rc171-editorial-consumption.py tests/rc171-release-integration.py; do
+  TEST_TOTAL=$((TEST_TOTAL + 1))
+  TEST_NAME="$(basename "$TEST_FILE")"
+
+  : > "$TEST_LOG"
+
+  if python3 "$TEST_FILE" >"$TEST_LOG" 2>&1; then
+    echo "PASS: $TEST_NAME"
+  else
+    echo "FAIL: $TEST_NAME"
+    cat "$TEST_LOG"
+    FAILURES=$((FAILURES + 1))
+  fi
+done
+
+echo
+echo "Pruebas ejecutadas: $TEST_TOTAL"
+
 printf '\n%s\n' "=== Regresión editorial ==="
 
 VERSION="$(
