@@ -1739,6 +1739,13 @@ final class IDG_Post_Creator {
     }
 
     private static function ensure_internal_links(string $html, array $workflow): string {
+        // RC1.7.4: en artículos, el enlace interno contextual debe llegar
+        // integrado desde Redacción/Revisión SEO. PHP no inventa semántica
+        // ni prosa para rescatar un enlace ausente.
+        if (!self::is_event_workflow($workflow)) {
+            return $html;
+        }
+
         $links = self::collect_internal_links($workflow);
         if (empty($links)) {
             return $html;
@@ -1750,48 +1757,52 @@ final class IDG_Post_Creator {
                 continue;
             }
 
-            // RC1.5.0: integrar únicamente sobre texto ya redactado. La ausencia
-            // del enlace se resuelve en Revisión SEO, nunca creando prosa en PHP.
             $candidates = [];
+
             $configured = trim((string) ($link['anchor'] ?? ''));
-            if ($configured !== '' && !self::is_tag_literal_anchor($url, $configured, (string) ($link['type'] ?? ''))) {
+            if ($configured !== '' && !self::is_tag_literal_anchor(
+                $url,
+                $configured,
+                (string) ($link['type'] ?? '')
+            )) {
                 $candidates[] = $configured;
             }
-            $contextual = self::contextual_internal_anchor($link, $workflow);
-            if ($contextual !== '') {
-                $candidates[] = $contextual;
-            }
-            if (self::is_event_workflow($workflow)) {
-                $candidates = array_merge($candidates, [
-                    'calendario de eventos de ideasDi',
-                    'agenda de eventos de diseño',
-                    'calendario editorial de eventos',
-                ]);
-            }
-            if (self::is_contest_workflow($workflow)) {
-                $candidates = array_merge($candidates, [
-                    'concursos y convocatorias de diseño',
-                    'convocatorias de diseño abiertas',
-                    'agenda de concursos de ideasDi',
-                ]);
-            }
+
+            $candidates = array_merge($candidates, [
+                'calendario de eventos de ideasDi',
+                'agenda de eventos de diseño',
+                'calendario editorial de eventos',
+            ]);
+
             $lens = trim((string) ($workflow['editorial_lens'] ?? ''));
             if ($lens !== '') {
                 $candidates[] = $lens;
             }
+
             if (class_exists('IDG_Editorial_Recipe_Builder')) {
                 $recipe = IDG_Editorial_Recipe_Builder::build($workflow);
-                $candidates = array_merge($candidates, (array) ($recipe['anchor_candidates'] ?? []));
+                $candidates = array_merge(
+                    $candidates,
+                    (array) ($recipe['anchor_candidates'] ?? [])
+                );
             }
 
-            foreach (array_values(array_unique(array_filter(array_map('trim', $candidates)))) as $candidate) {
-                $linked = self::link_first_anchor_occurrence($html, $candidate, $url);
+            foreach (
+                array_values(array_unique(array_filter(array_map('trim', $candidates))))
+                as $candidate
+            ) {
+                $linked = self::link_first_anchor_occurrence(
+                    $html,
+                    $candidate,
+                    $url
+                );
                 if ($linked !== $html) {
                     $html = $linked;
                     break;
                 }
             }
         }
+
         return $html;
     }
 
@@ -1819,57 +1830,6 @@ final class IDG_Post_Creator {
             // Conserva exactamente las palabras del artículo y elimina solo el enlace repetido.
             return (string) $m[6];
         }, $html);
-    }
-
-    private static function contextual_internal_anchor(array $link, array $workflow): string {
-        $url = (string) ($link['url'] ?? '');
-        $path = trim((string) wp_parse_url($url, PHP_URL_PATH), '/');
-        if (str_contains($path, 'tag/automovil')) {
-            return 'mirada sobre el automóvil contemporáneo';
-        }
-        if (str_contains($path, 'tag/pret-a-porter')) {
-            return 'vestuario listo para moverse';
-        }
-        if (str_contains($path, 'tag/ecodiseno')) {
-            return 'decisiones de diseño sostenible';
-        }
-        if (str_contains($path, 'tag/modelado-3d')) {
-            return 'procesos de modelado tridimensional';
-        }
-        if (str_contains($path, 'tag/diseno-deportivo')) {
-            return 'relación entre moda y rendimiento';
-        }
-        if (str_contains($path, 'tag/diseno-de-iluminacion')) {
-            return 'relación entre atmósfera y uso';
-        }
-        if (str_contains($path, 'tag/diseno-interior-institucional')) {
-            return 'transformación de interiores académicos';
-        }
-        if (str_contains($path, 'tag/reforma')) {
-            return 'adaptación del espacio existente';
-        }
-        if (str_contains($path, 'tag/diseno-interior-residencial')) {
-            return 'formas de habitar';
-        }
-        if (str_contains($path, 'concursos-y-convocatorias-diseno') || str_contains($path, 'concursos-de-diseno')) {
-            return 'concursos y convocatorias de diseño';
-        }
-        if (str_contains($path, 'tag/disenos-de-audio')) {
-            return 'experiencia de audio';
-        }
-        if (str_contains($path, 'diseno-transporte') || str_contains($path, 'diseno-de-transporte')) {
-            return 'mirada editorial de movilidad';
-        }
-        if (str_contains($path, 'diseno-de-moda')) {
-            return 'lectura editorial de la moda';
-        }
-        if (str_contains($path, 'diseno-de-interiores')) {
-            return 'lectura espacial del diseño';
-        }
-        if (str_contains($path, 'diseno-productos') || str_contains($path, 'diseno-de-productos')) {
-            return 'relación entre objeto y uso';
-        }
-        return 'lectura relacionada dentro de ideasDi';
     }
 
     private static function postprocessing_audit(string $before_html, string $after_html, array $workflow): array {

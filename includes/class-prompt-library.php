@@ -82,7 +82,7 @@ Reglas centrales:
 - En modo Artículo patrocinado, mantener la voz editorial de ideasDi, no inventar datos de marca y no convertir el texto en anuncio.
 - En article, consume como máximo la única URL interna ya resuelta y suministrada por IDG_Internal_Links, en formato Markdown [anchor natural](URL). No reinterpretes una URL de categoría como fallback. Si está unresolved o no hay URL, informa que requiere resolución editorial sin fabricar enlaces.
 - Crea el anchor contextual del enlace ya resuelto dentro del párrafo, sin cambiar su destino. La navegación interna de eventos permanece separada y solo usa URLs reales suministradas de CPT o taxonomía propia.
-- Para páginas de tags, evita usar el nombre literal del tag como anchor. Usa una frase contextual de 3 a 6 palabras que sostenga el argumento del párrafo.
+- Para páginas de tags, evita usar el nombre literal del tag como anchor. Usa una frase contextual de 3 a 8 palabras que sostenga el argumento del párrafo.
 - Preserva la calidad de la versión editorial: no neutralices frases con tensión, ritmo o precisión; no reemplaces una buena formulación por una versión más plana solo por optimizar SEO.
 - La revisión humana final es obligatoria.
 PROMPT;

@@ -104,6 +104,9 @@ final class IDG_Final_Guard {
             if (!self::html_has_url($html, $official)) {
                 $errors[] = 'Falta el enlace externo obligatorio hacia la URL del responsable.';
             } else {
+                if (self::url_link_count($html, $official) > 1) {
+                    $errors[] = 'El enlace externo obligatorio aparece más de una vez. Conserva una sola aparición contextual.';
+                }
                 $anchor = self::anchor_for_url($html, $official);
                 if ($keyword !== '' && self::same_plain($anchor, $keyword)) {
                     $errors[] = 'El enlace externo no puede usar la keyword principal como anchor.';
@@ -119,22 +122,42 @@ final class IDG_Final_Guard {
 
         $internal_links = class_exists('IDG_Internal_Links') ? IDG_Internal_Links::normalize($workflow) : [];
         if (!empty($internal_links)) {
-            $internal_ok = false;
             foreach ($internal_links as $link) {
                 $url = esc_url_raw((string) ($link['url'] ?? ''));
-                if ($url !== '' && self::html_has_url($html, $url)) {
-                    $internal_ok = true;
-                    break;
+                if ($url === '') {
+                    continue;
                 }
-            }
-            if (!$internal_ok) {
-                $errors[] = 'Falta el enlace interno calculado desde matriz tag/categoría.';
-            }
-            foreach ($internal_links as $link) {
-                $url = esc_url_raw((string) ($link['url'] ?? ''));
-                if ($url !== '' && self::url_link_count($html, $url) > 1) {
+
+                $link_count = self::url_link_count($html, $url);
+
+                if ($link_count === 0) {
+                    $errors[] = 'Falta el enlace interno calculado desde matriz tag/categoría.';
+                    continue;
+                }
+
+                if ($link_count > 1) {
                     $errors[] = 'El enlace interno principal aparece más de una vez. Conserva una sola aparición contextual.';
-                    break;
+                }
+
+                $source_type = (string) ($link['source_type'] ?? '');
+                if ($source_type !== 'tag') {
+                    continue;
+                }
+
+                $anchor = self::anchor_for_url($html, $url);
+                $word_count = self::anchor_word_count($anchor);
+
+                if ($word_count < 3 || $word_count > 8) {
+                    $errors[] = 'El anchor del enlace interno debe tener entre 3 y 8 palabras.';
+                }
+
+                if ($keyword !== '' && self::same_plain($anchor, $keyword)) {
+                    $errors[] = 'El enlace interno no puede usar la keyword principal exacta como anchor.';
+                }
+
+                $source_name = trim((string) ($link['source_name'] ?? ''));
+                if ($source_name !== '' && self::same_plain($anchor, $source_name)) {
+                    $errors[] = 'El enlace interno no puede usar el nombre literal del tag como anchor.';
                 }
             }
         }
@@ -267,6 +290,21 @@ final class IDG_Final_Guard {
             return trim(wp_strip_all_tags($m[1]));
         }
         return '';
+    }
+
+
+
+    private static function anchor_word_count(string $anchor): int {
+        $plain = trim(html_entity_decode(
+            wp_strip_all_tags($anchor),
+            ENT_QUOTES | ENT_HTML5,
+            'UTF-8'
+        ));
+        if ($plain === '') {
+            return 0;
+        }
+        $words = preg_split('/\s+/u', $plain, -1, PREG_SPLIT_NO_EMPTY);
+        return is_array($words) ? count($words) : 0;
     }
 
 
