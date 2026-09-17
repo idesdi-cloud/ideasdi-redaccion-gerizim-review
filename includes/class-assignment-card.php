@@ -4,6 +4,8 @@ if (!defined('ABSPATH')) {
 }
 
 final class IDG_Assignment_Card {
+    private const CONTRACT_VERSION = 'assignment-card-v2-links-no-category-fallback';
+
     public static function attach(array $workflow): array {
         $hash = self::hash($workflow);
         if (!empty($workflow['assignment_card']) && (string) ($workflow['assignment_card_hash'] ?? '') === $hash) {
@@ -87,7 +89,7 @@ final class IDG_Assignment_Card {
         if (self::is_event_workflow($workflow)) {
             $lines[] = '- Enlace interno desde el archivo real del CPT evento o una taxonomía propia real; no usar categorías estándar ficticias.';
         } else {
-            $lines[] = '- Enlace interno según matriz: tag Index → página del tag; tag No Index → categoría.';
+            $lines[] = '- Enlace interno: usar solo la URL real resuelta por IDG_Internal_Links desde un tag existente e indexable según la lente canónica; la categoría es contexto, nunca fallback. Si no resuelve, marcar unresolved y no fabricar enlace.';
         }
         $lines[] = '- Entrada en bloques Gutenberg, nunca bloque clásico.';
         $lines[] = '- Metadatos completos: meta, informe SEO, copy redes, paquete reel y retroalimentación.';
@@ -97,6 +99,7 @@ final class IDG_Assignment_Card {
 
     private static function hash(array $workflow): string {
         $parts = [
+            self::CONTRACT_VERSION,
             (string) ($workflow['keyword'] ?? ''),
             (string) ($workflow['entity'] ?? ''),
             (string) ($workflow['official_source'] ?? ''),

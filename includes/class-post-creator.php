@@ -691,53 +691,152 @@ final class IDG_Post_Creator {
 
     private static function html_to_gutenberg_blocks(string $html): string {
         $html = trim($html);
+
         if ($html === '' || str_contains($html, '<!-- wp:')) {
             return $html;
         }
 
+        if (!function_exists('serialize_blocks')) {
+            return $html;
+        }
+
         $lines = preg_split('/\n+/', $html);
+
+        if (!is_array($lines)) {
+            return $html;
+        }
+
         $blocks = [];
-        $list_buffer = [];
-        $flush_list = function () use (&$blocks, &$list_buffer) {
-            if (empty($list_buffer)) {
+        $list_items = [];
+
+        $flush_list = static function () use (&$blocks, &$list_items): void {
+            if (empty($list_items)) {
                 return;
             }
-            $list_html = implode("\n", $list_buffer);
-            $blocks[] = "<!-- wp:list -->\n" . $list_html . "\n<!-- /wp:list -->";
-            $list_buffer = [];
+
+            $inner_blocks = [];
+            $inner_content = ['<ul class="wp-block-list">'];
+            $inner_html_items = [];
+
+            foreach ($list_items as $item_html) {
+                $inner_blocks[] = self::gutenberg_leaf_block(
+                    'core/list-item',
+                    [],
+                    $item_html
+                );
+
+                $inner_content[] = null;
+                $inner_html_items[] = $item_html;
+            }
+
+            $inner_content[] = '</ul>';
+
+            $blocks[] = [
+                'blockName' => 'core/list',
+                'attrs' => [],
+                'innerBlocks' => $inner_blocks,
+                'innerHTML' => '<ul class="wp-block-list">'
+                    . implode('', $inner_html_items)
+                    . '</ul>',
+                'innerContent' => $inner_content,
+            ];
+
+            $list_items = [];
         };
 
         foreach ($lines as $line) {
-            $line = trim($line);
+            $line = trim((string) $line);
+
             if ($line === '') {
                 continue;
             }
 
-            if (preg_match('/^<ul\b/i', $line) || preg_match('/^<li\b/i', $line) || preg_match('/^<\/ul>/i', $line)) {
-                $list_buffer[] = $line;
-                if (preg_match('/^<\/ul>/i', $line)) {
-                    $flush_list();
-                }
+            if (preg_match('/^<ul\b[^>]*>$/is', $line)) {
+                continue;
+            }
+
+            if (preg_match('/^<li\b[^>]*>.*<\/li>$/is', $line)) {
+                $list_items[] = $line;
+                continue;
+            }
+
+            if (preg_match('/^<\/ul>$/i', $line)) {
+                $flush_list();
                 continue;
             }
 
             $flush_list();
 
             if (preg_match('/^<h2\b[^>]*>.*<\/h2>$/is', $line)) {
-                $blocks[] = "<!-- wp:heading -->\n" . $line . "\n<!-- /wp:heading -->";
-            } elseif (preg_match('/^<h3\b[^>]*>.*<\/h3>$/is', $line)) {
-                $blocks[] = "<!-- wp:heading {\"level\":3} -->\n" . $line . "\n<!-- /wp:heading -->";
-            } elseif (preg_match('/^<p\b[^>]*class=(\"|\')[^\"\']*featured-snippet-box[^\"\']*\1[^>]*>.*<\/p>$/is', $line)) {
-                $blocks[] = "<!-- wp:paragraph {\"className\":\"featured-snippet-box\"} -->\n" . $line . "\n<!-- /wp:paragraph -->";
-            } elseif (preg_match('/^<p\b[^>]*>.*<\/p>$/is', $line)) {
-                $blocks[] = "<!-- wp:paragraph -->\n" . $line . "\n<!-- /wp:paragraph -->";
-            } else {
-                $blocks[] = "<!-- wp:html -->\n" . $line . "\n<!-- /wp:html -->";
+                $blocks[] = self::gutenberg_leaf_block(
+                    'core/heading',
+                    [],
+                    $line
+                );
+                continue;
             }
+
+            if (preg_match('/^<h3\b[^>]*>.*<\/h3>$/is', $line)) {
+                $blocks[] = self::gutenberg_leaf_block(
+                    'core/heading',
+                    ['level' => 3],
+                    $line
+                );
+                continue;
+            }
+
+            if (preg_match('/^<p\b([^>]*)>.*<\/p>$/is', $line, $m)) {
+                $attrs = [];
+                $tag_attrs = (string) ($m[1] ?? '');
+
+                if (
+                    preg_match(
+                        '/\bclass=("|\')([^"\']+)\1/i',
+                        $tag_attrs,
+                        $class_match
+                    )
+                ) {
+                    $class_name = trim((string) ($class_match[2] ?? ''));
+
+                    if ($class_name !== '') {
+                        $attrs['className'] = $class_name;
+                    }
+                }
+
+                $blocks[] = self::gutenberg_leaf_block(
+                    'core/paragraph',
+                    $attrs,
+                    $line
+                );
+                continue;
+            }
+
+            // Un elemento no reconocido queda explícitamente marcado
+            // para que Final Guard bloquee la escritura.
+            $blocks[] = self::gutenberg_leaf_block(
+                'core/html',
+                [],
+                $line
+            );
         }
 
         $flush_list();
-        return implode("\n\n", $blocks);
+
+        return serialize_blocks($blocks);
+    }
+
+    private static function gutenberg_leaf_block(
+        string $block_name,
+        array $attrs,
+        string $html
+    ): array {
+        return [
+            'blockName' => $block_name,
+            'attrs' => $attrs,
+            'innerBlocks' => [],
+            'innerHTML' => $html,
+            'innerContent' => [$html],
+        ];
     }
 
 

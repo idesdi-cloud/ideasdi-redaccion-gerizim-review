@@ -201,11 +201,192 @@ final class IDG_Final_Guard {
     }
 
     public static function validate_gutenberg_blocks(string $post_content): array {
-        if (str_contains($post_content, '<!-- wp:')) {
-            return ['ok' => true, 'errors' => [], 'warnings' => []];
+        $errors = [];
+        $warnings = [];
+
+        if (trim($post_content) === '') {
+            return [
+                'ok' => false,
+                'errors' => ['El contenido Gutenberg está vacío.'],
+                'warnings' => [],
+            ];
         }
-        return ['ok' => false, 'errors' => ['La entrada no quedó convertida a bloques Gutenberg.'], 'warnings' => []];
+
+        if (
+            !function_exists('parse_blocks')
+            || !function_exists('serialize_blocks')
+        ) {
+            return [
+                'ok' => false,
+                'errors' => [
+                    'Las APIs nativas de bloques de WordPress no están disponibles.'
+                ],
+                'warnings' => [],
+            ];
+        }
+
+        $blocks = parse_blocks($post_content);
+
+        if (!is_array($blocks) || empty($blocks)) {
+            return [
+                'ok' => false,
+                'errors' => [
+                    'WordPress no pudo interpretar el contenido como bloques Gutenberg.'
+                ],
+                'warnings' => [],
+            ];
+        }
+
+        self::validate_gutenberg_block_tree(
+            $blocks,
+            $errors,
+            null
+        );
+
+        $roundtrip = serialize_blocks($blocks);
+
+        if (trim($roundtrip) !== trim($post_content)) {
+            $errors[] = 'La serialización Gutenberg no es canónica: parse_blocks() y serialize_blocks() no producen un round-trip estable.';
+        }
+
+        return [
+            'ok' => empty($errors),
+            'errors' => array_values(array_unique($errors)),
+            'warnings' => array_values(array_unique($warnings)),
+        ];
     }
+
+    private static function validate_gutenberg_block_tree(
+        array $blocks,
+        array &$errors,
+        ?string $parent
+    ): void {
+        $allowed = [
+            'core/paragraph',
+            'core/heading',
+            'core/list',
+            'core/list-item',
+        ];
+
+        foreach ($blocks as $block) {
+            if (!is_array($block)) {
+                $errors[] = 'La estructura Gutenberg contiene un nodo inválido.';
+                continue;
+            }
+
+            $name = $block['blockName'] ?? null;
+
+            if ($name === null) {
+                $loose = trim((string) ($block['innerHTML'] ?? ''));
+
+                if ($loose !== '') {
+                    $errors[] = 'Existe contenido suelto fuera de bloques Gutenberg.';
+                }
+
+                continue;
+            }
+
+            if (!in_array($name, $allowed, true)) {
+                $errors[] = 'Bloque Gutenberg no permitido en el artículo: '
+                    . (string) $name . '.';
+                continue;
+            }
+
+            $attrs = isset($block['attrs']) && is_array($block['attrs'])
+                ? $block['attrs']
+                : [];
+
+            $inner_blocks = isset($block['innerBlocks'])
+                && is_array($block['innerBlocks'])
+                ? $block['innerBlocks']
+                : [];
+
+            $inner_html = (string) ($block['innerHTML'] ?? '');
+
+            if ($name === 'core/heading') {
+                $level = isset($attrs['level'])
+                    ? (int) $attrs['level']
+                    : 2;
+
+                if (!in_array($level, [2, 3], true)) {
+                    $errors[] = 'Gutenberg contiene un heading fuera de la jerarquía H2/H3.';
+                }
+
+                $expected_tag = $level === 3 ? 'h3' : 'h2';
+
+                if (!preg_match(
+                    '/^<' . $expected_tag . '\b[^>]*>.*<\/'
+                    . $expected_tag . '>$/is',
+                    trim($inner_html)
+                )) {
+                    $errors[] = 'El heading Gutenberg no coincide con su nivel declarado.';
+                }
+            }
+
+            if ($name === 'core/paragraph') {
+                if (!preg_match(
+                    '/^<p\b[^>]*>.*<\/p>$/is',
+                    trim($inner_html)
+                )) {
+                    $errors[] = 'Un bloque de párrafo no contiene markup <p> válido.';
+                }
+            }
+
+            if ($name === 'core/list-item') {
+                if ($parent !== 'core/list') {
+                    $errors[] = 'Existe un core/list-item fuera de un core/list.';
+                }
+
+                if (!preg_match(
+                    '/^<li\b[^>]*>.*<\/li>$/is',
+                    trim($inner_html)
+                )) {
+                    $errors[] = 'Un elemento de lista Gutenberg no contiene markup <li> válido.';
+                }
+
+                if (!empty($inner_blocks)) {
+                    $errors[] = 'RC1.7.5 no admite bloques anidados dentro de core/list-item.';
+                }
+            }
+
+            if ($name === 'core/list') {
+                if (empty($inner_blocks)) {
+                    $errors[] = 'Un core/list debe contener al menos un core/list-item.';
+                    continue;
+                }
+
+                if (!preg_match(
+                    '/^<ul\b[^>]*class=("|\')[^"\']*\bwp-block-list\b[^"\']*\1[^>]*>.*<\/ul>$/is',
+                    trim($inner_html)
+                )) {
+                    $errors[] = 'El core/list no usa el markup nativo wp-block-list esperado.';
+                }
+
+                foreach ($inner_blocks as $child) {
+                    if (
+                        !is_array($child)
+                        || ($child['blockName'] ?? null) !== 'core/list-item'
+                    ) {
+                        $errors[] = 'core/list contiene un hijo distinto de core/list-item.';
+                        break;
+                    }
+                }
+
+                self::validate_gutenberg_block_tree(
+                    $inner_blocks,
+                    $errors,
+                    'core/list'
+                );
+
+                continue;
+            }
+
+            if (!empty($inner_blocks)) {
+                $errors[] = 'Un bloque Gutenberg simple contiene bloques hijos inesperados.';
+            }
+        }
+    }
+
 
     private static function extract_h1(string $content): string {
         if (preg_match('/^\s*#\s+(.+)$/mu', $content, $m)) {
