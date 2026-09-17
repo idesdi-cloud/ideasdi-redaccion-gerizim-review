@@ -22,7 +22,7 @@ final class IDG_Editorial_Rules {
             'editorial_box_rules' => 'La caja editorial factual, de 40 a 55 palabras, debe responder qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No debe contener enlaces, negritas ni tono promocional; no repite la tesis ni adelanta el análisis. Va después de la introducción, sin requisito de apertura por keyword.',
             'internal_link_rules' => 'El enlace interno debe integrarse dentro de un párrafo de análisis, nunca como línea suelta, botón, “ver más” ni cierre genérico. El anchor debe tener entre 3 y 8 palabras, no usar la keyword principal exacta y ampliar una idea del bloque.',
             'external_link_rules' => 'El enlace externo debe apuntar a la URL del responsable configurado y entrar de forma contextual. No debe enlazar una entidad distinta ni quedar como enlace suelto al final del artículo.',
-            'reel_rules' => 'El paquete reel debe incluir VO 1 a VO 6. VO 1 a VO 5 deben tener exactamente 14 palabras. VO 6 debe incluir el CTA fijo. Debe haber 6 escenas con 3 overlays cada una.',
+            'reel_rules' => 'El paquete reel debe incluir 6 escenas en orden. Cada escena usa VO n seguido de Overlay n.1, n.2 y n.3. VO 1 a VO 5 deben tener exactamente 14 palabras; VO 6 debe incluir el CTA fijo; cada overlay admite máximo 40 caracteres.',
             'forbidden_phrases' => 'Conclusión\nFuente oficial:\nEn este artículo\nLa lectura editorial\nBajada al lifestyle\nSi quieres',
             'category_rules' => '',
             'last_updated_at' => '',

@@ -804,62 +804,24 @@ final class IDG_Final_Guard {
         return $matched >= max(1, (int) ceil(count($tokens) * 0.7));
     }
 
-    private static function validate_reel_package(string $text): array {
-        $errors = [];
-        $warnings = [];
-        $normalized = str_replace(["\r\n", "\r"], "\n", trim($text));
-        if ($normalized === '') {
-            return ['errors' => ['Falta paquete reel en la salida final.'], 'warnings' => []];
-        }
-        $rules = class_exists('IDG_Editorial_Rules') ? IDG_Editorial_Rules::get() : [];
-        $target_words = (int) ($rules['reel_vo_words'] ?? 14);
-        $target_overlays = (int) (($rules['reel_scenes'] ?? 6) * ($rules['reel_overlays_per_scene'] ?? 3));
-        $overlay_max = (int) ($rules['reel_overlay_max_chars'] ?? 40);
-        $cta = trim((string) ($rules['reel_cta'] ?? 'Conoce más de este proyecto en ideasDi.com'));
-        if ($cta !== '' && stripos($normalized, $cta) === false) {
-            $errors[] = 'El paquete reel no incluye el CTA fijo obligatorio.';
+    private static function validate_reel_package(
+        string $text
+    ): array {
+        if (!class_exists('IDG_Reel_Contract')) {
+            return [
+                'errors' => [
+                    'El contrato compartido del paquete reel no está disponible.'
+                ],
+                'warnings' => [],
+            ];
         }
 
-        preg_match_all('/^\s*(?:[-*]\s*)?VO\s*(?:[—\-]\s*Bloque\s*)?(\d)\s*:\s*(.+)$/imu', $normalized, $vo_matches, PREG_SET_ORDER);
-        $vo_by_number = [];
-        foreach ($vo_matches as $m) {
-            $vo_by_number[(int) $m[1]] = trim((string) $m[2]);
-        }
-        for ($i = 1; $i <= 6; $i++) {
-            if (!isset($vo_by_number[$i]) || $vo_by_number[$i] === '') {
-                $errors[] = 'El paquete reel debe incluir VO ' . $i . '.';
-            }
-        }
-        for ($i = 1; $i <= 5; $i++) {
-            if (!isset($vo_by_number[$i])) {
-                continue;
-            }
-            $count = self::word_count($vo_by_number[$i]);
-            if ($count !== $target_words) {
-                $errors[] = 'VO ' . $i . ' debe tener exactamente ' . $target_words . ' palabras. Detectadas: ' . $count . '.';
-            }
-        }
+        $inspection = IDG_Reel_Contract::inspect($text);
 
-        $overlay_lines = [];
-        foreach (preg_split('/\n+/', $normalized) as $line) {
-            $line = trim((string) $line);
-            if ($line === '') {
-                continue;
-            }
-            if (preg_match('/^(?:[-*]\s*)?(?:Overlay|Subt[ií]tulo|Texto en pantalla)(?:\s+\d+(?:[\.\-]\d+)?|\s*[—\-]?\s*\d+)?\s*:\s*(.+)$/iu', $line, $m)) {
-                $overlay_lines[] = trim((string) $m[1]);
-            }
-        }
-        $overlay_count = count($overlay_lines);
-        if ($overlay_count !== max(1, $target_overlays)) {
-            $errors[] = 'El paquete reel debe incluir ' . max(1, $target_overlays) . ' overlays en total. Detectados: ' . $overlay_count . '.';
-        }
-        foreach ($overlay_lines as $index => $overlay) {
-            if (mb_strlen($overlay) > $overlay_max) {
-                $errors[] = 'Overlay ' . ($index + 1) . ' supera ' . $overlay_max . ' caracteres.';
-            }
-        }
-        return ['errors' => $errors, 'warnings' => $warnings];
+        return [
+            'errors' => (array) ($inspection['issues'] ?? []),
+            'warnings' => (array) ($inspection['warnings'] ?? []),
+        ];
     }
 
     private static function summary_lines(array $errors, array $warnings): string {

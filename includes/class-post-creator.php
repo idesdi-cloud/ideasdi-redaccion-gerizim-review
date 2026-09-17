@@ -29,7 +29,7 @@ final class IDG_Post_Creator {
         $seo_report = trim((string) ($sections['seo_report'] ?? ''));
         $social_copy = trim((string) ($sections['social_copy'] ?? ''));
         $reel_package = trim((string) ($sections['reel_package'] ?? ''));
-        $reel_package = self::ensure_valid_reel_package($reel_package, $content, $workflow);
+        $reel_package = self::normalize_reel_package($reel_package);
         $sections['reel_package'] = $reel_package;
         $feedback_notes = trim((string) ($sections['feedback_notes'] ?? $workflow['feedback_notes'] ?? ''));
         $processed_seo_result = '';
@@ -255,7 +255,7 @@ final class IDG_Post_Creator {
         $seo_report = trim((string) ($sections['seo_report'] ?? ''));
         $social_copy = trim((string) ($sections['social_copy'] ?? ''));
         $reel_package = trim((string) ($sections['reel_package'] ?? ''));
-        $reel_package = self::ensure_valid_reel_package($reel_package, $content, $workflow);
+        $reel_package = self::normalize_reel_package($reel_package);
         $sections['reel_package'] = $reel_package;
         $feedback_notes = trim((string) ($sections['feedback_notes'] ?? $workflow['feedback_notes'] ?? ''));
 
@@ -1393,163 +1393,20 @@ final class IDG_Post_Creator {
     }
 
 
-    private static function ensure_valid_reel_package(string $reel, string $article, array $workflow): string {
-        $reel = self::normalize($reel);
-        $needs_repair = false;
-
-        $rules = class_exists('IDG_Editorial_Rules') ? IDG_Editorial_Rules::get() : [];
-        $target_words = (int) ($rules['reel_vo_words'] ?? 14);
-        $target_overlays = (int) (($rules['reel_scenes'] ?? 6) * ($rules['reel_overlays_per_scene'] ?? 3));
-        $cta = trim((string) ($rules['reel_cta'] ?? 'Conoce más de este proyecto en ideasDi.com'));
-
-        if ($reel === '' || ($cta !== '' && stripos($reel, $cta) === false)) {
-            $needs_repair = true;
+    private static function normalize_reel_package(
+        string $reel
+    ): string {
+        if (class_exists('IDG_Reel_Contract')) {
+            return IDG_Reel_Contract::normalize($reel);
         }
 
-        preg_match_all('/^\s*(?:[-*]\s*)?VO\s*(?:[—\-]\s*Bloque\s*)?(\d)\s*:\s*(.+)$/imu', $reel, $vo_matches, PREG_SET_ORDER);
-        $vo_by_number = [];
-        foreach ($vo_matches as $m) {
-            $vo_by_number[(int) $m[1]] = trim((string) $m[2]);
-        }
-        for ($i = 1; $i <= 6; $i++) {
-            if (empty($vo_by_number[$i])) {
-                $needs_repair = true;
-                break;
-            }
-        }
-        for ($i = 1; $i <= 5; $i++) {
-            if (!empty($vo_by_number[$i]) && self::word_count($vo_by_number[$i]) !== $target_words) {
-                $needs_repair = true;
-                break;
-            }
-        }
-
-        $overlay_count = 0;
-        foreach (preg_split('/\n+/', $reel) as $line) {
-            if (preg_match('/^(?:[-*]\s*)?(?:Overlay|Subt[ií]tulo|Texto en pantalla)(?:\s+\d+(?:[\.\-]\d+)?|\s*[—\-]?\s*\d+)?\s*:/iu', trim((string) $line))) {
-                $overlay_count++;
-            }
-        }
-        if ($overlay_count !== max(1, $target_overlays)) {
-            $needs_repair = true;
-        }
-
-        return $needs_repair ? self::build_deterministic_reel_package($article, $workflow) : $reel;
-    }
-
-    private static function build_deterministic_reel_package(string $article, array $workflow): string {
-        // Paquete de seguridad contextual: mantiene formato exacto sin caer en una plantilla genérica.
-        $context = self::reel_context($article, $workflow);
-        $vo = [];
-        $vo[] = self::fit_words($context['name'] . ' se entiende desde ' . $context['axis1'] . ', ' . $context['axis2'] . ' y ' . $context['axis3'] . ' con lectura de diseño', 14);
-        $vo[] = self::fit_words('La propuesta conecta ' . $context['axis2'] . ', ' . $context['axis4'] . ' y contexto cotidiano dentro de una experiencia concreta', 14);
-        $vo[] = self::fit_words('El artículo observa ' . $context['axis1'] . ', ' . $context['axis3'] . ' y detalle para explicar su alcance editorial', 14);
-        $vo[] = self::fit_words('Cada decisión revela cómo ' . $context['name'] . ' combina técnica, espacio, cuerpo y cultura visual', 14);
-        $vo[] = self::fit_words('La clave está en cómo ' . $context['axis4'] . ' cambia percepción, ritmo y valor de uso', 14);
-
-        $lines = [];
-        for ($i = 1; $i <= 5; $i++) {
-            $lines[] = 'VO ' . $i . ': ' . $vo[$i - 1] . '.';
-            foreach (self::reel_overlays_for_scene($context, $i) as $j => $overlay) {
-                $lines[] = 'Overlay ' . $i . '.' . ($j + 1) . ': ' . $overlay;
-            }
-            $lines[] = '';
-        }
-        $lines[] = 'VO 6: Amplía esta lectura editorial y Conoce más de este proyecto en ideasDi.com hoy.';
-        foreach (self::reel_overlays_for_scene($context, 6) as $j => $overlay) {
-            $lines[] = 'Overlay 6.' . ($j + 1) . ': ' . $overlay;
-        }
-        return implode("
-", $lines);
-    }
-
-    private static function reel_context(string $article, array $workflow): array {
-        $title = self::extract_title($article, (string) ($workflow['keyword'] ?? 'El proyecto'));
-        $name = trim((string) ($workflow['keyword'] ?? ''));
-        if ($name === '') {
-            $name = preg_replace('/[:|,].*$/u', '', $title);
-        }
-        $name = trim(wp_strip_all_tags((string) $name));
-        $category = '';
-        if (!empty($workflow['category_id'])) {
-            $term = get_term((int) $workflow['category_id'], 'category');
-            if ($term && !is_wp_error($term)) {
-                $category = mb_strtolower(function_exists('remove_accents') ? remove_accents((string) $term->name) : (string) $term->name);
-            }
-        }
-        $axes = ['forma', 'materialidad', 'contexto', 'experiencia'];
-        if (str_contains($category, 'digital') || str_contains($category, '3d')) {
-            $axes = ['flujo visual', 'interfaz', 'control técnico', 'producción'];
-        } elseif (str_contains($category, 'movilidad') || str_contains($category, 'transporte')) {
-            $axes = ['proporción', 'materialidad', 'conducción', 'presencia'];
-        } elseif (str_contains($category, 'moda')) {
-            $axes = ['silueta', 'movimiento', 'cuerpo', 'cultura deportiva'];
-        } elseif (str_contains($category, 'producto')) {
-            $axes = ['objeto', 'materialidad', 'gesto manual', 'uso cotidiano'];
-        } elseif (str_contains($category, 'arquitectura') || str_contains($category, 'interior')) {
-            $axes = ['recorrido', 'luz', 'programa', 'vida cotidiana'];
-        } elseif (str_contains($category, 'concurso') || str_contains($category, 'convocatoria')) {
-            $axes = ['convocatoria', 'calendario', 'categorías', 'portafolio'];
-        }
-        return [
-            'name' => self::short_reel_name($name !== '' ? $name : 'El proyecto'),
-            'axis1' => $axes[0],
-            'axis2' => $axes[1],
-            'axis3' => $axes[2],
-            'axis4' => $axes[3],
-        ];
-    }
-
-    private static function short_reel_name(string $name): string {
-        $name = trim(wp_strip_all_tags($name));
-        $words = preg_split('/\s+/u', $name, -1, PREG_SPLIT_NO_EMPTY);
-        if (is_array($words) && count($words) > 4) {
-            $name = implode(' ', array_slice($words, 0, 4));
-        }
-        return $name !== '' ? $name : 'El proyecto';
-    }
-
-    private static function reel_overlays_for_scene(array $context, int $scene): array {
-        $sets = [
-            1 => [$context['name'], ucfirst($context['axis1']), ucfirst($context['axis2'])],
-            2 => [ucfirst($context['axis2']), 'Decisión visible', 'Uso en contexto'],
-            3 => [ucfirst($context['axis1']), ucfirst($context['axis3']), 'Lectura editorial'],
-            4 => [ucfirst($context['axis3']), ucfirst($context['axis4']), 'Detalle clave'],
-            5 => [ucfirst($context['axis4']), 'Valor de uso', 'Mirada ideasDi'],
-            6 => ['Cierre editorial', 'Más contexto', 'ideasDi.com'],
-        ];
-        $out = $sets[$scene] ?? $sets[6];
-        return array_map(static function ($text) {
-            $text = trim((string) $text);
-            return mb_strlen($text) > 40 ? mb_substr($text, 0, 37) . '…' : $text;
-        }, $out);
-    }
-
-    private static function fit_words(string $text, int $target): string {
-        $text = trim(preg_replace('/\s+/u', ' ', wp_strip_all_tags($text)));
-        $text = preg_replace('/\b(actual\s+actual|actual\s+clara|uso\s+cotidiano\s+y\s+uso\s+cotidiano)\b/iu', 'actual', (string) $text);
-        $words = preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
-        $words = is_array($words) ? $words : [];
-        $fillers = ['con', 'contexto', 'y', 'sentido', 'editorial', 'para', 'uso', 'real', 'en', 'ideasDi'];
-        $i = 0;
-        while (count($words) < $target) {
-            $next = $fillers[$i % count($fillers)];
-            $last = end($words);
-            if ($last === $next) {
-                $i++;
-                continue;
-            }
-            $words[] = $next;
-            $i++;
-        }
-        if (count($words) > $target) {
-            $words = array_slice($words, 0, $target);
-        }
-        $bad_endings = ['y', 'de', 'con', 'desde', 'para', 'sin', 'en', 'la', 'el', 'un', 'una'];
-        if (!empty($words) && in_array(mb_strtolower(trim(end($words), '.,;:')), $bad_endings, true)) {
-            $words[count($words) - 1] = 'contexto';
-        }
-        return implode(' ', $words);
+        return trim(
+            str_replace(
+                ["\r\n", "\r"],
+                "\n",
+                $reel
+            )
+        );
     }
 
     private static function word_count(string $text): int {

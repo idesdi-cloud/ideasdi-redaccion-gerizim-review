@@ -1090,13 +1090,61 @@ final class IDG_Workflow_Admin_Controller {
         }
         $bold_count = preg_match_all('/\*\*([^*]+)\*\*/u', $content, $bolds);
         $sections = self::report_extract_sections((string) ($workflow['seo_result'] ?? ''));
-        $reel_package = (string) ($sections['PAQUETE REEL'] ?? '');
-        $reel_cta = stripos($reel_package, 'Conoce más de este proyecto en ideasDi.com') !== false ? 'sí' : 'no';
-        $overlay_count = preg_match_all('/^\s*Overlay(?:\s+\d+(?:\.\d+)?|\s*[—\-]?\s*\d+)?\s*:/imu', $reel_package, $om);
-        $rules = class_exists('IDG_Editorial_Rules') ? IDG_Editorial_Rules::get() : [];
-        $target_words = (int) ($rules['reel_vo_words'] ?? 14);
-        $target_overlays = (int) (($rules['reel_scenes'] ?? 6) * ($rules['reel_overlays_per_scene'] ?? 3));
-        $vo_counts = self::report_reel_vo_counts($reel_package, $target_words);
+        $reel_package = trim(
+            (string) ($workflow['reel_package_postprocessed'] ?? '')
+        );
+
+        if ($reel_package === '') {
+            $reel_package =
+                (string) ($sections['PAQUETE REEL'] ?? '');
+        }
+
+        $reel_inspection = class_exists('IDG_Reel_Contract')
+            ? IDG_Reel_Contract::inspect($reel_package)
+            : [
+                'valid' => false,
+                'status' => 'requiere revisión',
+                'issues' => ['Contrato Reel no disponible.'],
+                'vo_counts' => [],
+                'overlay_counts' => [],
+                'total_overlays' => 0,
+                'cta_in_final_vo' => false,
+                'targets' => [
+                    'scenes' => 6,
+                    'words' => 14,
+                    'overlays_per_scene' => 3,
+                    'total_overlays' => 18,
+                ],
+            ];
+
+        $rules = class_exists('IDG_Editorial_Rules')
+            ? IDG_Editorial_Rules::get()
+            : [];
+
+        $targets =
+            (array) ($reel_inspection['targets'] ?? []);
+
+        $target_scenes =
+            (int) ($targets['scenes'] ?? 6);
+
+        $target_words =
+            (int) ($targets['words'] ?? 14);
+
+        $overlays_per_scene =
+            (int) ($targets['overlays_per_scene'] ?? 3);
+
+        $target_overlays =
+            (int) ($targets['total_overlays'] ?? 18);
+
+        $vo_counts =
+            (array) ($reel_inspection['vo_counts'] ?? []);
+
+        $overlay_counts =
+            (array) ($reel_inspection['overlay_counts'] ?? []);
+
+        $issues =
+            (array) ($reel_inspection['issues'] ?? []);
+
         $result = [
             'H1 detectado' => $h1,
             'H1 contiene keyword exacta' => ($keyword !== '' && stripos($h1, $keyword) !== false) ? 'sí' : 'no',
@@ -1108,40 +1156,67 @@ final class IDG_Workflow_Admin_Controller {
             'Enlaces detectados' => (string) count($links),
             'Keyword usada como anchor' => $keyword_anchor,
             'Negritas reales detectadas' => (string) max(0, (int) $bold_count),
-            'Paquete reel estado' => 'apoyo preliminar / no bloqueante',
-            'Paquete reel incluye CTA fijo' => $reel_cta,
-            'Overlays del reel detectados' => (string) max(0, (int) $overlay_count) . ' / ' . max(1, $target_overlays),
+            'Paquete reel estado' =>
+                !empty($reel_inspection['valid'])
+                    ? 'válido'
+                    : 'requiere revisión',
+            'Paquete reel CTA en VO ' . $target_scenes =>
+                !empty($reel_inspection['cta_in_final_vo'])
+                    ? 'sí'
+                    : 'no',
+            'Overlays del reel detectados' =>
+                (string) (
+                    (int) (
+                        $reel_inspection['total_overlays']
+                        ?? 0
+                    )
+                )
+                . ' / '
+                . max(1, $target_overlays),
         ];
-        foreach ($vo_counts as $label => $value) {
-            $result[$label] = $value;
-        }
-        $result['Ficha de encargo registrada'] = trim((string) ($workflow['assignment_card'] ?? '')) !== '' ? 'sí' : 'no';
-        return $result;
-    }
 
-    private static function report_reel_vo_counts(string $reel_package, int $target_words): array {
-        $out = [];
-        preg_match_all('/^\s*(?:[-*]\s*)?VO\s*(?:[—\-]\s*Bloque\s*)?(\d)\s*:\s*(.+)$/imu', $reel_package, $matches, PREG_SET_ORDER);
-        $by = [];
-        foreach ($matches as $m) {
-            $by[(int) $m[1]] = trim((string) $m[2]);
-        }
-        for ($i = 1; $i <= 5; $i++) {
-            if (!isset($by[$i])) {
-                $out['VO ' . $i . ' palabras'] = 'no detectado';
+        for ($i = 1; $i < $target_scenes; $i++) {
+            if (!array_key_exists($i, $vo_counts)) {
+                $result['VO ' . $i . ' palabras'] =
+                    'no detectado / '
+                    . $target_words;
+
                 continue;
             }
-            $count = self::report_word_count($by[$i]);
-            $out['VO ' . $i . ' palabras'] = $count . ' / ' . $target_words;
-        }
-        $out['VO 6 CTA'] = (isset($by[6]) && stripos($by[6], 'Conoce más de este proyecto en ideasDi.com') !== false) ? 'sí' : 'no';
-        return $out;
-    }
 
-    private static function report_word_count(string $text): int {
-        $plain = trim(wp_strip_all_tags($text));
-        preg_match_all('/\b[\p{L}\p{N}][\p{L}\p{N}\-]*\b/u', $plain, $m);
-        return count($m[0] ?? []);
+            $result['VO ' . $i . ' palabras'] =
+                (int) $vo_counts[$i]
+                . ' / '
+                . $target_words;
+        }
+
+        $result['VO ' . $target_scenes . ' CTA'] =
+            !empty($reel_inspection['cta_in_final_vo'])
+                ? 'sí'
+                : 'no';
+
+        for ($i = 1; $i <= $target_scenes; $i++) {
+            $result['Escena ' . $i . ' overlays'] =
+                (int) ($overlay_counts[$i] ?? 0)
+                . ' / '
+                . $overlays_per_scene;
+        }
+
+        $result['Paquete reel revisión'] =
+            empty($issues)
+                ? 'sin observaciones'
+                : implode(' | ', $issues);
+
+        $result['Ficha de encargo registrada'] =
+            trim(
+                (string) (
+                    $workflow['assignment_card']
+                    ?? ''
+                )
+            ) !== ''
+                ? 'sí'
+                : 'no';
+        return $result;
     }
 
     private static function report_featured_snippet_after_intro(string $content): string {

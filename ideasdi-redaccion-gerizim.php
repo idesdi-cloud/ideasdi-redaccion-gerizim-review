@@ -54,6 +54,7 @@ require_once IDG_PLUGIN_DIR . 'includes/class-radar-importer.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-recurring-updates.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-usage-estimator.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-editorial-rules.php';
+require_once IDG_PLUGIN_DIR . 'includes/class-reel-contract.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-prompt-library.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-openai-client.php';
 require_once IDG_PLUGIN_DIR . 'includes/class-logger.php';
