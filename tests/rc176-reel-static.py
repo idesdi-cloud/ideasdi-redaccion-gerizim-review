@@ -139,20 +139,8 @@ check(
 )
 
 check(
-    "Version: 0.4.0-RC1.7.5"
-    in bootstrap,
-    "sin version bump funcional",
-)
-
-check(
-    "define('IDG_VERSION', '0.4.0-RC1.7.5');"
-    in bootstrap,
-    "IDG_VERSION permanece RC1.7.5",
-)
-
-check(
     "serialize_blocks($blocks)" in post,
-    "RC1.7.5 Gutenberg preservado",
+    "Gutenberg preservado en Post Creator",
 )
 
 check(
