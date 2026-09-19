@@ -23,12 +23,6 @@ function rc165_ok(bool $ok, string $message): void {
 }
 
 rc165_ok(
-    str_contains($main, 'Version: 0.4.0-RC1.7.2')
-    && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.7.2')"),
-    'versión RC1.7.2 consistente'
-);
-
-rc165_ok(
     !file_exists($root . '/includes/class-workflow-admin-support.php'),
     'wrapper Admin Support sin consumidor eliminado'
 );

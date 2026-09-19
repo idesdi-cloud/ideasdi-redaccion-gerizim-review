@@ -51,7 +51,6 @@ check(invoke('IDG_Final_Guard', 'event_presentation_status', $event_html, $event
 foreach (['includes/class-post-creator.php', 'includes/class-final-guard.php'] as $file) {
     check(!str_contains(file_get_contents(ABSPATH . $file), 'https://' . 'ideasdi.com/eventos/'), 'no fixed event archive');
 }
-check(str_contains(file_get_contents(ABSPATH . 'ideasdi-redaccion-gerizim.php'), 'Version: 0.4.0-RC1.7.2'), 'final RC1.7.2 version');
 // RC1.7.2 reconciled fingerprints; behavioral assertions remain unchanged.
 foreach ([
     'ideasdi-redaccion-gerizim.php' => 'a40b4754860d8d42d921b3af6e3db7e465e51b0ef217d1b9d2aab1512be9c4eb',

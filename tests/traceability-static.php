@@ -12,7 +12,6 @@ $adminPage=file_get_contents($root.'/includes/class-admin-page.php');
 $importer=file_get_contents($root.'/includes/class-radar-importer.php');
 $recapture=file_get_contents($root.'/includes/class-traceability-recapture.php');
 $logger=file_get_contents($root.'/includes/class-logger.php');
-ok(str_contains($main,"0.4.0-RC1.7.2"),'versión RC1.7.2');
 ok(str_contains($main,"IDG_TRACEABILITY_DB_VERSION"),'versión DB definida');
 foreach(['idempotency_key','dependency_key','lock_token','locked_at','next_attempt_at'] as $field) ok(str_contains($outbox,$field),"esquema contiene $field");
 ok(str_contains($outbox,'UNIQUE KEY idempotency_key'),'índice único de idempotencia');

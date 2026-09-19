@@ -61,8 +61,6 @@ foreach (['primary_lens', 'secondary_lenses', 'existentes e indexables con URL r
     rc170_ok(str_contains($html, $text), "admin rendered copy: $text");
 }
 rc170_ok(!str_contains($admin, 'Categoría detectada para fallback de enlaces'), 'report category is context only');
-$main = file_get_contents(ABSPATH . 'ideasdi-redaccion-gerizim.php');
-rc170_ok((bool) preg_match('/Version:\s*0\.4\.0-RC1\.7\.2\s*$/m', $main), 'plugin final RC1.7.2 version');
 // RC1.7.2 reconciled fingerprints; behavioral assertions remain unchanged.
 $protected = [
     'ideasdi-redaccion-gerizim.php' => 'a40b4754860d8d42d921b3af6e3db7e465e51b0ef217d1b9d2aab1512be9c4eb',

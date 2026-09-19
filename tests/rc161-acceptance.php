@@ -19,7 +19,6 @@ function rc161_ok(bool $condition, string $message): void {
     echo sprintf("OK S%02d: %s\n", $number, $message);
 }
 
-rc161_ok(str_contains($main, 'Version: 0.4.0-RC1.7.2') && str_contains($main, "define('IDG_VERSION', '0.4.0-RC1.7.2')"), 'versión RC1.7.2 consistente');
 rc161_ok(str_contains($main, "define('IDG_TRACEABILITY_DB_VERSION', '1.2.0')"), 'sin migración de base de datos');
 rc161_ok(str_contains($contract, 'interface IDG_Workflow_Action_Strategy_Contract'), 'contrato de estrategia disponible');
 rc161_ok(str_contains($strategies, 'final class IDG_Workflow_Action_Strategy_Center'), 'centro de estrategias disponible');

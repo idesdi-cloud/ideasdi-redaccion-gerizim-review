@@ -96,7 +96,7 @@ foreach ([
     'includes/class-final-guard.php' => 'd20e654eaad1f47e4fd534d487ed31a5cbe10280fbfc782386b14eacd82e683f',
     'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
     'tests/rc170-canonical-core.php' => '7b00a4253068e5e82081b9b0f65a8f6d88d5cce06b3ce5ed207c3543f9024d62',
-    'tests/rc170-canonical-consumption.php' => '553c4344dfccc30322dcb0e8f09538d31e0e54e112da108146c2e12af4c7e343',
+    'tests/rc170-canonical-consumption.php' => '08f1d2cc8f846fe2e96ae37b13c398c6fd225b6d96b863e867653cbc3533a333',
 ] as $file => $sha) {
     check(hash_file('sha256', ABSPATH . $file) === $sha, 'protected source ' . $file);
 }

@@ -38,6 +38,19 @@ done < <(
 
 echo "Archivos PHP revisados: $PHP_TOTAL"
 
+printf '\n%s\n' "=== Contrato de versión actual ==="
+
+TEST_TOTAL=$((TEST_TOTAL + 1))
+: > "$TEST_LOG"
+
+if python3 tests/plugin-version-contract.py 0.4.0-RC1.7.6 >"$TEST_LOG" 2>&1; then
+  echo "PASS: plugin-version-contract.py"
+else
+  echo "FAIL: plugin-version-contract.py"
+  cat "$TEST_LOG"
+  FAILURES=$((FAILURES + 1))
+fi
+
 printf '\n%s\n' "=== Pruebas PHP ==="
 
 while IFS= read -r -d '' TEST_FILE; do
