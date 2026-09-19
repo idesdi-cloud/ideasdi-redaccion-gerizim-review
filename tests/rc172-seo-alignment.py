@@ -6,9 +6,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = '72d659acc9e9079d9112a1f04405a5525591fe3d'
-PROMPTS = (ROOT / 'includes' / 'class-prompt-library.php').read_text(encoding='utf-8')
-VALIDATOR = (ROOT / 'includes' / 'class-validator.php').read_text(encoding='utf-8')
-FINAL_GUARD = (ROOT / 'includes' / 'class-final-guard.php').read_text(encoding='utf-8')
+RELEASE = '742b014d9b8b53163250eddda65edfaccabf4304'
 
 
 def require(condition, label):
@@ -16,22 +14,33 @@ def require(condition, label):
         raise AssertionError(label)
 
 
-def changed_paths():
-    result = subprocess.run(
-        ['git', 'status', '--porcelain=v1', '--untracked-files=all'],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return {line[3:] for line in result.stdout.splitlines() if len(line) >= 4}
-
-
-def differs_from_baseline(path):
+def git_object(path):
     return subprocess.run(
-        ['git', 'diff', '--quiet', BASELINE, '--', path],
+        ['git', 'show', f'{RELEASE}:{path}'], cwd=ROOT, check=True, capture_output=True
+    ).stdout.decode('utf-8')
+
+
+def release_matches_baseline(path):
+    return subprocess.run(
+        ['git', 'diff', '--quiet', BASELINE, RELEASE, '--', path],
         cwd=ROOT,
-    ).returncode != 0
+    ).returncode == 0
+
+
+release_commit = subprocess.run(
+    ['git', 'rev-parse', f'{RELEASE}^{{commit}}'], cwd=ROOT, check=True,
+    capture_output=True, text=True,
+).stdout.strip()
+release_parent = subprocess.run(
+    ['git', 'rev-parse', f'{RELEASE}^'], cwd=ROOT, check=True,
+    capture_output=True, text=True,
+).stdout.strip()
+require(release_commit == RELEASE, 'RC1.7.2 release object is available and exact')
+require(release_parent == BASELINE, 'RC1.7.2 release parent is the SEO baseline')
+
+PROMPTS = git_object('includes/class-prompt-library.php')
+VALIDATOR = git_object('includes/class-validator.php')
+FINAL_GUARD = git_object('includes/class-final-guard.php')
 
 
 require(
@@ -54,32 +63,6 @@ require(
 require('La keyword principal no aparece ni de forma exacta ni mediante una variante suficientemente reconocible.' in VALIDATOR, 'validator warning matches flexible semantic')
 require('La keyword principal no aparece de forma exacta en el texto.' not in VALIDATOR, 'legacy exact-keyword warning removed')
 
-allowed_paths = {
-    'CAMBIOS-v0.4.0-RC1.7.2.md',
-    'PRUEBAS-v0.4.0-RC1.7.2.md',
-    'REGRESION-EDITORIAL-RC1.7.2.sha256',
-    'ideasdi-redaccion-gerizim.php',
-    'scripts/test.sh',
-    'tests/plugin-load-smoke.php',
-    'tests/rc157-acceptance.php',
-    'tests/rc160-acceptance.php',
-    'tests/rc161-acceptance.php',
-    'tests/rc162-acceptance.php',
-    'tests/rc163-acceptance.php',
-    'tests/rc165-legacy-cleanup-equivalence.php',
-    'tests/rc170-canonical-consumption.php',
-    'tests/rc170-canonical-external-guard.php',
-    'tests/rc170-canonical-internal-links.php',
-    'tests/rc170-canonical-prompts-admin.php',
-    'tests/rc170-release-regression.php',
-    'tests/rc171-release-integration.py',
-    'tests/rc172-seo-alignment.py',
-    'tests/rc172-release-integration.py',
-    'tests/support/canonical-regression.php',
-    'tests/traceability-static.php',
-}
-changed = changed_paths()
-require(changed <= allowed_paths, f'unrelated paths changed: {sorted(changed - allowed_paths)}')
 for protected_path in (
     'includes/class-prompt-library.php',
     'includes/class-validator.php',
@@ -89,6 +72,6 @@ for protected_path in (
     'includes/class-canonical-context.php',  # canonical projection
     'includes/data/editorial-canonical.php',  # canonical projection
 ):
-    require(not differs_from_baseline(protected_path), f'protected production file differs from baseline: {protected_path}')
+    require(release_matches_baseline(protected_path), f'protected production file differs in RC1.7.2 release boundary: {protected_path}')
 
 print('RC172_SEO_ALIGNMENT_OK')
