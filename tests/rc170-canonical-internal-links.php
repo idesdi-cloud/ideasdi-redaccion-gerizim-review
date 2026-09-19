@@ -87,17 +87,17 @@ check(IDG_Internal_Links::automatic($workflow + ['recurring_target_post_type' =>
 foreach (['includes/class-internal-links.php', 'tests/rc170-canonical-internal-links.php'] as $file) {
     check(!str_contains(file_get_contents(ABSPATH . $file), 'https://' . 'ideasdi.com/' . 'eventos/'), 'no hard-coded event URL');
 }
-// RC1.7.2 reconciled fingerprints; behavioral assertions remain unchanged.
+require_once ABSPATH . 'tests/support/canonical-regression.php';
 foreach ([
-    'ideasdi-redaccion-gerizim.php' => 'a40b4754860d8d42d921b3af6e3db7e465e51b0ef217d1b9d2aab1512be9c4eb',
-    'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
-    'includes/class-canonical-context.php' => '0b41aad89bcc7be6ed36290b8dc42637afa8af45a33344676ac84562c4e8de7a',
-    'includes/data/editorial-canonical.php' => 'ec01328fca214aa77a27f59ca33d21acce0b1c48ccabb2628aec7651dc845422',
-    'includes/class-final-guard.php' => 'd20e654eaad1f47e4fd534d487ed31a5cbe10280fbfc782386b14eacd82e683f',
-    'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
-    'tests/rc170-canonical-core.php' => '7b00a4253068e5e82081b9b0f65a8f6d88d5cce06b3ce5ed207c3543f9024d62',
-    'tests/rc170-canonical-consumption.php' => '08f1d2cc8f846fe2e96ae37b13c398c6fd225b6d96b863e867653cbc3533a333',
-] as $file => $sha) {
-    check(hash_file('sha256', ABSPATH . $file) === $sha, 'protected source ' . $file);
+    'ideasdi-redaccion-gerizim.php',
+    'includes/class-canonical-adapter.php',
+    'includes/class-canonical-context.php',
+    'includes/data/editorial-canonical.php',
+    'includes/class-final-guard.php',
+    'includes/class-post-creator.php',
+    'tests/rc170-canonical-core.php',
+    'tests/rc170-canonical-consumption.php',
+] as $file) {
+    check(IDG_Canonical_Regression::current_files_match(ABSPATH, [$file]), 'protected source ' . $file);
 }
 echo "CANONICAL_INTERNAL_LINKS_OK\n";

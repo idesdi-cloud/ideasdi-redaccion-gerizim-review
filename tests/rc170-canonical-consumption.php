@@ -25,15 +25,15 @@ foreach (['canonical-adapter', 'canonical-context', 'disciplinary-library', 'edi
 }
 require_once ABSPATH . 'includes/class-workflow-prompt-data.php';
 require_once ABSPATH . 'includes/class-prompt-library.php';
-// RC1.7.2 reconciled fingerprints; behavioral assertions remain unchanged.
+require_once ABSPATH . 'tests/support/canonical-regression.php';
 foreach ([
-    'includes/class-internal-links.php' => '054f6f84a62c600dcf9b5c156c60bfed1fbef31072d8ae4df58258360c186970',
-    'includes/class-final-guard.php' => 'd20e654eaad1f47e4fd534d487ed31a5cbe10280fbfc782386b14eacd82e683f',
-    'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
-    'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
-    'includes/data/editorial-canonical.php' => 'ec01328fca214aa77a27f59ca33d21acce0b1c48ccabb2628aec7651dc845422',
-] as $file => $sha) {
-    check(hash_file('sha256', ABSPATH . $file) === $sha, 'protected baseline ' . $file);
+    'includes/class-internal-links.php',
+    'includes/class-final-guard.php',
+    'includes/class-post-creator.php',
+    'includes/class-canonical-adapter.php',
+    'includes/data/editorial-canonical.php',
+] as $file) {
+    check(IDG_Canonical_Regression::current_files_match(ABSPATH, [$file]), 'protected baseline ' . $file);
 }
 $projection = IDG_Canonical_Adapter::projection();
 check($projection['canonical_sha256'] === '0bc762b7666ffead0c54dbe83ecddc281ed4a9f2e7bdbaaf61406b3e921c9acf', 'canonical pin');

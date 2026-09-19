@@ -51,14 +51,14 @@ check(invoke('IDG_Final_Guard', 'event_presentation_status', $event_html, $event
 foreach (['includes/class-post-creator.php', 'includes/class-final-guard.php'] as $file) {
     check(!str_contains(file_get_contents(ABSPATH . $file), 'https://' . 'ideasdi.com/eventos/'), 'no fixed event archive');
 }
-// RC1.7.2 reconciled fingerprints; behavioral assertions remain unchanged.
+require_once ABSPATH . 'tests/support/canonical-regression.php';
 foreach ([
-    'ideasdi-redaccion-gerizim.php' => 'a40b4754860d8d42d921b3af6e3db7e465e51b0ef217d1b9d2aab1512be9c4eb',
-    'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
-    'includes/class-canonical-context.php' => '0b41aad89bcc7be6ed36290b8dc42637afa8af45a33344676ac84562c4e8de7a',
-    'includes/data/editorial-canonical.php' => 'ec01328fca214aa77a27f59ca33d21acce0b1c48ccabb2628aec7651dc845422',
-    'includes/class-internal-links.php' => '054f6f84a62c600dcf9b5c156c60bfed1fbef31072d8ae4df58258360c186970',
-] as $file => $sha) {
-    check(hash_file('sha256', ABSPATH . $file) === $sha, 'protected source ' . $file);
+    'ideasdi-redaccion-gerizim.php',
+    'includes/class-canonical-adapter.php',
+    'includes/class-canonical-context.php',
+    'includes/data/editorial-canonical.php',
+    'includes/class-internal-links.php',
+] as $file) {
+    check(IDG_Canonical_Regression::current_files_match(ABSPATH, [$file]), 'protected source ' . $file);
 }
 echo "CANONICAL_EXTERNAL_GUARD_OK\n";

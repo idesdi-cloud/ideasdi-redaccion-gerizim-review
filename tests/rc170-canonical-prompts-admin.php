@@ -61,20 +61,20 @@ foreach (['primary_lens', 'secondary_lenses', 'existentes e indexables con URL r
     rc170_ok(str_contains($html, $text), "admin rendered copy: $text");
 }
 rc170_ok(!str_contains($admin, 'Categoría detectada para fallback de enlaces'), 'report category is context only');
-// RC1.7.2 reconciled fingerprints; behavioral assertions remain unchanged.
+require_once ABSPATH . 'tests/support/canonical-regression.php';
 $protected = [
-    'ideasdi-redaccion-gerizim.php' => 'a40b4754860d8d42d921b3af6e3db7e465e51b0ef217d1b9d2aab1512be9c4eb',
-    'includes/class-canonical-adapter.php' => '9b8485e6e4a75df578fbc21e0d8a8717942f0c2326e69559847373ddf2b538db',
-    'includes/class-canonical-context.php' => '0b41aad89bcc7be6ed36290b8dc42637afa8af45a33344676ac84562c4e8de7a',
-    'includes/class-editorial-recipe-builder.php' => 'fe00f7b3524c11d631266e4bffba4a0bb83a57c097bebdcc4b212d027820c04c',
-    'includes/class-final-guard.php' => 'd20e654eaad1f47e4fd534d487ed31a5cbe10280fbfc782386b14eacd82e683f',
-    'includes/class-internal-links.php' => '054f6f84a62c600dcf9b5c156c60bfed1fbef31072d8ae4df58258360c186970',
-    'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
-    'includes/class-workflow-prompt-data.php' => '215fc18bec9fb4f513e774d6f2bd21b10a84420050d7fd5547b8cf5ffe3d688b',
-    'includes/data/editorial-canonical.php' => 'ec01328fca214aa77a27f59ca33d21acce0b1c48ccabb2628aec7651dc845422',
-    'includes/data/editorial-recipes.php' => '2cd8b3b28e9fde338528f47e3ef690812fb4cc0c310002688dbe579e36e2840a',
+    'ideasdi-redaccion-gerizim.php',
+    'includes/class-canonical-adapter.php',
+    'includes/class-canonical-context.php',
+    'includes/class-editorial-recipe-builder.php',
+    'includes/class-final-guard.php',
+    'includes/class-internal-links.php',
+    'includes/class-post-creator.php',
+    'includes/class-workflow-prompt-data.php',
+    'includes/data/editorial-canonical.php',
+    'includes/data/editorial-recipes.php',
 ];
-foreach ($protected as $path => $sha256) {
-    rc170_ok(hash_file('sha256', ABSPATH . $path) === $sha256, "protected baseline: $path");
+foreach ($protected as $path) {
+    rc170_ok(IDG_Canonical_Regression::current_files_match(ABSPATH, [$path]), "protected baseline: $path");
 }
 echo "RC170_CANONICAL_PROMPTS_ADMIN_OK\n";

@@ -1,7 +1,8 @@
 <?php
-/** Exact D2-D1 provenance. No blanket acceptance of a changed legacy file. */
+/** Exact historical provenance and fail-closed current regression verification. */
 final class IDG_Canonical_Regression {
     public const LEGACY_MANIFEST_SHA = '4c913dc042bd5885e3dab5946f72c2b2dd95a4b2683e1dac5d3ff8d27146ac53';
+    public const HISTORICAL_MANIFEST_SHA = '21e558259f6d2f53298bb7c0c69b790f0e0315e62bf9e41731f9c9b1ebfc285f';
     public const LEGACY = [
         'assets/admin.js' => 'ff0c3c0ba0cccb38103be0452aff75b21b799a14cbb7dede0351b96670a6a350',
         'assets/admin.css' => '257b481a61fd6b031fec33dfa14327b7d1e64f8341cc3454ddca797fd2cf4acd',
@@ -23,7 +24,7 @@ final class IDG_Canonical_Regression {
         'includes/class-editorial-recipe-builder.php' => 'fe00f7b3524c11d631266e4bffba4a0bb83a57c097bebdcc4b212d027820c04c',
         'includes/class-post-creator.php' => 'bd69c626507539968ba4685695fa320cbee39d9a5f4bee1280f6fe72b47b3380',
     ];
-    public const PATHS = [
+    public const HISTORICAL_PATHS = [
         'REGRESION-EDITORIAL-RC1.6.5.sha256',
         'REGRESION-EDITORIAL-RC1.7.0.sha256',
         'REGRESION-EDITORIAL-RC1.7.1.sha256',
@@ -65,38 +66,172 @@ final class IDG_Canonical_Regression {
         'tests/rc172-seo-alignment.py',
         'tests/support/canonical-regression.php',
     ];
+    public const CURRENT_PATHS = [
+        'REGRESION-EDITORIAL-RC1.6.5.sha256',
+        'REGRESION-EDITORIAL-RC1.7.0.sha256',
+        'REGRESION-EDITORIAL-RC1.7.1.sha256',
+        'REGRESION-EDITORIAL-RC1.7.2.sha256',
+        'assets/admin.css',
+        'assets/admin.js',
+        'ideasdi-redaccion-gerizim.php',
+        'includes/class-admin-page.php',
+        'includes/class-assignment-card.php',
+        'includes/class-canonical-adapter.php',
+        'includes/class-canonical-context.php',
+        'includes/class-editorial-plan.php',
+        'includes/class-editorial-recipe-builder.php',
+        'includes/class-editorial-rules.php',
+        'includes/class-final-guard.php',
+        'includes/class-internal-links.php',
+        'includes/class-post-creator.php',
+        'includes/class-prompt-library.php',
+        'includes/class-recurring-updates.php',
+        'includes/class-reel-contract.php',
+        'includes/class-validator.php',
+        'includes/class-workflow-output-parser.php',
+        'includes/class-workflow-prompt-data.php',
+        'includes/data/editorial-canonical.php',
+        'includes/data/editorial-recipes.php',
+        'scripts/test.sh',
+        'tests/plugin-version-contract.py',
+        'tests/rc160-acceptance.php',
+        'tests/rc161-acceptance.php',
+        'tests/rc162-acceptance.php',
+        'tests/rc163-acceptance.php',
+        'tests/rc164-admin-separation-equivalence.php',
+        'tests/rc165-legacy-cleanup-equivalence.php',
+        'tests/rc170-canonical-consumption.php',
+        'tests/rc170-canonical-core.php',
+        'tests/rc170-canonical-external-guard.php',
+        'tests/rc170-canonical-internal-links.php',
+        'tests/rc170-canonical-prompts-admin.php',
+        'tests/rc170-release-regression.php',
+        'tests/rc171-canonical-fidelity.py',
+        'tests/rc171-editorial-consumption.py',
+        'tests/rc171-release-integration.py',
+        'tests/rc172-release-integration.py',
+        'tests/rc172-seo-alignment.py',
+        'tests/rc173-yoast-contract.py',
+        'tests/rc174-links-contract.py',
+        'tests/rc175-gutenberg-contract.py',
+        'tests/rc175-gutenberg-mock.php',
+        'tests/rc176-reel-contract.php',
+        'tests/rc176-reel-static.py',
+        'tests/support/canonical-regression.php',
+    ];
 
-    public static function parse(string $text): array {
+    public static function parse_historical(string $text): array {
+        return self::parse_exact($text, self::HISTORICAL_PATHS);
+    }
+
+    public static function parse_current(string $text): array {
+        return self::parse_exact($text, self::CURRENT_PATHS);
+    }
+
+    public static function current_manifest(string $root): array {
+        return self::parse_current(self::read($root . '/REGRESION-EDITORIAL-RC1.7.6.sha256'));
+    }
+
+    public static function current_files_match(string $root, array $paths): bool {
+        try {
+            $current = self::current_manifest($root);
+        } catch (Throwable $error) {
+            return false;
+        }
+        if (count($paths) !== count(array_unique($paths))) {
+            return false;
+        }
+        foreach ($paths as $path) {
+            if (!is_string($path)
+                || !array_key_exists($path, $current)
+                || !is_file($root . '/' . $path)
+                || !hash_equals($current[$path], hash_file('sha256', $root . '/' . $path))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static function current_state_matches(string $root, array $current): bool {
+        if (!self::is_exact_map($current, self::CURRENT_PATHS)) {
+            return false;
+        }
+        foreach ($current as $path => $expected) {
+            if (!is_file($root . '/' . $path)
+                || !hash_equals($expected, hash_file('sha256', $root . '/' . $path))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static function current_hash_matches(string $path, string $actual, array $current): bool {
+        return self::is_exact_map($current, self::CURRENT_PATHS)
+            && array_key_exists($path, $current)
+            && hash_equals($current[$path], $actual);
+    }
+
+    public static function historical_hash_matches(string $path, string $legacy, array $historical): bool {
+        if (!self::is_exact_map($historical, self::HISTORICAL_PATHS)
+            || (self::LEGACY[$path] ?? null) !== $legacy) {
+            return false;
+        }
+        $expected = self::RECONCILED[$path] ?? $legacy;
+        return isset($historical[$path]) && hash_equals($expected, $historical[$path]);
+    }
+
+    public static function historical_matches(string $root, string $path, string $legacy): bool {
+        $legacy_manifest = $root . '/REGRESION-EDITORIAL-RC1.6.5.sha256';
+        $historical_manifest = $root . '/REGRESION-EDITORIAL-RC1.7.2.sha256';
+        if (!is_file($legacy_manifest)
+            || !is_file($historical_manifest)
+            || !hash_equals(self::LEGACY_MANIFEST_SHA, hash_file('sha256', $legacy_manifest))
+            || !hash_equals(self::HISTORICAL_MANIFEST_SHA, hash_file('sha256', $historical_manifest))) {
+            return false;
+        }
+        try {
+            $historical = self::parse_historical(self::read($historical_manifest));
+        } catch (Throwable $error) {
+            return false;
+        }
+        return self::historical_hash_matches($path, $legacy, $historical);
+    }
+
+    private static function parse_exact(string $text, array $paths): array {
+        if ($text === '' || !str_ends_with($text, "\n") || str_ends_with($text, "\n\n")) {
+            throw new RuntimeException('Manifest must end in exactly one newline');
+        }
         $entries = [];
-        foreach (explode("\n", rtrim($text, "\n")) as $line) {
+        foreach (explode("\n", substr($text, 0, -1)) as $line) {
             if (!preg_match('/^([a-f0-9]{64})  ([A-Za-z0-9_.\/-]+)$/D', $line, $match)
                 || isset($entries[$match[2]])) {
                 throw new RuntimeException('Malformed or duplicate manifest entry');
             }
             $entries[$match[2]] = $match[1];
         }
-        if (array_keys($entries) !== self::PATHS) {
+        if (!self::is_exact_map($entries, $paths)) {
             throw new RuntimeException('Regression set must be exact and sorted');
         }
         return $entries;
     }
 
-    public static function historical_hash_matches(string $path, string $legacy, string $actual, array $current): bool {
-        if ((self::LEGACY[$path] ?? null) !== $legacy) {
+    private static function is_exact_map(array $entries, array $paths): bool {
+        if (array_keys($entries) !== $paths) {
             return false;
         }
-        if (isset(self::RECONCILED[$path])) {
-            return $actual === self::RECONCILED[$path]
-                && ($current[$path] ?? null) === self::RECONCILED[$path];
+        foreach ($entries as $hash) {
+            if (!is_string($hash) || preg_match('/^[a-f0-9]{64}$/D', $hash) !== 1) {
+                return false;
+            }
         }
-        return $actual === $legacy;
+        return true;
     }
 
-    public static function historical_matches(string $root, string $path, string $legacy): bool {
-        if (hash_file('sha256', $root . '/REGRESION-EDITORIAL-RC1.6.5.sha256') !== self::LEGACY_MANIFEST_SHA) {
-            return false;
+    private static function read(string $path): string {
+        $text = file_get_contents($path);
+        if ($text === false) {
+            throw new RuntimeException('Cannot read regression manifest');
         }
-        $current = self::parse(file_get_contents($root . '/REGRESION-EDITORIAL-RC1.7.2.sha256'));
-        return self::historical_hash_matches($path, $legacy, hash_file('sha256', $root . '/' . $path), $current);
+        return $text;
     }
 }
