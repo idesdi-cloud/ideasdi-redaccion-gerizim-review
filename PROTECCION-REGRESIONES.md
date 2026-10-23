@@ -202,3 +202,10 @@ Los ajustes continuos de redacción deben hacerse desde reglas editoriales edita
 - Fallos de workflow option o post meta dejan el reflejo pendiente.
 - Los cursores deben avanzar por todos los lotes y no recorrer indefinidamente filas terminales ya sincronizadas.
 - El contrato permanece en `1.1`, la entrada en `pending` y captura/entrega apagadas por defecto.
+
+## Candidato P1-FINAL-R2 · pruebas y límites
+
+- El runner P1 conserva las 31 pruebas funcionales GREEN1 y protege los archivos RC170, RC173--176, `scripts/test.sh` y el manifiesto RC1.7.6 por SHA-256.
+- Para este candidato, `sha256sum -c REGRESION-EDITORIAL-RC1.7.6.sha256` debe fallar solo para `class-admin-page.php`, `class-final-guard.php`, `class-post-creator.php` y `class-reel-contract.php`; el manifiesto fuente conserva SHA-256 `16762a605a8912de9852e33ec109877e62f3b36b7f6c2b351efdacaca966a8da`.
+- Las pruebas son mocks de los límites de persistencia WordPress; no sustituyen una verificación manual en WordPress ni autorizan release o despliegue.
+- Resultado real R2: `tests/p1-acceptance-runner.py --final` pasó los 31 escenarios y `--red` reprodujo los dos fallos históricos esperados. La ejecución única de `./scripts/test.sh` fue fallida por los cuatro pins deliberadamente modificados y por el modo sin escenario de los nuevos ejecutables P1; ese modo fue corregido posteriormente, sin declarar una nueva ejecución completa.

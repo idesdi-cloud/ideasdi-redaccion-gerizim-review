@@ -759,8 +759,19 @@ final class IDG_Workflow_Admin_Controller {
         $tag_names = self::workflow_tag_names($workflow);
         $seo_result = (string) ($workflow['seo_result'] ?? '');
         $public_article = self::report_public_article_from_seo($seo_result);
-        $link_source = trim((string) ($workflow['postprocessed_html'] ?? '')) !== '' ? (string) $workflow['postprocessed_html'] : $public_article;
-        $validation = self::report_validate_final($workflow, $public_article, $link_source);
+        $preflight = $seo_result !== '' && class_exists('IDG_Post_Creator')
+            ? IDG_Post_Creator::preflight_public($workflow)
+            : [];
+        $prepared = (array) ($preflight['prepared'] ?? []);
+        $link_source = (string) ($prepared['html_content'] ?? $workflow['postprocessed_html'] ?? $public_article);
+        $validation = [
+            'Etapa SEO disponible' => $seo_result !== '' ? 'sí' : 'pendiente',
+            'Preflight Gutenberg realizado' => !empty($preflight) ? 'sí (sin escrituras)' : 'pendiente',
+            'Preflight Gutenberg resultado' => empty($preflight) ? 'pendiente' : (!empty($preflight['ok']) ? 'apto' : 'requiere revisión'),
+            'Final Guard de escritura' => !empty($workflow['final_validation_summary']) ? 'realizado al confirmar escritura' : 'pendiente; el reporte no confirma escritura',
+            'Escritura WordPress confirmada' => !empty($workflow['draft_post_id']) || !empty($workflow['recurring_event_content_updated']) ? 'sí' : 'no',
+            'Caja editorial / Reel' => implode(' | ', (array) ($preflight['errors'] ?? [])),
+        ];
         $links_detected = self::report_detect_links($link_source);
         $history = (array) ($workflow['history'] ?? []);
         $lines = [];
@@ -899,7 +910,7 @@ final class IDG_Workflow_Admin_Controller {
         $lines[] = '### Versión 3 · Revisión SEO final';
         $lines[] = self::md_block($seo_result);
         $lines[] = '';
-        $lines[] = '## 7. Validación final real';
+        $lines[] = '## 7. Etapas de validación y escritura';
         if (!empty($workflow['final_validation_summary'])) {
             $lines[] = self::md_block((string) $workflow['final_validation_summary']);
         }
@@ -914,13 +925,15 @@ final class IDG_Workflow_Admin_Controller {
         }
         $lines[] = '';
         $lines[] = '## 8. Trazabilidad de postprocesamiento';
-        $audit = isset($workflow['postprocessing_audit']) && is_array($workflow['postprocessing_audit']) ? $workflow['postprocessing_audit'] : [];
+        $audit = isset($workflow['postprocessing_audit']) && is_array($workflow['postprocessing_audit'])
+            ? $workflow['postprocessing_audit']
+            : (array) ($prepared['postprocessing_audit'] ?? []);
         $lines[] = '- **Prosa visible sin cambios técnicos:** ' . (!empty($audit['prose_unchanged']) ? 'sí' : (empty($audit) ? 'pendiente' : 'no'));
         $lines[] = '- **Párrafos antes/después:** ' . self::md_value(empty($audit) ? '' : ((string) ($audit['paragraphs_before'] ?? 0) . ' / ' . (string) ($audit['paragraphs_after'] ?? 0)));
         $lines[] = '- **Párrafos añadidos por capa técnica:** ' . self::md_value(empty($audit) ? '' : (string) ($audit['paragraphs_added'] ?? 0));
         $lines[] = '- **Resumen:** ' . self::md_value((string) ($audit['summary'] ?? ''));
         $lines[] = '### Contenido postprocesado realmente enviado a Gutenberg';
-        $lines[] = self::md_block((string) ($workflow['postprocessed_html'] ?? ''));
+        $lines[] = self::md_block($link_source);
         $lines[] = '';
         $lines[] = '## 9. Checklist de regresión protegida';
         foreach (self::report_regression_checklist($workflow) as $label => $value) {

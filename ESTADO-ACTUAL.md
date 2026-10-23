@@ -46,6 +46,10 @@ El análisis detallado está en `ANALISIS-RC1.6.3-vs-RC1.6.3.1.md`.
 
 Si un intermediario corta una respuesta antes de que el cuerpo llegue a PHP, no es posible recuperar ese cuerpo sin otra llamada o sin cambiar la arquitectura. RC1.6.3.2 deja ese caso diagnosticable, pero deliberadamente no añade reintentos ni procesamiento asíncrono.
 
+## Candidato P1-FINAL-R2 (sin release)
+
+El candidato local `chg-20261022T225545Z-3aa6c484`, sobre `c5e58527c45d638423d4e48e505f4e8f4eda4dc4`, conserva el parser Reel de GREEN1 y usa preflight común sin escrituras para creación y recurrencias. La caja editorial se conserva literal; Final Guard informa ausencias, enlaces, negritas y ubicación inválida. `--final` confirmó 31 escenarios GREEN y `--red` reprodujo los dos RED conocidos. La única ejecución de `./scripts/test.sh` falló por las cuatro clases deliberadamente fuera del manifiesto y por la invocación sin escenario de los nuevos ejecutables P1; esa entrada se corrigió después de dicha ejecución y no se afirma una segunda pasada. No existe release, ZIP, despliegue ni verificación WordPress de este candidato.
+
 ## Inicio recomendado para un nuevo chat o agente
 
 Leer, en este orden:

@@ -17,64 +17,16 @@ final class IDG_Post_Creator {
             $workflow = IDG_Assignment_Card::attach($workflow);
         }
 
-        $sections = self::extract_sections($seo_result);
-        $content = (string) ($sections['article'] ?? '');
-        $content = self::prepare_public_article_content($content, $workflow);
-        $title = self::extract_title($content, $workflow['keyword'] ?? 'Artículo ideasDi');
-        $seo_title = trim((string) ($sections['seo_title'] ?? ''));
-        if ($seo_title === '') {
-            $seo_title = $title;
+        $prepared = self::preflight_public($workflow, 'Artículo ideasDi');
+        if (empty($prepared['ok'])) {
+            return [
+                'success' => false,
+                'message' => 'Validación real bloqueó la creación de la entrada: ' . implode(' · ', (array) ($prepared['errors'] ?? [])),
+                'validation_summary' => (string) ($prepared['validation']['summary'] ?? ''),
+            ];
         }
-        $meta_description = self::clean_meta_description((string) ($sections['meta_description'] ?? ''));
-        $seo_report = trim((string) ($sections['seo_report'] ?? ''));
-        $social_copy = trim((string) ($sections['social_copy'] ?? ''));
-        $reel_package = trim((string) ($sections['reel_package'] ?? ''));
-        $reel_package = self::normalize_reel_package($reel_package);
-        $sections['reel_package'] = $reel_package;
-        $feedback_notes = trim((string) ($sections['feedback_notes'] ?? $workflow['feedback_notes'] ?? ''));
-        $processed_seo_result = '';
-
-        $html_content = self::markdownish_to_html($content, $title);
-        $html_before_postprocessing = $html_content;
-        $html_content = self::ensure_official_source_link($html_content, $workflow);
-        $html_content = self::ensure_internal_links($html_content, $workflow);
-        $html_content = self::deduplicate_configured_internal_links($html_content, $workflow);
-        $html_content = self::ensure_sponsored_required_link($html_content, $workflow);
-        $html_content = self::ensure_minimum_bold($html_content, $workflow);
-        $html_content = self::strip_bold_from_html_headings($html_content);
-        $html_content = self::open_links_new_tab($html_content);
-        $html_content = self::apply_sponsored_link_rel($html_content, $workflow);
-        $html_content = self::maybe_add_sponsored_disclosure($html_content, $workflow);
-        $postprocessing_audit = self::postprocessing_audit($html_before_postprocessing, $html_content, $workflow);
-        $workflow['postprocessing_audit'] = $postprocessing_audit;
-        $seo_report = self::repair_seo_report_link_counts($seo_report, $html_content, $workflow);
-        $feedback_notes = self::repair_feedback_link_notes($feedback_notes, $html_content, $workflow);
-        $processed_seo_result = self::rebuild_seo_result($content, $seo_title, $meta_description, $seo_report, $social_copy, $reel_package, $feedback_notes);
-        $post_content = self::html_to_gutenberg_blocks($html_content);
-        if (class_exists('IDG_Final_Guard')) {
-            $validation = IDG_Final_Guard::validate_before_draft($content, $html_content, $sections, $workflow);
-            $gutenberg_validation = IDG_Final_Guard::validate_gutenberg_blocks($post_content);
-            if (empty($gutenberg_validation['ok'])) {
-                $validation['ok'] = false;
-                $validation['errors'] = array_merge((array) ($validation['errors'] ?? []), (array) ($gutenberg_validation['errors'] ?? []));
-                $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "\n" . implode("\n", array_map(static fn($e) => '- ERROR: ' . $e, (array) ($gutenberg_validation['errors'] ?? []))));
-            }
-            if (empty($validation['ok'])) {
-                if (!empty($workflow['force_validation_override'])) {
-                    $validation['warnings'] = array_merge((array) ($validation['warnings'] ?? []), (array) ($validation['errors'] ?? []));
-                    $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "
-" . '- AVISO: Entrada creada en Pendiente de revisión con validación ignorada manualmente por el editor. Revisar antes de publicar.');
-                    $validation['ok'] = true;
-                    $validation['overridden'] = true;
-                } else {
-                    return [
-                        'success' => false,
-                        'message' => 'Validación real bloqueó la creación de la entrada: ' . implode(' · ', (array) ($validation['errors'] ?? [])),
-                        'validation_summary' => (string) ($validation['summary'] ?? ''),
-                    ];
-                }
-            }
-        }
+        $workflow = $prepared['workflow'];
+        extract($prepared['prepared'], EXTR_OVERWRITE);
 
         $slug_source = (string) ($workflow['keyword'] ?? '');
         if ($slug_source === '') {
@@ -172,6 +124,74 @@ final class IDG_Post_Creator {
         ];
     }
 
+    /**
+     * Prepara exactamente el payload que se enviaría a WordPress, sin escrituras.
+     * También es la única entrada de preflight público para el reporte.
+     */
+    public static function preflight_public(array $workflow, string $fallback_title = 'Artículo ideasDi'): array {
+        if (class_exists('IDG_Assignment_Card')) {
+            $workflow = IDG_Assignment_Card::attach($workflow);
+        }
+        $sections = self::extract_sections((string) ($workflow['seo_result'] ?? ''));
+        $content = self::prepare_public_article_content((string) ($sections['article'] ?? ''), $workflow);
+        $title = self::extract_title($content, $workflow['keyword'] ?? $fallback_title);
+        $seo_title = trim((string) ($sections['seo_title'] ?? '')) ?: $title;
+        $meta_description = self::clean_meta_description((string) ($sections['meta_description'] ?? ''));
+        $seo_report = trim((string) ($sections['seo_report'] ?? ''));
+        $social_copy = trim((string) ($sections['social_copy'] ?? ''));
+        $reel_package = self::normalize_reel_package(trim((string) ($sections['reel_package'] ?? '')));
+        $sections['reel_package'] = $reel_package;
+        $feedback_notes = trim((string) ($sections['feedback_notes'] ?? $workflow['feedback_notes'] ?? ''));
+        $html_before_postprocessing = self::markdownish_to_html($content, $title);
+        $html_content = self::ensure_official_source_link($html_before_postprocessing, $workflow);
+        $html_content = self::ensure_internal_links($html_content, $workflow);
+        $html_content = self::deduplicate_configured_internal_links($html_content, $workflow);
+        $html_content = self::ensure_sponsored_required_link($html_content, $workflow);
+        $html_content = self::ensure_minimum_bold($html_content, $workflow);
+        $html_content = self::strip_bold_from_html_headings($html_content);
+        $html_content = self::open_links_new_tab($html_content);
+        $html_content = self::apply_sponsored_link_rel($html_content, $workflow);
+        $html_content = self::maybe_add_sponsored_disclosure($html_content, $workflow);
+        $postprocessing_audit = self::postprocessing_audit($html_before_postprocessing, $html_content, $workflow);
+        $workflow['postprocessing_audit'] = $postprocessing_audit;
+        $seo_report = self::repair_seo_report_link_counts($seo_report, $html_content, $workflow);
+        $feedback_notes = self::repair_feedback_link_notes($feedback_notes, $html_content, $workflow);
+        $processed_seo_result = self::rebuild_seo_result($content, $seo_title, $meta_description, $seo_report, $social_copy, $reel_package, $feedback_notes);
+        $post_content = self::html_to_gutenberg_blocks($html_content);
+        $validation = ['ok' => true, 'errors' => [], 'warnings' => [], 'summary' => 'Final Guard no disponible.'];
+        if (class_exists('IDG_Final_Guard')) {
+            $validation = IDG_Final_Guard::validate_before_draft($content, $html_content, $sections, $workflow);
+            $gutenberg_validation = IDG_Final_Guard::validate_gutenberg_blocks($post_content);
+            if (empty($gutenberg_validation['ok'])) {
+                $validation['ok'] = false;
+                $validation['errors'] = array_merge((array) ($validation['errors'] ?? []), (array) ($gutenberg_validation['errors'] ?? []));
+                $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "\n" . implode("\n", array_map(static fn($error) => '- ERROR: ' . $error, (array) ($gutenberg_validation['errors'] ?? []))));
+            }
+        }
+        if (empty($validation['ok']) && !empty($workflow['force_validation_override']) && self::editorial_override_allowed($validation)) {
+            $validation['warnings'] = array_merge((array) ($validation['warnings'] ?? []), (array) ($validation['errors'] ?? []));
+            $validation['summary'] .= "\n- AVISO: Validación editorial ignorada manualmente por el editor; requiere revisión antes de publicar.";
+            $validation['ok'] = true;
+            $validation['overridden'] = true;
+        }
+        return [
+            'ok' => !empty($validation['ok']),
+            'errors' => (array) ($validation['errors'] ?? []),
+            'validation' => $validation,
+            'workflow' => $workflow,
+            'prepared' => compact('sections', 'content', 'title', 'seo_title', 'meta_description', 'seo_report', 'social_copy', 'reel_package', 'feedback_notes', 'html_content', 'postprocessing_audit', 'processed_seo_result', 'post_content', 'validation'),
+        ];
+    }
+
+    private static function editorial_override_allowed(array $validation): bool {
+        foreach ((array) ($validation['errors'] ?? []) as $error) {
+            if (preg_match('/gutenberg|identidad|permis|firma|id\b|taxonom|slug|autor|seguridad/iu', (string) $error)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static function update_existing_event(array $workflow): array {
         $post_id = (int) ($workflow['recurring_target_post_id'] ?? 0);
         $target_post_type = (string) ($workflow['recurring_target_post_type'] ?? '');
@@ -220,83 +240,44 @@ final class IDG_Post_Creator {
             $workflow = IDG_Assignment_Card::attach($workflow);
         }
 
-        $sections = self::extract_sections($seo_result);
-        $content = (string) ($sections['article'] ?? '');
-        $content = self::prepare_public_article_content($content, $workflow);
-        $title = self::extract_title($content, $workflow['keyword'] ?? $post_before->post_title);
-        $seo_title = trim((string) ($sections['seo_title'] ?? ''));
-        if ($seo_title === '') {
-            $seo_title = $title;
+        // La actualización consume el mismo único payload preparado que la
+        // creación; no vuelve a normalizar ni a postprocesar el original.
+        $prepared = self::preflight_public($workflow, (string) $post_before->post_title);
+        if (empty($prepared['ok'])) {
+            return [
+                'success' => false,
+                'message' => 'Validación real bloqueó la actualización de la publicación: ' . implode(' · ', (array) ($prepared['errors'] ?? [])),
+                'validation_summary' => (string) ($prepared['validation']['summary'] ?? ''),
+            ];
+        }
+        $workflow = $prepared['workflow'];
+        extract($prepared['prepared'], EXTR_OVERWRITE);
+
+
+        // Justo antes de escribir se revalidan los límites de identidad. Un
+        // override editorial nunca puede evitar permisos, ID, tipo o firma.
+        $post_before_write = get_post($post_id);
+        if (!current_user_can('edit_post', $post_id)
+            || !$post_before_write instanceof WP_Post
+            || (string) $post_before_write->post_type !== $target_post_type
+            || $selected_post_id !== $post_id) {
+            return ['success' => false, 'message' => 'La identidad protegida de la publicación cambió antes de escribir.'];
         }
         if (class_exists('IDG_Recurring_Updates')) {
-            $start_date = $is_contest
-                ? (string) ($workflow['recurring_contest_start_date'] ?? '')
-                : (string) ($workflow['event_start_date'] ?? $workflow['recurring_fecha_inicio'] ?? '');
-            $end_date = $is_contest
-                ? (string) ($workflow['recurring_contest_deadline'] ?? $workflow['recurring_contest_award_date'] ?? '')
-                : (string) ($workflow['event_end_date'] ?? $workflow['recurring_fecha_fin'] ?? '');
-            $title_years = IDG_Recurring_Updates::validate_event_title_years($title, $start_date, $end_date);
-            if (!empty($title_years['errors'])) {
-                return ['success' => false, 'message' => implode(' ', (array) $title_years['errors'])];
+            $content_type = $is_contest ? 'contest' : 'event';
+            $expected_fingerprint = (string) ($workflow['recurring_target_identity_fingerprint'] ?? $workflow['recurring_target_immutable_fingerprint'] ?? '');
+            $expected_signature = (string) ($workflow['recurring_target_signature'] ?? '');
+            if ($expected_fingerprint === '' || $expected_signature === ''
+                || !hash_equals($expected_fingerprint, (string) IDG_Recurring_Updates::target_post_fingerprint($post_id, $content_type))
+                || !hash_equals($expected_signature, (string) IDG_Recurring_Updates::editorial_target_signature($post_id, $target_post_type))) {
+                return ['success' => false, 'message' => 'La identidad protegida de la publicación cambió antes de escribir.'];
             }
-            $identity_validation = IDG_Recurring_Updates::validate_editorial_identity($post_id, $workflow, $title);
-            if (empty($identity_validation['ok'])) {
-                return ['success' => false, 'message' => (string) ($identity_validation['message'] ?? 'La identidad editorial de la publicación no coincide.')];
-            }
-            if (!empty($identity_validation['warnings']) && class_exists('IDG_Logger')) {
-                IDG_Logger::log('recurring_editorial_identity_warning', 'La identidad editorial presentó diferencias no bloqueantes.', [
-                    'post_id' => $post_id,
-                    'target_post_type' => $target_post_type,
-                    'warnings' => array_values((array) $identity_validation['warnings']),
-                ]);
-            }
-        }
-        $meta_description = self::clean_meta_description((string) ($sections['meta_description'] ?? ''));
-        $seo_report = trim((string) ($sections['seo_report'] ?? ''));
-        $social_copy = trim((string) ($sections['social_copy'] ?? ''));
-        $reel_package = trim((string) ($sections['reel_package'] ?? ''));
-        $reel_package = self::normalize_reel_package($reel_package);
-        $sections['reel_package'] = $reel_package;
-        $feedback_notes = trim((string) ($sections['feedback_notes'] ?? $workflow['feedback_notes'] ?? ''));
-
-        $html_content = self::markdownish_to_html($content, $title);
-        $html_before_postprocessing = $html_content;
-        $html_content = self::ensure_official_source_link($html_content, $workflow);
-        $html_content = self::ensure_internal_links($html_content, $workflow);
-        $html_content = self::ensure_sponsored_required_link($html_content, $workflow);
-        $html_content = self::ensure_minimum_bold($html_content, $workflow);
-        $html_content = self::strip_bold_from_html_headings($html_content);
-        $html_content = self::open_links_new_tab($html_content);
-        $html_content = self::apply_sponsored_link_rel($html_content, $workflow);
-        $html_content = self::maybe_add_sponsored_disclosure($html_content, $workflow);
-        $postprocessing_audit = self::postprocessing_audit($html_before_postprocessing, $html_content, $workflow);
-        $workflow['postprocessing_audit'] = $postprocessing_audit;
-        $seo_report = self::repair_seo_report_link_counts($seo_report, $html_content, $workflow);
-        $feedback_notes = self::repair_feedback_link_notes($feedback_notes, $html_content, $workflow);
-        $processed_seo_result = self::rebuild_seo_result($content, $seo_title, $meta_description, $seo_report, $social_copy, $reel_package, $feedback_notes);
-        $post_content = self::html_to_gutenberg_blocks($html_content);
-
-        if (class_exists('IDG_Final_Guard')) {
-            $validation = IDG_Final_Guard::validate_before_draft($content, $html_content, $sections, $workflow);
-            $gutenberg_validation = IDG_Final_Guard::validate_gutenberg_blocks($post_content);
-            if (empty($gutenberg_validation['ok'])) {
-                $validation['ok'] = false;
-                $validation['errors'] = array_merge((array) ($validation['errors'] ?? []), (array) ($gutenberg_validation['errors'] ?? []));
-                $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "\n" . implode("\n", array_map(static fn($e) => '- ERROR: ' . $e, (array) ($gutenberg_validation['errors'] ?? []))));
-            }
-            if (empty($validation['ok'])) {
-                if (!empty($workflow['force_validation_override'])) {
-                    $validation['warnings'] = array_merge((array) ($validation['warnings'] ?? []), (array) ($validation['errors'] ?? []));
-                    $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "\n- AVISO: Redacción aplicada a la publicación con validación ignorada manualmente por el editor. Revisar antes de publicar.");
-                    $validation['ok'] = true;
-                    $validation['overridden'] = true;
-                } else {
-                    return [
-                        'success' => false,
-                        'message' => 'Validación real bloqueó la actualización de la publicación: ' . implode(' · ', (array) ($validation['errors'] ?? [])),
-                        'validation_summary' => (string) ($validation['summary'] ?? ''),
-                    ];
-                }
+            $start_date = $is_contest ? (string) ($workflow['recurring_contest_start_date'] ?? '') : (string) ($workflow['event_start_date'] ?? $workflow['recurring_fecha_inicio'] ?? '');
+            $end_date = $is_contest ? (string) ($workflow['recurring_contest_deadline'] ?? $workflow['recurring_contest_award_date'] ?? '') : (string) ($workflow['event_end_date'] ?? $workflow['recurring_fecha_fin'] ?? '');
+            $years = IDG_Recurring_Updates::validate_event_title_years($title, $start_date, $end_date);
+            $identity = IDG_Recurring_Updates::validate_editorial_identity($post_id, $workflow, $title);
+            if (!empty($years['errors']) || empty($identity['ok'])) {
+                return ['success' => false, 'message' => !empty($years['errors']) ? implode(' ', (array) $years['errors']) : (string) ($identity['message'] ?? 'La identidad editorial de la publicación no coincide.')];
             }
         }
 
@@ -681,12 +662,9 @@ final class IDG_Post_Creator {
     }
 
     private static function clean_featured_snippet_text(string $text): string {
-        $text = self::strip_markdown_links_to_text($text);
-        $text = preg_replace('/https?:\/\/[^\s)]+/u', '', (string) $text);
-        $text = preg_replace('/\*\*(.+?)\*\*/u', '$1', (string) $text);
-        $text = preg_replace('/__(.+?)__/u', '$1', (string) $text);
-        $text = preg_replace('/\s+/', ' ', (string) $text);
-        return trim((string) $text);
+        // Nunca saneamos la caja para convertir un incumplimiento editorial en
+        // uno válido: Final Guard debe informar enlaces, negritas y ubicación.
+        return trim($text);
     }
 
     private static function html_to_gutenberg_blocks(string $html): string {
@@ -971,6 +949,11 @@ final class IDG_Post_Creator {
     }
 
     private static function ensure_featured_snippet_after_intro(string $content): string {
+        // Una caja válida ya ubicada tras la introducción se conserva literal.
+        // Las cajas ausentes o inválidas son responsabilidad de Final Guard y
+        // no se eliminan ni se reubican silenciosamente.
+        return $content;
+
         $lines = preg_split('/\n/', self::normalize($content));
         if (!is_array($lines)) {
             return $content;
@@ -1060,42 +1043,10 @@ final class IDG_Post_Creator {
 
 
     private static function ensure_featured_snippet_contract(string $content, array $workflow): string {
-        $rules = class_exists('IDG_Editorial_Rules') ? IDG_Editorial_Rules::get() : [];
-        $min = (int) ($rules['editorial_box_min_words'] ?? 40);
-        $max = (int) ($rules['editorial_box_max_words'] ?? 55);
-        if (!preg_match('/(^Caja editorial\s*\n)(.+?)(?=\n\s*#{1,6}\s+|\n\s*$)/isu', $content, $m, PREG_OFFSET_CAPTURE)) {
-            return $content;
-        }
-
-        $prefix = (string) $m[1][0];
-        $original = trim((string) $m[2][0]);
-        $snippet = self::clean_featured_snippet_text($original);
-        $keyword = trim(wp_strip_all_tags((string) ($workflow['keyword'] ?? '')));
-        $count = self::word_count($snippet);
-
-        $needs_rebuild = false;
-        if ($keyword !== '' && !self::starts_with_plain($snippet, $keyword)) {
-            $needs_rebuild = true;
-        }
-        if (!self::snippet_has_definition($snippet, $keyword)) {
-            $needs_rebuild = true;
-        }
-        if ($count < $min || $count > $max) {
-            $needs_rebuild = true;
-        }
-
-        if (!$needs_rebuild) {
-            return $content;
-        }
-
-        $candidate = self::build_featured_snippet_contract($workflow, $snippet, $min, $max);
-        if ($candidate === '') {
-            $candidate = self::repair_featured_snippet_word_count_only($snippet, $workflow, $min, $max);
-        }
-        if ($candidate === '') {
-            return $content;
-        }
-        return substr($content, 0, $m[1][1]) . $prefix . $candidate . substr($content, $m[2][1] + strlen($m[2][0]));
+        // La caja pertenece a la redacción. No se reconstruye a partir de una
+        // keyword, una plantilla ni información inferida: Final Guard informa
+        // ausencias o incumplimientos del contrato canónico v1.1.0.
+        return $content;
     }
 
     private static function snippet_has_definition(string $snippet, string $keyword): bool {

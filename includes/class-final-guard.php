@@ -396,14 +396,16 @@ final class IDG_Final_Guard {
     }
 
     private static function extract_featured_snippet(string $content, string $html): string {
-        if (preg_match('/<p\b[^>]*class=(?:"|\')[^"\']*featured-snippet-box[^"\']*(?:"|\')[^>]*>(.*?)<\/p>/isu', $html, $m)) {
-            return trim(wp_strip_all_tags($m[1]));
-        }
+        // El original editorial conserva marcas que el HTML puede escapar; se
+        // inspecciona primero para que enlaces y negritas sean diagnosticables.
         if (preg_match('/Caja editorial\s*:?[ \t]*\n+(.+?)(?:\n\s*#{1,3}\s+|\n\s*$)/isu', $content, $m)) {
             return trim((string) $m[1]);
         }
         if (preg_match('/Caja editorial\s*:?\s*(.+)$/imu', $content, $m)) {
             return trim((string) $m[1]);
+        }
+        if (preg_match('/<p\b[^>]*class=(?:"|\')[^"\']*featured-snippet-box[^"\']*(?:"|\')[^>]*>(.*?)<\/p>/isu', $html, $m)) {
+            return trim(wp_strip_all_tags($m[1]));
         }
         return '';
     }

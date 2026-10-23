@@ -20,11 +20,14 @@ final class IDG_Reel_Contract {
         $out = [];
         $current_scene = 0;
         $overlay_index = [];
+        $continuation_index = null;
 
-        foreach ($lines as $line) {
-            $line = trim((string) $line);
+        foreach ($lines as $raw_line) {
+            $line = trim((string) $raw_line);
 
             if ($line === '') {
+                // Un separador vacío cierra el campo multilínea actual.
+                $continuation_index = null;
                 continue;
             }
 
@@ -34,6 +37,7 @@ final class IDG_Reel_Contract {
                     $line
                 )
             ) {
+                $continuation_index = null;
                 continue;
             }
 
@@ -43,6 +47,10 @@ final class IDG_Reel_Contract {
                     $line
                 )
             ) {
+                // Un marcador de escena es una frontera causal. No se permite
+                // que texto posterior continúe un campo de la escena previa.
+                $current_scene = 0;
+                $continuation_index = null;
                 continue;
             }
 
@@ -55,6 +63,7 @@ final class IDG_Reel_Contract {
             ) {
                 $current_scene = (int) $m[1];
                 $out[] = 'VO ' . $current_scene . ': ' . trim((string) $m[2]);
+                $continuation_index = array_key_last($out);
                 continue;
             }
 
@@ -88,6 +97,7 @@ final class IDG_Reel_Contract {
                         . $position
                         . ': '
                         . $content;
+                    $continuation_index = array_key_last($out);
 
                     if ($scene === $current_scene) {
                         $overlay_index[$scene] = max(
@@ -127,17 +137,37 @@ final class IDG_Reel_Contract {
                         . $position
                         . ': '
                         . $content;
+                    $continuation_index = array_key_last($out);
 
                     continue;
                 }
 
                 // Sin VO previo no se inventa asociación de escena.
                 $out[] = $line;
+                $continuation_index = null;
+                continue;
+            }
+
+            if (
+                $continuation_index !== null
+                && !preg_match(
+                    '/^(?:#{1,6}\s*|[-*]\s+|(?:VO|Overlay|Subt[ií]tulo|Texto en pantalla|Escena|Scene)\b)/iu',
+                    $line
+                )
+            ) {
+                // Conserva literalmente el contenido de una continuación
+                // genuinamente no etiquetada y solo lo une al último VO u
+                // overlay reconocido, dentro de su misma posición.
+                $out[$continuation_index] =
+                    rtrim((string) $out[$continuation_index])
+                    . ' '
+                    . $line;
                 continue;
             }
 
             // Conserva cualquier contenido no reconocido para revisión humana.
             $out[] = $line;
+            $continuation_index = null;
         }
 
         return trim(implode("\n", $out));
