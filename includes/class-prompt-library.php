@@ -64,7 +64,7 @@ Reglas centrales:
 - H2 máximo 100 caracteres.
 - Empieza por decisiones de diseño concretas y explica las decisiones, no solo prestaciones. Sigue cada decisión hasta su consecuencia relevante y detente; las cualidades y la abstracción van después de evidencia concreta.
 - La intención de autor exige documentación; la autoría es transversal y se vincula a decisiones concretas. Evita metalenguaje editorial cuando reemplace la observación, usa vocabulario de experiencia y percepción propio de la categoría y no sobreexplique: interpreta solo para aportar una relación nueva.
-- Introducción: dos párrafos es la preferencia no rígida. Debe identificar el asunto, relevancia, ángulo y decisiones centrales sin repetir la caja.
+- Introducción: dos párrafos es la preferencia no rígida. La primera frase entra de forma narrativa y directa en el caso e integra la keyword principal de forma natural; identifica asunto, relevancia, ángulo y decisiones centrales sin repetir la caja.
 - Caja editorial factual de 40 a 55 palabras después de la introducción: qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. Sin enlaces, negritas ni lenguaje promocional; no repite la tesis ni adelanta el análisis. No exige abrir con la keyword.
 - H3 jerárquicos, descriptivos y concisos, con eje claro sin forzar la tesis completa. Evita bloques de un solo párrafo poco desarrollados: fusiónalos o amplíalos cuando haga falta, sin cuota fija de H3 ni mínimo universal de párrafos.
 - Transiciones flexibles: continuidad cuando sea natural y cortes directos cuando el eje cambie con claridad. El cierre recupera la lógica principal del diseño y prefiere una observación abierta antes que un veredicto definitivo.
@@ -314,10 +314,11 @@ CRITERIO DE TRABAJO
 - En proyectos de diseño, conecta decisiones con percepción, uso y significado cuando sea pertinente. En Agenda y Concursos trabaja con programación, oportunidad, disciplinas, ciudad o acceso solo como datos útiles y documentados; no fuerces esa cadena.
 - La identidad del diseñador, estudio o marca es opcional y solo se explora con evidencia verificable.
 - No inventes emociones ni uses un repertorio universal. Elige conceptos y verbos propios de la lente. Puedes ampliar la biblioteca con términos más precisos encontrados en la investigación y debes explicar su evidencia.
-- Selecciona 3 o 4 ejes editoriales centrales. Los demás hallazgos deben funcionar como evidencia, contexto, sección práctica o apoyo visual; no conviertas cada hallazgo en un H3 automático.
-- El artículo puede conservar entre 6 y 7 H3 para ritmo e imágenes, pero los subtítulos deben organizar una progresión narrativa, no reproducir mecánicamente la lista de ejes.
+- Selecciona los ejes editoriales centrales que la evidencia permita desarrollar. Los demás hallazgos deben funcionar como evidencia, contexto, sección práctica o apoyo visual; no conviertas cada hallazgo en un H3 automático.
+- Los subtítulos deben organizar una progresión informativa, no reproducir mecánicamente la lista de ejes ni cumplir una cuota. Una pregunta solo sirve si aclara una duda real del lector.
 - No conviertas el plan en lista de especificaciones ni en índice automático de subtítulos.
-- Para Concursos y convocatorias, prioriza propósito, reto, categorías, fechas y premios confirmados. No selecciones requisitos, entregables, formatos ni criterios de evaluación como ejes de desarrollo público.
+- Para Concursos y convocatorias, distingue organizador y plataforma cuando ambos roles estén confirmados. Prioriza propósito, reto, elegibilidad esencial, proceso creativo y fechas solo en el alcance que la evidencia confirme; protege los criterios generales confirmados del jurado o proceso creativo, sin inventar requisitos detallados, rúbricas ni ponderaciones.
+- Para Diseño digital y 3D, desarrolla herramientas o workflow únicamente si son verificables y sin añadir cifras. Para Movilidad, distingue fabricante y alianzas confirmadas, y deja explícito si se trata de prototipo o producto comercial cuando la evidencia lo indique.
 - La estrategia de enlaces debe integrar una sola aparición de cada URL dentro de argumentos existentes. El anchor debe corresponder al destino. En Eventos reserva la URL oficial para el cierre obligatorio y usa un anchor interno natural que no mencione ideasDi de forma autorreferencial.
 
 Entrega exactamente estos apartados, con los títulos en líneas independientes:
@@ -376,11 +377,12 @@ Usa el brief como punto de partida y la ficha documental temporal como base fact
 Si el tipo de pieza es Artículo patrocinado, trabaja desde el brief del cliente y las restricciones internas. No es obligatorio tener fuente oficial. No inventes cifras, premios, certificaciones, historia de marca, beneficios ni claims. Integra el enlace obligatorio solo si existe y puede entrar de forma natural; si el anchor solicitado suena forzado, conviértelo en una frase contextual cercana sin perder el objetivo. Evita sonar promocional.
 
 Estructura editorial:
-# H1 de máximo 68 caracteres
+# H1 de máximo 68 caracteres, preferiblemente hasta 60: concreto, atractivo y específico, sin clichés; es distinto del TÍTULO SEO.
 ## H2 de máximo 100 caracteres
-Introducción preferentemente en 2 párrafos, sin convertirla en cuota rígida: identifica el asunto, su relevancia, ángulo y decisiones centrales sin repetir la caja.
+La introducción prefiere 2 párrafos sin convertirlo en cuota rígida. La primera frase debe entrar de forma narrativa y directa en el caso e integrar la keyword principal de forma natural; identifica asunto, relevancia, ángulo y decisiones centrales sin repetir la caja.
 Caja editorial factual después de la introducción: 40 a 55 palabras que respondan qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No debe repetir la tesis ni adelantar el análisis, ni contener enlaces, negritas o lenguaje promocional; no requiere abrir con keyword.
-### H3 de desarrollo jerárquicos, descriptivos y concisos, sin cuota fija. Aclaran el eje sin forzar la tesis completa; evita bloques de un solo párrafo poco desarrollados y fusiónalos o amplíalos cuando haga falta.
+### H3 de desarrollo jerárquicos, descriptivos y concisos, sin cuota fija. Deben hacer avanzar la información; una pregunta solo es útil si aclara una duda real. Evita bloques de un solo párrafo poco desarrollados y fusiónalos o amplíalos cuando haga falta.
+H2 y H3 deben sostener una progresión informativa, no reiterar la tesis ni convertir cada hallazgo en sección.
 Los H3 distribuyen los ejes que la evidencia sostenga, sin convertir cada hallazgo del plan en un subtítulo independiente.
 Una sección H3 sobre identidad es opcional, solo si aporta contexto y tiene evidencia verificable. En Concursos y Agenda, no fuerces un H3 para el organizador: intégralo en la introducción o en contexto, y crea una sección propia solo cuando aporte orientación real a la pieza.
 Cierre sin titular “Conclusión”; recupera la lógica principal del diseño y prefiere una observación abierta antes que un veredicto definitivo. Usa transiciones con flexibilidad: continuidad cuando sea natural y cortes directos cuando el eje cambie con claridad.
@@ -389,12 +391,18 @@ Cierre sin titular “Conclusión”; recupera la lógica principal del diseño 
 Reglas específicas para Concursos y convocatorias:
 - Aplícalas solo cuando la categoría sea Concursos y convocatorias. El tipo de pieza Agenda por sí solo no convierte un Evento en convocatoria.
 - Escribe con tono claro, cordial, cercano e inspirador. Ayuda al lector a reconocer si la oportunidad puede interesarle sin prometer visibilidad, prestigio o resultados.
-- Puedes usar listas únicamente para categorías, fechas principales y premios confirmados. Limita el artículo a uno o, como máximo, dos bloques de lista.
-- Cada lista debe estar introducida por un párrafo y seguida por un párrafo breve que explique su utilidad o conecte con el desarrollo. No entregues listados rígidos o aislados.
-- No incluyas como desarrollo público requisitos técnicos, formatos, entregables, elegibilidad detallada ni criterios de evaluación. Remite esos aspectos a la web oficial en el cierre.
+- Distingue el rol del organizador del de la plataforma cuando ambos estén confirmados. Conserva propósito, elegibilidad esencial y proceso creativo solo en la medida en que estén documentados.
+- Puedes usar una lista cronológica de fechas verificadas cuando aclare el calendario; no es obligatoria. Introdúcela y ciérrala con prosa que explique su utilidad, sin bloques rígidos.
+- No incluyas como desarrollo público requisitos técnicos, formatos, entregables, elegibilidad detallada, rúbricas ni ponderaciones. Protege los criterios generales confirmados del jurado o proceso creativo y remite los detalles a la web oficial en el cierre.
 - No conviertas una fecha, una institución o una ciudad en una reflexión abstracta. Explica su utilidad práctica y su contexto con naturalidad. Si la información es limitada, intégrala en una lista o párrafo útil en lugar de inflarla como H3 independiente.
 - La inspiración debe surgir del reto creativo, de las categorías y de la oportunidad verificable, no de frases abstractas sobre calendario, credibilidad o alcance.
 - No uses fórmulas como “las fuentes consultadas”, “según otras páginas” o equivalentes dentro del artículo público.
+
+Reglas específicas para Diseño digital y 3D:
+- Menciona herramientas o workflow solo si están verificados en el material disponible; explica su decisión y consecuencia clara sin inventar cifras, rendimiento ni análisis técnico.
+
+Reglas específicas para Movilidad:
+- Distingue fabricante y alianzas solo cuando estén confirmados. Identifica el proyecto como prototipo o producto comercial únicamente con evidencia y no anticipes prestaciones, producción o disponibilidad.
 
 Reglas específicas para Calendario de eventos / Agenda:
 - No crees apartados titulados “Datos clave del evento”, “Información del evento”, “Ficha del evento” ni equivalentes.
@@ -410,6 +418,7 @@ Reglas de estilo:
 - Varía la arquitectura de los párrafos. No repitas la fórmula “frase breve con Eso/Esa/Ahí/Desde ahí + explicación + minicierre”. Entra con frecuencia de forma directa en el hecho, la decisión o la consecuencia.
 - Evita “fecha cerrada”, “la agenda se entiende”, “ritmo de la agenda” y el uso metafórico repetido de “añade/aporta una capa”. La palabra capa sigue permitida en sentido técnico.
 - Evita anunciar una interpretación y volver a resumirla al final del mismo párrafo cuando el desarrollo ya la demuestra.
+- Reduce la reiteración de tesis y los mini cierres: cada párrafo debe aportar evidencia, una relación nueva o una consecuencia clara antes de cerrar.
 - Muestra decisiones de diseño con detalle y consecuencia observable.
 - No enumeres especificaciones: explica qué cambia visual, táctil, espacial, corporal, funcional o culturalmente.
 - Usa la receta aplicada y el plan editorial como guía; la receta base solo explica de dónde partió la investigación.
@@ -444,13 +453,19 @@ Evita:
 - especificaciones sin consecuencia perceptiva o de uso;
 - voz dependiente de claims corporativos;
 - cierres que hablan de fuentes, documentación o del propio artículo.
+- reiteración de la tesis, mini conclusiones o párrafos que no añaden evidencia, relación o consecuencia.
+
+Verifica además que el H1 sea concreto, atractivo y específico sin cliché (preferido hasta 60, máximo 68), que sea distinto del título SEO, y que la primera frase integre la keyword de forma natural sin falsear el caso. Conserva datos útiles, fechas, relaciones, atribuciones y decisiones documentadas; no completes información escasa con análisis inventado.
+Revisa que H2 y H3 hagan avanzar la información. Una pregunta en un subtítulo es opcional y solo procede si resulta útil; no impongas cuotas de secciones ni de párrafos.
 
 Si el contenido es un Concurso o convocatoria:
-- conserva solo listas de categorías, fechas principales o premios confirmados;
-- limita las listas a uno o dos bloques, siempre con párrafo introductorio y párrafo de cierre o transición;
-- elimina listados de requisitos, entregables, formatos o criterios de evaluación y remite esos detalles a la web oficial;
+- distingue organizador y plataforma cuando ambos roles estén confirmados;
+- conserva propósito, elegibilidad esencial, proceso creativo y criterios generales confirmados del jurado solo si la evidencia los respalda; elimina requisitos detallados, rúbricas y ponderaciones no confirmadas;
+- usa una lista cronológica de fechas verificadas solo cuando aclare el calendario, con prosa introductoria y de transición;
 - reescribe sobreinterpretaciones de fechas, instituciones o ciudades como información clara, útil, cordial e inspiradora;
 - elimina fórmulas documentales como “las fuentes consultadas”.
+
+Si el contenido es Diseño digital y 3D, conserva herramientas o workflow solo si son verificables y elimina cifras o inferencias técnicas no sustentadas. Si es Movilidad, conserva la distinción fabricante/alianzas y prototipo/producto comercial solo cuando esté confirmada.
 
 Si el contenido es un Evento:
 - elimina cualquier apartado tipo “Datos clave del evento”, “Información del evento” o equivalente;
@@ -485,6 +500,7 @@ TAREA: Revisión SEO final.
 Trabaja sobre la versión editorial revisada, no sobre el texto base.
 Objetivo: dejar el artículo listo para crear borrador en WordPress sin endurecer la voz ni volverlo artificial.
 Modo de trabajo obligatorio: conservación editorial y cambios localizados. Preserva sin alterar la tesis editorial ya aprobada, la caja editorial, H1, H2 y la estructura del artículo, además de su pulso y mejores frases. Solo modifica la oración o el fragmento imprescindible para integrar enlaces, keyword o claridad. No agregues párrafos de rescate, no redactes cierres documentales, no introduzcas nueva semántica editorial y no reescribas un bloque completo que ya funciona. Usa la ficha documental temporal únicamente como verificación de precisión, no como base para rehacer el artículo.
+Conserva datos útiles, fechas, relaciones, atribuciones, decisiones y los criterios generales confirmados del jurado o proceso creativo. No inventes requisitos detallados, rúbricas, ponderaciones, cifras ni hechos para SEO. Mantén la keyword natural en la primera frase si ya cumple esa función y no alteres el H1 editorial para igualarlo al TÍTULO SEO.
 
 Debes entregar exactamente en este orden y con estos rótulos en líneas independientes. No cambies los nombres de los rótulos. El rótulo RETROALIMENTACIÓN GERIZIM es interno y no debe entrar al artículo público:
 
@@ -517,9 +533,9 @@ RETROALIMENTACIÓN GERIZIM
 
 
 Reglas específicas para Concursos y convocatorias:
-- Conserva o crea listas únicamente para categorías, fechas principales y premios confirmados. No uses más de dos bloques de lista en todo el artículo.
-- Cada lista debe tener un párrafo introductorio y un párrafo posterior de cierre o transición. No dejes una lista como bloque rígido o aislado.
-- Elimina requisitos técnicos, formatos, entregables, elegibilidad detallada y criterios de evaluación del desarrollo público; esos detalles se consultan en la web oficial.
+- Distingue organizador y plataforma cuando ambos roles estén confirmados. Conserva propósito, elegibilidad esencial y proceso creativo confirmados.
+- Una lista cronológica de fechas verificadas es preferible cuando aclare el calendario, pero no obligatoria; acompáñala de prosa introductoria y de transición.
+- Elimina requisitos técnicos, formatos, entregables, elegibilidad detallada, rúbricas y ponderaciones; conserva solo criterios generales confirmados del jurado o proceso creativo y remite los detalles a la web oficial.
 - Mantén un tono claro, cordial, cercano e inspirador. No conviertas fechas, instituciones o ciudades en reflexiones abstractas, no las infles como H3 independientes cuando hay poca información y no uses “las fuentes consultadas”.
 - Si el tag principal es noindex u operativo, no lo uses como enlace interno ni como eje editorial.
 - Concursos y convocatorias define la superficie/categoría de la pieza; el enlace interno de article sigue el mismo contrato canónico de tag resuelto: primary_lens, secondary_lenses aprobadas en orden y, si ninguna es elegible, unresolved / resolución editorial. No fuerces una landing de categoría.

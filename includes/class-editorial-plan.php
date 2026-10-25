@@ -53,26 +53,38 @@ final class IDG_Editorial_Plan {
     public static function fallback(array $workflow, array $base): array {
         $keyword = trim((string) ($workflow['keyword'] ?? 'el caso'));
         $discipline = trim((string) ($base['discipline'] ?? $base['territory'] ?? 'diseño'));
+        $contest = self::is_contest($workflow, $base);
         $axes = array_slice((array) ($base['available_axes'] ?? []), 0, 4);
         $experience = array_slice((array) ($base['experience_dimensions'] ?? []), 0, 3);
         $activated = array_slice((array) ($base['available_axes'] ?? []), 0, 6);
         $verbs = array_slice((array) ($base['natural_verbs'] ?? []), 0, 6);
         $conditioned = array_slice((array) ($base['conditional_terms'] ?? []), 0, 6);
-        $thesis = 'Explicar ' . $keyword . ' desde ' . $discipline . ', relacionando las decisiones documentadas con su efecto perceptivo y de uso.';
+        $thesis = $contest
+            ? 'Explicar ' . $keyword . ' desde la oportunidad documentada, conservando propósito, roles y calendario solo cuando estén confirmados.'
+            : 'Explicar ' . $keyword . ' desde ' . $discipline . ', relacionando las decisiones documentadas con su efecto perceptivo y de uso.';
         $identity = 'Identidad opcional, únicamente cuando exista evidencia verificable y aporte contexto pertinente.';
         $translations = [];
-        foreach ($experience as $item) {
-            $translations[] = 'Decisión documentada → ' . $item . ' → consecuencia para la experiencia y el significado del proyecto.';
+        if (!$contest) {
+            foreach ($experience as $item) {
+                $translations[] = 'Decisión documentada → ' . $item . ' → consecuencia para la experiencia y el significado del proyecto.';
+            }
         }
         $links = class_exists('IDG_Internal_Links') ? IDG_Internal_Links::library_summary($workflow) : 'Integrar enlaces dentro de argumentos existentes; no crear párrafos de rescate.';
-        $applied = 'Analizar ' . $keyword . ' desde ' . $discipline;
-        if (!empty($axes)) {
-            $applied .= ', priorizando ' . self::human_list($axes);
+        if ($contest) {
+            $applied = 'Presentar ' . $keyword . ' con el propósito y el reto documentados; distinguir organizador y plataforma cuando la evidencia identifique ambos roles; conservar elegibilidad esencial y proceso creativo solo confirmados; y ordenar fechas verificadas cronológicamente cuando aclaren el calendario. No inventar requisitos detallados, rúbricas, ponderaciones ni traducciones perceptivas.';
+        } else {
+            $applied = 'Analizar ' . $keyword . ' desde ' . $discipline;
+            if (!empty($axes)) {
+                $applied .= ', priorizando ' . self::human_list($axes);
+            }
+            $applied .= ', y traducir cada decisión en percepción, uso y significado editorial.';
         }
-        $applied .= ', y traducir cada decisión en percepción, uso y significado editorial';
-        $applied .= '.';
 
         $risks = array_slice((array) ($base['risks'] ?? []), 0, 5);
+        if ($contest) {
+            $risks[] = 'No confundir organizador y plataforma ni inventar elegibilidad, requisitos, rúbricas o ponderaciones.';
+            $risks[] = 'No forzar traducciones perceptivas; usar fechas verificadas solo cuando aclaren el calendario.';
+        }
         $raw = implode("\n", [
             'TESIS EDITORIAL',
             $thesis,
@@ -249,6 +261,17 @@ final class IDG_Editorial_Plan {
             }
         }
         return $sections;
+    }
+
+    private static function is_contest(array $workflow, array $base): bool {
+        $scope = implode(' ', [
+            (string) ($workflow['category_name'] ?? ''),
+            (string) ($workflow['event_editorial_category'] ?? ''),
+            (string) ($workflow['piece_type'] ?? ''),
+            (string) ($base['discipline'] ?? ''),
+            (string) ($base['territory'] ?? ''),
+        ]);
+        return preg_match('/\bconcurs(?:o|os)|\bconvocatori/iu', $scope) === 1;
     }
 
     private static function first_text(array $lines): string {
