@@ -1,0 +1,27 @@
+GERIZIM 0.4.0-RC1.7.7 — candidato acotado
+
+Cambio funcional
+- La selección explícita de `tag_ids` enviada por el editor en un workflow no recurrente marca `editorial_tags_final`; conserva los campos `radar_*` de trazabilidad, pero la biblioteca disciplinar y la receta no vuelven a activarlos como lentes.
+- Caso Radar 179: al retirar `Desfiles` y mantener `Prêt-à-porter` en las etiquetas WordPress, la única lente activa es `Prêt-à-porter`.
+- Los prompts refuerzan una voz ideasDi directa: decisión concreta antes de abstracción, efecto observable, menos muletillas y repetición de tesis. La revisión editorial solo modifica problemas sustantivos y conserva literalmente un artículo que ya cumple.
+- H1/H2 se piden naturales e informativos; la keyword se usa solo cuando aporta. La caja editorial sigue siendo factual, de 40 a 55 palabras, y el diagnóstico interno distingue cambios de “sin cambios”.
+
+Archivos modificados
+- `ideasdi-redaccion-gerizim.php`: cabecera e `IDG_VERSION` en `0.4.0-RC1.7.7`.
+- `includes/class-admin-page.php`, `includes/class-disciplinary-library.php`, `includes/class-editorial-recipe-builder.php`, `includes/class-prompt-library.php`.
+- `tests/rc177-editorial-regression.php`: regresión ejecutable de etiquetas y prompts.
+
+Contratos y excepciones históricas
+- No se alteran P1, P2 ni P3, Canon Lead, UI WordPress, migraciones, reels, enlaces internos ni contratos Radar–Gerizim.
+- RC1.7.0 y los manifiestos SHA-256 históricos se mantienen intactos. El manifiesto vigente RC1.7.6 conserva su huella histórica `16762a605a8912de9852e33ec109877e62f3b36b7f6c2b351efdacaca966a8da`; no se regenera en este candidato para no modificar el registro protegido antes de una release autorizada.
+
+Resultados de validación
+- Lint PHP correcto para los cinco archivos de producción tocados y `tests/rc177-editorial-regression.php`.
+- `php tests/rc177-editorial-regression.php`: PASS (`RC177_EDITORIAL_REGRESSION_OK`).
+- `git diff --check`: PASS.
+- No se ejecuta la suite histórica global por alcance expreso del candidato.
+
+Pendiente operativo
+- Revisar diff, `git diff --check` y estado limpio de alcance.
+- Sin autorización explícita: no commit, tag, ZIP, instalación WordPress, despliegue ni rollback.
+- Para una fase de release autorizada: construir el ZIP desde un commit conocido y limpio, conservar el ZIP estable anterior, registrar SHA-256, instalar manualmente y dejar disponible la reversión al ZIP estable previo.

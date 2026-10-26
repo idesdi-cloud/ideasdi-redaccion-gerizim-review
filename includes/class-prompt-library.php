@@ -62,12 +62,12 @@ Reglas centrales:
 - No conviertas el artículo en catálogo de especificaciones: ningún dato técnico debe quedar aislado de una consecuencia perceptiva, funcional, cultural o de identidad.
 - H1 máximo 68 caracteres; preferido hasta 60 como guía de calidad, sin invalidar 61–68.
 - H2 máximo 100 caracteres.
-- Empieza por decisiones de diseño concretas y explica las decisiones, no solo prestaciones. Sigue cada decisión hasta su consecuencia relevante y detente; las cualidades y la abstracción van después de evidencia concreta.
+- Empieza por una decisión, gesto, material, silueta, interfaz o disposición espacial verificable y explica su efecto. No abras con abstracciones ni vuelvas a enunciar la misma tesis después de demostrarla.
 - La intención de autor exige documentación; la autoría es transversal y se vincula a decisiones concretas. Evita metalenguaje editorial cuando reemplace la observación, usa vocabulario de experiencia y percepción propio de la categoría y no sobreexplique: interpreta solo para aportar una relación nueva.
 - Introducción: dos párrafos es la preferencia no rígida. La primera frase entra de forma narrativa y directa en el caso e integra la keyword principal de forma natural; identifica asunto, relevancia, ángulo y decisiones centrales sin repetir la caja.
 - Caja editorial factual de 40 a 55 palabras después de la introducción: qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. Sin enlaces, negritas ni lenguaje promocional; no repite la tesis ni adelanta el análisis. No exige abrir con la keyword.
 - H3 jerárquicos, descriptivos y concisos, con eje claro sin forzar la tesis completa. Evita bloques de un solo párrafo poco desarrollados: fusiónalos o amplíalos cuando haga falta, sin cuota fija de H3 ni mínimo universal de párrafos.
-- Transiciones flexibles: continuidad cuando sea natural y cortes directos cuando el eje cambie con claridad. El cierre recupera la lógica principal del diseño y prefiere una observación abierta antes que un veredicto definitivo.
+- Transiciones flexibles: continuidad cuando sea natural y cortes directos cuando el eje cambie con claridad. Evita muletillas como “en ese sentido”, “a la vez”, “desde ahí” o “más allá de”; elige la relación concreta o elimina el puente. El cierre prefiere una observación abierta antes que repetir la tesis.
 - No usar “Conclusión” como subtítulo final.
 - No usar “Fuente oficial:” como rótulo visible.
 - No usar metalenguaje en el artículo: “la documentación oficial describe”, “desde la categoría”, “la lectura editorial”, “ese detalle importa porque”, “quienes siguen de cerca”.
@@ -447,15 +447,15 @@ Evita:
 - frases rígidas o demasiado explicativas;
 - párrafos repetidos con el patrón “Eso/Esa/Ahí/Desde ahí + explicación + minicierre”;
 - metalenguaje público como “densidad editorial”, “interés editorial”, “alcance editorial” o “marco documental”;
-- títulos vagos que no sitúan la disciplina o la decisión de diseño;
+- H1 o H2 vagos, ornamentales o repetitivos: deben nombrar el caso, la decisión, el efecto o la pregunta real; usa la keyword solo cuando informe y no para forzar el título;
 - vocabulario correcto en otra disciplina pero impropio para la categoría, lente o tipo de pieza;
 - verbos genéricos cuando existe una acción más concreta del objeto, espacio, prenda, interfaz o evento;
 - especificaciones sin consecuencia perceptiva o de uso;
 - voz dependiente de claims corporativos;
 - cierres que hablan de fuentes, documentación o del propio artículo.
-- reiteración de la tesis, mini conclusiones o párrafos que no añaden evidencia, relación o consecuencia.
+- reiteración de la tesis, mini conclusiones o párrafos que no añaden evidencia, relación o consecuencia; si el artículo ya cumple y no hay un problema sustantivo, devuélvelo idéntico.
 
-Verifica además que el H1 sea concreto, atractivo y específico sin cliché (preferido hasta 60, máximo 68), que sea distinto del título SEO, y que la primera frase integre la keyword de forma natural sin falsear el caso. Conserva datos útiles, fechas, relaciones, atribuciones y decisiones documentadas; no completes información escasa con análisis inventado.
+Verifica además que el H1 sea natural, concreto e informativo, sin cliché (preferido hasta 60, máximo 68), que sea distinto del título SEO, y que la primera frase integre la keyword solo si cabe de forma natural y sin falsear el caso. Conserva datos útiles, fechas, relaciones, atribuciones y decisiones documentadas; no completes información escasa con análisis inventado.
 Revisa que H2 y H3 hagan avanzar la información. Una pregunta en un subtítulo es opcional y solo procede si resulta útil; no impongas cuotas de secciones ni de párrafos.
 
 Si el contenido es un Concurso o convocatoria:
@@ -480,12 +480,12 @@ ARTÍCULO REVISADO
 [Artículo limpio en Markdown.]
 
 DIAGNÓSTICO EDITORIAL INTERNO
-- Tesis y disciplina: [cumple / corregido / pendiente]
+- Tesis y disciplina: [cumple / corregido / pendiente; problema sustantivo si existe]
 - Identidad de autor o marca: [cumple / no aplica / pendiente]
 - Decisiones → percepción → uso: [cumple / corregido / pendiente]
-- H3 y estructura: [cambios principales]
-- Frases artificiales o corporativas eliminadas: [resumen]
-- Pertinencia disciplinar y naturalidad: [cumple / corregido / pendiente; términos reemplazados]
+- H3 y estructura: [cambios principales o “sin cambios”]
+- Frases artificiales o corporativas eliminadas: [resumen o “sin cambios”]
+- Pertinencia disciplinar y naturalidad: [cumple / corregido / pendiente; términos reemplazados o “sin cambios”]
 
 NOTAS EDITORIALES INTERNAS
 [Notas breves, si aplica.]
@@ -553,7 +553,7 @@ Reglas de formato para WordPress dentro de ARTÍCULO FINAL:
 - Usa ## solo una vez para el subtítulo H2 principal.
 - Usa ### para todos los subtítulos de desarrollo H3.
 - Los H3 de desarrollo son jerárquicos, descriptivos y concisos: aclaran el eje sin forzar la tesis completa. No hay cuota fija; una sección sobre identidad es opcional y requiere evidencia verificable. Evita bloques de un solo párrafo poco desarrollados: fusiónalos o amplíalos cuando haga falta, sin mínimo universal de párrafos.
-- La caja editorial aparece como una línea “Caja editorial” seguida por un párrafo factual de 40 a 55 palabras, después de la introducción y antes del primer H3. Responde qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No repite la tesis ni adelanta el análisis, y no incluye enlaces, negritas ni lenguaje promocional; no exige abrir con keyword.
+- La caja editorial aparece como una línea “Caja editorial” seguida por un párrafo factual de 40 a 55 palabras, después de la introducción y antes del primer H3. Responde qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No repite la tesis, no adelanta el análisis ni rellena con adjetivos, y no incluye enlaces, negritas ni lenguaje promocional; no exige abrir con keyword.
 - Usa **negrita** con criterio editorial solo dentro de párrafos o listas cuando aporte lectura. Prioriza materiales, procesos, tipologías, gestos de uso, conceptos de diseño y entidades secundarias.
 - No uses negritas en H1, H2, H3, enlaces internos, caja editorial ni frases largas. No repitas siempre la keyword principal.
 - En article, usa la URL responsable resuelta en orden canonical_context.responsible_official_url > responsible_official_url > official_source, solo si es válida y no vacía. Integra exactamente un enlace externo contextual al responsable en ARTÍCULO FINAL, sin duplicar la URL, sin línea suelta visible “Fuente oficial:”, sin enlazar otra entidad y sin usar la keyword principal como anchor. No inventes hechos para el anchor. Si falta URL válida, solicita resolución editorial, no la inventes. source_information_url es solo fuente documental/complementaria, nunca la URL responsable.
@@ -569,7 +569,7 @@ Reglas de formato para WordPress dentro de ARTÍCULO FINAL:
 - No incluyas instrucciones internas, dudas del modelo ni frases en inglés de trabajo como “Need provide”, “Let’s produce”, “article base”, “missing box” o similares.
 - Dentro de ARTÍCULO FINAL usa enlaces Markdown, nunca etiquetas HTML <a>.
 - No cierres el artículo explicando qué fuentes sostienen la pieza, qué documentación se consultó ni cómo se hizo la investigación. No uses “las fuentes consultadas” dentro del contenido público.
-- Evita metalenguaje público como “densidad editorial”, “interés editorial”, “alcance editorial” o “marco documental”.
+- Evita metalenguaje público como “densidad editorial”, “interés editorial”, “alcance editorial” o “marco documental”, además de muletillas abstractas como “en ese sentido”, “a la vez”, “desde ahí” o “más allá de” cuando no nombren una relación concreta.
 - Conserva variedad de ritmo: no normalices todos los párrafos al patrón de frase breve interpretativa, explicación y minicierre.
 
 Reglas obligatorias del PAQUETE REEL:

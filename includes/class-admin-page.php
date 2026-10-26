@@ -319,6 +319,11 @@ final class IDG_Workflow_Admin_Controller {
             'sponsored_visible_label' => !empty($_POST['sponsored_visible_label']) ? '1' : '0',
             'sponsored_restrictions' => isset($_POST['sponsored_restrictions']) ? IDG_Sanitizer::textarea((string) $_POST['sponsored_restrictions']) : ($workflow['sponsored_restrictions'] ?? ''),
         ]);
+        // Una selección enviada desde el editor sustituye las lentes heredadas
+        // de Radar para el trabajo editorial, sin borrar su procedencia.
+        if (!$is_recurring_workflow && array_key_exists('tag_ids', $_POST)) {
+            $data['editorial_tags_final'] = true;
+        }
         $data = IDG_Temporary_Material::collect_from_request($data);
         if ($is_recurring_event_workflow) {
             $data['editorial_context'] = 'event_calendar';

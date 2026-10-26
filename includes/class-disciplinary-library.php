@@ -19,7 +19,8 @@ final class IDG_Disciplinary_Library {
         }
         $tags = self::tag_names($workflow);
         $entity = trim((string) ($workflow['entity'] ?? ''));
-        $suggested = trim((string) ($workflow['radar_lente_sugerida'] ?? $workflow['lens_suggested'] ?? ''));
+        $editorial_tags_final = !empty($workflow['editorial_tags_final']);
+        $suggested = $editorial_tags_final ? '' : trim((string) ($workflow['radar_lente_sugerida'] ?? $workflow['lens_suggested'] ?? ''));
         $classifications = [];
 
         foreach ($tags as $tag) {
@@ -472,8 +473,10 @@ final class IDG_Disciplinary_Library {
                 if ($term && !is_wp_error($term)) $names[] = (string) $term->name;
             }
         }
-        if (!empty($workflow['radar_tag_principal'])) array_unshift($names, (string) $workflow['radar_tag_principal']);
-        foreach ((array) ($workflow['radar_tags_secundarios'] ?? []) as $tag) $names[] = (string) $tag;
+        if (empty($workflow['editorial_tags_final'])) {
+            if (!empty($workflow['radar_tag_principal'])) array_unshift($names, (string) $workflow['radar_tag_principal']);
+            foreach ((array) ($workflow['radar_tags_secundarios'] ?? []) as $tag) $names[] = (string) $tag;
+        }
         if (self::is_event_workflow($workflow) && !empty($workflow['event_editorial_category'])) $names[] = (string) $workflow['event_editorial_category'];
         $out = [];
         foreach ($names as $name) {

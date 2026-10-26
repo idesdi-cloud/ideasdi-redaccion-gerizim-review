@@ -255,14 +255,14 @@ final class IDG_Editorial_Recipe_Builder {
                 }
             }
         }
-        if (!empty($workflow['radar_tag_principal']) && !self::contains_name($names, (string) $workflow['radar_tag_principal'])) {
+        if (empty($workflow['editorial_tags_final']) && !empty($workflow['radar_tag_principal']) && !self::contains_name($names, (string) $workflow['radar_tag_principal'])) {
             array_unshift($names, (string) $workflow['radar_tag_principal']);
         }
         return array_values(array_unique(array_filter($names)));
     }
 
     private static function primary_tag_name(array $workflow, array $tag_names): string {
-        $radar = trim((string) ($workflow['radar_tag_principal'] ?? ''));
+        $radar = empty($workflow['editorial_tags_final']) ? trim((string) ($workflow['radar_tag_principal'] ?? '')) : '';
         if ($radar !== '') {
             foreach ($tag_names as $name) {
                 if (self::same_name((string) $name, $radar)) {
@@ -282,7 +282,7 @@ final class IDG_Editorial_Recipe_Builder {
     }
 
     private static function secondary_tag_names(array $workflow, array $tag_names, string $primary_tag): array {
-        if (!empty($workflow['radar_tags_secundarios']) && is_array($workflow['radar_tags_secundarios'])) {
+        if (empty($workflow['editorial_tags_final']) && !empty($workflow['radar_tags_secundarios']) && is_array($workflow['radar_tags_secundarios'])) {
             return array_slice(array_values(array_filter(array_map('strval', $workflow['radar_tags_secundarios']))), 0, 3);
         }
         $out = [];
