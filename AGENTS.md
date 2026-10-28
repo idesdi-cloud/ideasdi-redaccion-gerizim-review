@@ -8,7 +8,9 @@ ideasDi Redacción Gerizim.
 - Repositorio: idesdi-cloud/ideasdi-redaccion-gerizim-review
 - Rama canónica: main
 - Espacio de trabajo VPS: /opt/gerizim-ideasdi
-- Versión productiva de referencia: 0.4.0-RC1.6.5
+- Versión instalada observada en WordPress: 0.4.0-RC1.7.7 (sin despliegue RC1.7.8).
+- Última aceptación humana histórica documentada: 0.4.0-RC1.6.5; no confundir con versión actualmente instalada.
+- RC1.7.8: incorporada a Git `main` mediante PR #1; instalación y aceptación humana pendientes.
 - WordPress se actualiza manualmente mediante un ZIP validado.
 - No existe un entorno WordPress de staging.
 

@@ -1,14 +1,18 @@
-GERIZIM v0.4.0-RC1.7.8 — INFORME DE CANDIDATO AISLADO (27-10-2026)
+GERIZIM v0.4.0-RC1.7.8 — INFORME DE INCORPORACIÓN GIT (27-10-2026)
 
 ESTADO Y GOBERNANZA
-- Estado: candidato aislado para REVIEW; NO APROBADO PARA COMMIT, PUSH, RELEASE NI DEPLOY.
+- Estado: REVIEW, commit, push y merge Git completados; BUILD reproducible autorizado,
+  aún sin ZIP oficial ni tag; NO AUTORIZADO DEPLOY ni aceptación WordPress.
 - Procedencia: Change Record chg-20261027T213048Z-47bd9e74, NEEDS_ATTENTION.
   Ese Change Record no está liberado, no tiene gate de RELEASE ni se presenta como autorización.
 - Baseline Git canónica de origen: a35beee6e8fab486fab492d446acfba85f887ef9 (RC1.7.7).
-- Copia aislada con trazabilidad a candidato anterior de 17 rutas y SHA de identidad:
+- Copia inicial de 17 rutas conservada como antecedente: identidad
   aabddb5967a6af6ad9e7683adaf30b7c7ff56daab361058b160533cc6fef6d59.
-- El árbol, identidad y SHA del nuevo candidato se calculan al cerrar la intervención
-  en el manifiesto de revisión EXTERNO a este repositorio, sin autorizar un commit.
+- Candidato final 20 rutas: identidad
+  fcf5b8ce023fda13ef293ea9d8c9d1e97d9d54be877bff55be53551662b7d0b2.
+- Commit fuente: bdb133d412d948734cf2fed3691c584e73bda4af.
+- Merge PR #1 en main: 502ba021bda324fbb360046e3e705ecd8835a16a.
+- Árbol del merge: 4296351340ee26847bae3c2138c9276b3cb13bfc.
 
 ALCANCE FUNCIONAL
 - H1 único <=68; título WordPress derivado del H1 y Yoast con %%title%% dinámico.
@@ -30,12 +34,16 @@ PRUEBAS Y TRAZABILIDAD
 - Suite histórica completa: ./scripts/test.sh.
 - El candidato de origen verificó ambas como PASS, tras reconciliación del runner,
   CTA, composición y protección editorial SHA-256 RC1.7.8.
-- Para ESTA corrección final, consultar el manifest de revisión y los logs generados
-  por su ejecutor; cualquier fallo bloquea la promoción. Mocks no son WordPress real.
+- La corrección final pasó la suite dirigida y la suite histórica en clon aislado
+  del VPS; también PHP lint, diff check y hashes. No equivale a pruebas en WordPress.
+- Antes de construir el ZIP deben repetirse ./scripts/test.sh y validaciones de
+  versión / integridad desde checkout limpio del commit de documentación definitiva.
 - Protecciones RC1.6.5/RC1.7.2/RC1.7.6 preservadas; manifiesto RC1.7.8 regenerado
   para cubrir el cambio funcional de patrocinados y la prueba adicional.
 - DB traceability version permanece 1.2.0. Sin migración intencional de BD.
-- No existen commit/tag ni ZIP oficial de esta RC. Un ZIP de revisión aislada NO es instalable.
+- Commit y merge Git existentes; tag y ZIP oficial aún pendientes de construcción.
+  Un ZIP de revisión aislada NO es instalable; registrar el SHA-256 oficial en
+  evidencia externa vinculada al commit de build.
 - No existe prueba humana WordPress/Gutenberg/Yoast del nuevo candidato.
 - Despliegue y reversión: pendientes de autorización separada; respaldar y conservar
   la versión/ZIP de WordPress vigente (observado RC1.7.7) antes de instalar.

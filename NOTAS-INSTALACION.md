@@ -1,16 +1,21 @@
 # Instalación · ideasDi Redacción Gerizim
 
-## RC1.7.8 — preparación; NO INSTALAR SIN DEPLOY AUTORIZADO
+## RC1.7.8 — incorporación Git completada; NO INSTALAR SIN DEPLOY AUTORIZADO
 
-RC1.7.8 está en revisión aislada. No hay commit, tag ni ZIP oficial aprobado.
+RC1.7.8 ya está fusionada en Git `main` por PR #1: merge
+`502ba021bda324fbb360046e3e705ecd8835a16a`, con commit funcional
+`bdb133d412d948734cf2fed3691c584e73bda4af` y 20 rutas verificadas.
+La construcción del ZIP oficial desde Git limpio está autorizada, pero aún no
+se ha ejecutado ni registrado su SHA-256. No hay tag ni instalación RC1.7.8.
 Los ZIP `PRE_RELEASE_NO_INSTALAR` y los bundles de REVIEW no pueden instalarse.
-No confundir autorización de preparación con RELEASE o DEPLOY.
+El RELEASE y el DEPLOY son fases separadas.
 
 **Procedimiento futuro sujeto a autorización DEPLOY independiente:**
 
-1. Exigir REVIEW conforme y autorización humana de commit y de push independientes,
-   con SHA de nuevo commit y árbol Git verificados; no suponer que Controlled Change
-   liberó `chg-20261027T213048Z-47bd9e74` (permanece NEEDS_ATTENTION).
+1. REVIEW, commit, push y merge excepcionales ya completados y verificados
+   (PR #1, árbol `4296351340ee26847bae3c2138c9276b3cb13bfc`).
+   Controlled Change `chg-20261027T213048Z-47bd9e74` sigue en NEEDS_ATTENTION:
+   esta incorporación no lo libera ni implica autorización de despliegue.
 2. Desde commit aprobado, limpio y conocido, ejecutar `./scripts/test.sh` y
    `./scripts/build-zip.sh`; validar ZIP oficial, versión interna y SHA-256.
 3. Antes de instalar: comprobar la versión **realmente activa** en WordPress,

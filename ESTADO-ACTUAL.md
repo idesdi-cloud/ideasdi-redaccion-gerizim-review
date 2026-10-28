@@ -1,21 +1,27 @@
 # Estado actual · ideasDi Redacción Gerizim
 
-Actualizado: 2026-10-27 (estado previo al cierre excepcional RC1.7.8)
+Actualizado: 2026-10-27 (postmerge RC1.7.8, previo a ZIP oficial)
 
-## Estado canónico observado y candidato RC1.7.8
+## Estado canónico observado e incorporación RC1.7.8
 
-- Repositorio canónico `main`: commit `a35beee6e8fab486fab492d446acfba85f887ef9`,
-  limpio y alineado; WordPress se observó sincronizado con la baseline RC1.7.7.
-- RC1.7.8: candidato corregido y preparado **solo en copia aislada**; NO existe commit,
-  release, ZIP oficial instalable ni despliegue de RC1.7.8.
-- Las pruebas dirigidas e históricas del candidato previo pasaron; la corrección
-  patrocinados exige nuevos resultados, consignados en el expediente externo de revisión.
-- Origen: `chg-20261027T213048Z-47bd9e74` en `NEEDS_ATTENTION`, sin REVIEW_READY.
-  No se atribuye al registro ninguna autorización de promoción.
-- Preflight de incorporación excepcional autorizado solo para preparación/revisión.
-  Commit, push y despliegue requieren autorizaciones humanas independientes.
-- Documentación del nuevo candidato: `INFORME_RC1.7.8.txt`,
-  `CAMBIOS-v0.4.0-RC1.7.8.md`, `NOTAS-INSTALACION.md`.
+- Baseline de RC1.7.7: `a35beee6e8fab486fab492d446acfba85f887ef9`.
+- RC1.7.8 pasó REVIEW y se integró en GitHub `main` mediante PR #1:
+  commit fuente `bdb133d412d948734cf2fed3691c584e73bda4af`;
+  merge `502ba021bda324fbb360046e3e705ecd8835a16a`;
+  árbol Git de las 20 rutas `4296351340ee26847bae3c2138c9276b3cb13bfc`.
+- Candidato corregido: 20 rutas identificadas por SHA-256
+  `fcf5b8ce023fda13ef293ea9d8c9d1e97d9d54be877bff55be53551662b7d0b2`.
+  Suite dirigida, histórica, lint y controles de integridad: PASS en clon aislado del VPS.
+  GitHub no registró check-runs CI para dicho commit.
+- Construcción reproducible desde commit limpio: fase RELEASE autorizada,
+  pendiente de ejecución y de registrar ZIP + SHA-256; aún sin tag/release remoto.
+- WordPress permanece en RC1.7.7 según comprobación de sincronización: 222 archivos;
+  RC1.7.8 NO ha sido instalada ni aceptada funcionalmente.
+- Origen `chg-20261027T213048Z-47bd9e74`: `NEEDS_ATTENTION`, sin gate de RELEASE;
+  la incorporación excepcional se autorizó directamente por el editor y no
+  modifica ni simula el estado del Controlled Change.
+- Documentación: `INFORME_RC1.7.8.txt`, `CAMBIOS-v0.4.0-RC1.7.8.md`,
+  `NOTAS-INSTALACION.md`. Despliegue y aceptación WordPress: autorización separada.
 
 ## Historial previo conservado (actualización del 2026-08-25)
 

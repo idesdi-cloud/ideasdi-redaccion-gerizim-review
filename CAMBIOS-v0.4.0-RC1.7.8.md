@@ -1,6 +1,10 @@
-# Gerizim 0.4.0-RC1.7.8 — cambios previstos (candidato aislado)
+# Gerizim 0.4.0-RC1.7.8 — cambios incorporados en Git
 
-**Estado:** no liberado; revisión aislada y cambio excepcional en preparación.
+**Estado:** revisión y merge en Git completados; fase de construcción reproducible autorizada, aún sin ZIP oficial, tag ni despliegue WordPress.
+**Commit fuente del cambio:** `bdb133d412d948734cf2fed3691c584e73bda4af`.
+**Merge en `main`:** `502ba021bda324fbb360046e3e705ecd8835a16a` (PR #1).
+**Árbol funcional de 20 rutas:** `4296351340ee26847bae3c2138c9276b3cb13bfc`.
+**Identidad congelada de 20 rutas:** `fcf5b8ce023fda13ef293ea9d8c9d1e97d9d54be877bff55be53551662b7d0b2`.
 **Baseline:** RC1.7.7, commit `a35beee6e8fab486fab492d446acfba85f887ef9`.
 **Procedencia:** `chg-20261027T213048Z-47bd9e74` en `NEEDS_ATTENTION`,
 no es `REVIEW_READY` ni autoriza RELEASE.
@@ -30,6 +34,8 @@ no es `REVIEW_READY` ni autoriza RELEASE.
 - Antes del cierre deben pasar PHP lint, `php tests/rc178-targeted-regression.php`,
   `./scripts/test.sh`, `git diff --check` y revisión de identidad de rutas/tree.
 - Validación CLI en copia aislada no reemplaza la prueba humana WordPress.
-- No existe commit ni tag de RC1.7.8; el ZIP aislado es de revisión, NO instalable.
-  El ZIP oficial se construirá solo desde commit limpio después de autorizaciones.
+- Existe commit y merge Git exactos; aún no existe tag ni ZIP oficial construido.
+  El ZIP oficial se construirá exclusivamente desde un commit limpio validado;
+  su SHA-256 y commit de build se registrarán como evidencia externa al árbol fuente.
+  La fase RELEASE no autoriza instalación ni aceptación funcional WordPress.
 - Guía futura de instalación/reversión: `NOTAS-INSTALACION.md`.
