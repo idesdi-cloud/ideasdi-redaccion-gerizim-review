@@ -960,7 +960,7 @@ final class IDG_Workflow_Admin_Controller {
         $lines[] = '';
         $lines[] = '## 12. Metadatos y entregables internos';
         $sections = self::report_extract_sections($seo_result);
-        foreach (['TÍTULO SEO' => 'Título SEO', 'META DESCRIPTION' => 'Meta description', 'INFORME SEO INTERNO' => 'Informe SEO', 'COPY PARA REDES' => 'Copy redes', 'PAQUETE REEL' => 'Paquete reel', 'RETROALIMENTACIÓN GERIZIM' => 'Retroalimentación'] as $key => $label) {
+        foreach (['TÍTULO SEO' => 'Título SEO (legacy · solo lectura)', 'META DESCRIPTION' => 'Meta description', 'INFORME SEO INTERNO' => 'Informe SEO', 'COPY PARA REDES' => 'Copy redes', 'PAQUETE REEL' => 'Paquete reel', 'RETROALIMENTACIÓN GERIZIM' => 'Retroalimentación'] as $key => $label) {
             $lines[] = '### ' . $label;
             $lines[] = self::md_block((string) ($sections[$key] ?? ''));
         }

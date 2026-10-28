@@ -109,7 +109,7 @@ final class IDG_Post_Creator {
         update_post_meta($post_id, '_idg_traceability_published_synced_at_utc', '');
         update_post_meta($post_id, '_idg_published_at_utc', '');
 
-        self::update_yoast_meta($post_id, $meta_description, $workflow['keyword'] ?? '', $seo_title);
+        self::update_yoast_meta($post_id, $meta_description, $workflow['keyword'] ?? '');
 
         return [
             'success' => true,
@@ -135,7 +135,10 @@ final class IDG_Post_Creator {
         $sections = self::extract_sections((string) ($workflow['seo_result'] ?? ''));
         $content = self::prepare_public_article_content((string) ($sections['article'] ?? ''), $workflow);
         $title = self::extract_title($content, $workflow['keyword'] ?? $fallback_title);
-        $seo_title = trim((string) ($sections['seo_title'] ?? '')) ?: $title;
+        // TÍTULO SEO se conserva únicamente como frontera legacy de entrada.
+        // La salida y Yoast usan siempre el título dinámico derivado del H1.
+        $seo_title = '%%title%%';
+        $sections['seo_title'] = $seo_title;
         $meta_description = self::clean_meta_description((string) ($sections['meta_description'] ?? ''));
         $seo_report = trim((string) ($sections['seo_report'] ?? ''));
         $social_copy = trim((string) ($sections['social_copy'] ?? ''));
@@ -145,7 +148,10 @@ final class IDG_Post_Creator {
         $html_before_postprocessing = self::markdownish_to_html($content, $title);
         $html_content = self::ensure_official_source_link($html_before_postprocessing, $workflow);
         $html_content = self::ensure_internal_links($html_content, $workflow);
-        $html_content = self::deduplicate_configured_internal_links($html_content, $workflow);
+        $link_audit_before_deduplication = IDG_Internal_Links::audit_html($html_content, $workflow);
+        if (empty($link_audit_before_deduplication['policy_required'])) {
+            $html_content = self::deduplicate_configured_internal_links($html_content, $workflow);
+        }
         $html_content = self::ensure_sponsored_required_link($html_content, $workflow);
         $html_content = self::ensure_minimum_bold($html_content, $workflow);
         $html_content = self::strip_bold_from_html_headings($html_content);
@@ -185,7 +191,7 @@ final class IDG_Post_Creator {
 
     private static function editorial_override_allowed(array $validation): bool {
         foreach ((array) ($validation['errors'] ?? []) as $error) {
-            if (preg_match('/gutenberg|identidad|permis|firma|id\b|taxonom|slug|autor|seguridad/iu', (string) $error)) {
+            if (preg_match('/gutenberg|identidad|permis|firma|id\b|taxonom|slug|autor|seguridad|\bH1\b|caja editorial|P2\b|enlace interno|paquete reel|\bVO\s*[1-6]\b|overlays?|CTA fijo/iu', (string) $error)) {
                 return false;
             }
         }
@@ -338,7 +344,7 @@ final class IDG_Post_Creator {
             'analysis_id' => $workflow['recurring_analysis_id'] ?? '',
             'target_post_type' => $target_post_type,
         ]));
-        self::update_yoast_meta($post_id, $meta_description, $workflow['keyword'] ?? '', $seo_title);
+        self::update_yoast_meta($post_id, $meta_description, $workflow['keyword'] ?? '');
 
         clean_post_cache($post_id);
         $post_after = get_post($post_id);
@@ -459,17 +465,12 @@ final class IDG_Post_Creator {
 
 
     private static function repair_seo_report_link_counts(string $seo_report, string $html, array $workflow): string {
-        $internal_count = 0;
-        foreach (self::collect_internal_links($workflow) as $link) {
-            $url = esc_url_raw((string) ($link['url'] ?? ''));
-            if ($url !== '' && str_contains($html, $url)) {
-                $internal_count++;
-            }
-        }
+        $audit = IDG_Internal_Links::audit_html($html, $workflow);
+        $internal_count = (int) ($audit['internal_count'] ?? 0);
         $external_count = 0;
         $official = self::resolved_official_source_url($workflow);
-        if ($official !== '' && !self::is_ideasdi_url($official) && str_contains($html, $official)) {
-            $external_count = 1;
+        if ($official !== '' && !self::is_ideasdi_url($official)) {
+            $external_count = self::html_anchor_count_for_url($html, $official);
         }
         $summary = 'Enlaces aplicados: ' . $internal_count . ' interno' . ($internal_count === 1 ? '' : 's') . '; ' . $external_count . ' externo' . ($external_count === 1 ? '' : 's');
         if (preg_match('/^\s*[-*]\s*Enlaces aplicados\s*:.+$/imu', $seo_report)) {
@@ -486,14 +487,7 @@ final class IDG_Post_Creator {
         if (trim($feedback) === '') {
             return $feedback;
         }
-        $has_internal = false;
-        foreach (self::collect_internal_links($workflow) as $link) {
-            $url = esc_url_raw((string) ($link['url'] ?? ''));
-            if ($url !== '' && str_contains($html, $url)) {
-                $has_internal = true;
-                break;
-            }
-        }
+        $has_internal = self::has_contextual_expected_internal_link($html, $workflow);
         if (!$has_internal) {
             return $feedback;
         }
@@ -516,9 +510,8 @@ final class IDG_Post_Creator {
         $parts = [];
         $parts[] = 'ARTÍCULO FINAL';
         $parts[] = trim($content);
-        $parts[] = '';
-        $parts[] = 'TÍTULO SEO';
-        $parts[] = trim($seo_title);
+        // TÍTULO SEO únicamente se lee en resultados históricos mediante extract_sections().
+        // No se crea en salidas nuevas; Yoast conserva %%title%% dinámico.
         $parts[] = '';
         $parts[] = 'META DESCRIPTION';
         $parts[] = trim($meta_description);
@@ -1570,7 +1563,7 @@ final class IDG_Post_Creator {
 
     private static function ensure_official_source_link(string $html, array $workflow): string {
         $url = self::resolved_official_source_url($workflow);
-        if ($url === '' || self::is_ideasdi_url($url) || str_contains(html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8'), $url)) {
+        if ($url === '' || self::is_ideasdi_url($url) || self::html_anchor_count_for_url($html, $url) > 0) {
             return $html;
         }
 
@@ -1660,7 +1653,7 @@ final class IDG_Post_Creator {
 
         foreach ($links as $link) {
             $url = esc_url_raw((string) ($link['url'] ?? ''));
-            if ($url === '' || str_contains($html, $url)) {
+            if ($url === '' || self::html_anchor_count_for_url($html, $url) > 0) {
                 continue;
             }
 
@@ -1779,6 +1772,49 @@ final class IDG_Post_Creator {
     private static function collect_internal_links(array $workflow): array {
 
         return IDG_Internal_Links::normalize($workflow);
+    }
+
+    private static function html_anchor_count_for_url(string $html, string $url): int {
+        if ($url === '') {
+            return 0;
+        }
+        if (!class_exists('IDG_Internal_Links')) {
+            $count = 0;
+            if (preg_match_all('/<a\b[^>]*href=(?:"([^"]+)"|\'([^\']+)\'|([^\s>]+))[^>]*>/iu', $html, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $match) {
+                    $href = html_entity_decode((string) (($match[1] ?? '') !== '' ? $match[1] : (($match[2] ?? '') !== '' ? $match[2] : ($match[3] ?? ''))), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    if (rtrim($href, '/') === rtrim($url, '/')) {
+                        $count++;
+                    }
+                }
+            }
+            return $count;
+        }
+        $audit = IDG_Internal_Links::audit_html($html, []);
+        $count = 0;
+        foreach ((array) ($audit['anchors'] ?? []) as $anchor) {
+            if (IDG_Internal_Links::equivalent_url((string) ($anchor['url'] ?? ''), $url)) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    private static function has_contextual_expected_internal_link(string $html, array $workflow): bool {
+        $audit = IDG_Internal_Links::audit_html($html, $workflow);
+        if ((int) ($audit['expected_count'] ?? 0) !== 1 || (int) ($audit['internal_count'] ?? 0) !== 1) {
+            return false;
+        }
+        $anchor = trim((string) ($audit['expected_anchors'][0]['anchor'] ?? ''));
+        $words = preg_split('/\s+/u', wp_strip_all_tags($anchor), -1, PREG_SPLIT_NO_EMPTY);
+        $count = is_array($words) ? count($words) : 0;
+        $links = self::collect_internal_links($workflow);
+        $source_name = trim((string) ($links[0]['source_name'] ?? ''));
+        $keyword = trim((string) ($workflow['keyword'] ?? ''));
+        return $count >= 3
+            && $count <= 8
+            && ($source_name === '' || !self::same_plain($anchor, $source_name))
+            && ($keyword === '' || !self::same_plain($anchor, $keyword));
     }
 
     private static function anchor_from_url(string $url): string {
@@ -2107,7 +2143,7 @@ final class IDG_Post_Creator {
     private static function ensure_sponsored_required_link(string $html, array $workflow): string {
         $url = trim((string) ($workflow['sponsored_required_link'] ?? ''));
         $anchor = trim((string) ($workflow['sponsored_anchor'] ?? ''));
-        if ($url === '' || $anchor === '' || str_contains($html, $url)) {
+        if ($url === '' || $anchor === '' || self::html_anchor_count_for_url($html, $url) > 0) {
             return $html;
         }
         return self::link_first_anchor_occurrence($html, $anchor, $url);
@@ -2115,7 +2151,10 @@ final class IDG_Post_Creator {
 
     private static function is_sponsored_workflow(array $workflow): bool {
         $piece_type = mb_strtolower((string) ($workflow['piece_type'] ?? ''));
-        return str_contains($piece_type, 'patrocinado') || str_contains($piece_type, 'colaboraci') || !empty($workflow['sponsor_client']) || !empty($workflow['sponsored_required_link']);
+        // La identificación histórica de patrocinio es distinta de la excepción P2.
+        // Campos heredados permiten mostrar el aviso; NO autorizan URLs internas.
+        return str_contains($piece_type, 'patrocinado') || str_contains($piece_type, 'colaboraci')
+            || !empty($workflow['sponsor_client']) || !empty($workflow['sponsored_required_link']);
     }
 
     private static function maybe_add_sponsored_disclosure(string $html, array $workflow): string {
@@ -2156,15 +2195,13 @@ final class IDG_Post_Creator {
         }, $html);
     }
 
-    private static function update_yoast_meta(int $post_id, string $meta_description, string $keyword, string $title): void {
+    private static function update_yoast_meta(int $post_id, string $meta_description, string $keyword): void {
         if ($meta_description !== '') {
             update_post_meta($post_id, '_yoast_wpseo_metadesc', sanitize_text_field($meta_description));
         }
         if ($keyword !== '') {
             update_post_meta($post_id, '_yoast_wpseo_focuskw', sanitize_text_field($keyword));
         }
-        if ($title !== '') {
-            update_post_meta($post_id, '_yoast_wpseo_title', sanitize_text_field($title));
-        }
+        update_post_meta($post_id, '_yoast_wpseo_title', '%%title%%');
     }
 }

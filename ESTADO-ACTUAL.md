@@ -1,8 +1,25 @@
 # Estado actual · ideasDi Redacción Gerizim
 
-Actualizado: 2026-08-25
+Actualizado: 2026-10-27 (estado previo al cierre excepcional RC1.7.8)
 
-## Versión aprobada
+## Estado canónico observado y candidato RC1.7.8
+
+- Repositorio canónico `main`: commit `a35beee6e8fab486fab492d446acfba85f887ef9`,
+  limpio y alineado; WordPress se observó sincronizado con la baseline RC1.7.7.
+- RC1.7.8: candidato corregido y preparado **solo en copia aislada**; NO existe commit,
+  release, ZIP oficial instalable ni despliegue de RC1.7.8.
+- Las pruebas dirigidas e históricas del candidato previo pasaron; la corrección
+  patrocinados exige nuevos resultados, consignados en el expediente externo de revisión.
+- Origen: `chg-20261027T213048Z-47bd9e74` en `NEEDS_ATTENTION`, sin REVIEW_READY.
+  No se atribuye al registro ninguna autorización de promoción.
+- Preflight de incorporación excepcional autorizado solo para preparación/revisión.
+  Commit, push y despliegue requieren autorizaciones humanas independientes.
+- Documentación del nuevo candidato: `INFORME_RC1.7.8.txt`,
+  `CAMBIOS-v0.4.0-RC1.7.8.md`, `NOTAS-INSTALACION.md`.
+
+## Historial previo conservado (actualización del 2026-08-25)
+
+### Versión aprobada en ese momento
 
 - Versión activa y funcionalmente aprobada: `0.4.0-RC1.6.5`.
 - RC1.6.4 fue aprobada funcionalmente mediante prueba humana. ZIP probado: `99a89843bd999769267e501a1d4d72aad8e4af63517105bef3fe4dd205d5c64e`.

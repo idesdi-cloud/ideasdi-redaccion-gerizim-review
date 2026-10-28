@@ -1,0 +1,43 @@
+GERIZIM v0.4.0-RC1.7.8 — INFORME DE CANDIDATO AISLADO (27-10-2026)
+
+ESTADO Y GOBERNANZA
+- Estado: candidato aislado para REVIEW; NO APROBADO PARA COMMIT, PUSH, RELEASE NI DEPLOY.
+- Procedencia: Change Record chg-20261027T213048Z-47bd9e74, NEEDS_ATTENTION.
+  Ese Change Record no está liberado, no tiene gate de RELEASE ni se presenta como autorización.
+- Baseline Git canónica de origen: a35beee6e8fab486fab492d446acfba85f887ef9 (RC1.7.7).
+- Copia aislada con trazabilidad a candidato anterior de 17 rutas y SHA de identidad:
+  aabddb5967a6af6ad9e7683adaf30b7c7ff56daab361058b160533cc6fef6d59.
+- El árbol, identidad y SHA del nuevo candidato se calculan al cerrar la intervención
+  en el manifiesto de revisión EXTERNO a este repositorio, sin autorizar un commit.
+
+ALCANCE FUNCIONAL
+- H1 único <=68; título WordPress derivado del H1 y Yoast con %%title%% dinámico.
+  TÍTULO SEO anterior se interpreta solo para compatibilidad, no se vuelve a emitir.
+- Caja editorial factual de 40 a 55 palabras y bloque Gutenberg preservado.
+- Voz ideasDi Diseñador Traductor; criterios y límites duros sin override editorial.
+- Keyword/variante en apertura como recomendación; sin coincidencia rígida ni densidad.
+- Auditoría P2 de enlaces internos reales, canónicos, sin extras ni duplicados.
+  Eventos, concursos recurrentes y patrocinados verificados solo pueden exceptuarse
+  de cuota de enlaces, nunca de prohibir destinos internos ajenos al contrato.
+- Se restaura identificación de patrocinio heredado por sponsor_client y
+  sponsored_required_link para el aviso visible cuando sponsored_visible_label lo pide.
+  Tales campos por sí solos NO conceden excepción de cuota ni autorizan URL interna.
+- Reel 6 escenas; VO 1–5 con 14 palabras; 3 overlays por escena, máximo 40 caracteres;
+  VO 6 contiene exactamente: Conoce más de este proyecto en ideasDi.com.
+
+PRUEBAS Y TRAZABILIDAD
+- Suite dirigida: php tests/rc178-targeted-regression.php.
+- Suite histórica completa: ./scripts/test.sh.
+- El candidato de origen verificó ambas como PASS, tras reconciliación del runner,
+  CTA, composición y protección editorial SHA-256 RC1.7.8.
+- Para ESTA corrección final, consultar el manifest de revisión y los logs generados
+  por su ejecutor; cualquier fallo bloquea la promoción. Mocks no son WordPress real.
+- Protecciones RC1.6.5/RC1.7.2/RC1.7.6 preservadas; manifiesto RC1.7.8 regenerado
+  para cubrir el cambio funcional de patrocinados y la prueba adicional.
+- DB traceability version permanece 1.2.0. Sin migración intencional de BD.
+- No existen commit/tag ni ZIP oficial de esta RC. Un ZIP de revisión aislada NO es instalable.
+- No existe prueba humana WordPress/Gutenberg/Yoast del nuevo candidato.
+- Despliegue y reversión: pendientes de autorización separada; respaldar y conservar
+  la versión/ZIP de WordPress vigente (observado RC1.7.7) antes de instalar.
+- El historial de cambios está en CAMBIOS-v0.4.0-RC1.7.8.md y la preparación de
+  instalación en NOTAS-INSTALACION.md (sin declarar despliegue).

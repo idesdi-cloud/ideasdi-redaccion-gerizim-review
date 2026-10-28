@@ -129,7 +129,7 @@ final class IDG_Canonical_Regression {
     }
 
     public static function current_manifest(string $root): array {
-        return self::parse_current(self::read($root . '/REGRESION-EDITORIAL-RC1.7.6.sha256'));
+        return self::parse_current(self::read($root . '/REGRESION-EDITORIAL-RC1.7.8.sha256'));
     }
 
     public static function current_files_match(string $root, array $paths): bool {

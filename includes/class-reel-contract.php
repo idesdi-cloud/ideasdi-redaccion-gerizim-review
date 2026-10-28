@@ -176,36 +176,12 @@ final class IDG_Reel_Contract {
     public static function inspect(string $text): array {
         $normalized = self::normalize($text);
 
-        $rules = class_exists('IDG_Editorial_Rules')
-            ? IDG_Editorial_Rules::get()
-            : [];
-
-        $target_scenes = max(
-            1,
-            (int) ($rules['reel_scenes'] ?? 6)
-        );
-
-        $target_words = max(
-            1,
-            (int) ($rules['reel_vo_words'] ?? 14)
-        );
-
-        $overlays_per_scene = max(
-            1,
-            (int) ($rules['reel_overlays_per_scene'] ?? 3)
-        );
-
-        $overlay_max = max(
-            1,
-            (int) ($rules['reel_overlay_max_chars'] ?? 40)
-        );
-
-        $cta = trim(
-            (string) (
-                $rules['reel_cta']
-                ?? 'Conoce más de este proyecto en ideasDi.com'
-            )
-        );
+        // Contrato duro RC1.7.8: ninguna preferencia legacy puede relajarlo.
+        $target_scenes = 6;
+        $target_words = 14;
+        $overlays_per_scene = 3;
+        $overlay_max = 40;
+        $cta = 'Conoce más de este proyecto en ideasDi.com';
 
         $issues = [];
         $warnings = [];
@@ -365,15 +341,13 @@ final class IDG_Reel_Contract {
 
         $final_vo = (string) ($vo[$target_scenes] ?? '');
 
-        $cta_in_final_vo =
-            $cta !== ''
-            && stripos($final_vo, $cta) !== false;
+        $cta_in_final_vo = self::comparison_text($final_vo) === self::comparison_text($cta);
 
         if (!$cta_in_final_vo) {
             $issues[] =
                 'VO '
                 . $target_scenes
-                . ' debe incluir el CTA fijo obligatorio.';
+                . ' debe ser exactamente el CTA fijo obligatorio, sin punto, prefijo ni sufijo.';
         }
 
         for ($i = 1; $i <= $target_scenes; $i++) {
@@ -462,6 +436,17 @@ final class IDG_Reel_Contract {
         }
 
         return strlen($text);
+    }
+
+    private static function comparison_text(string $text): string {
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if (class_exists('Normalizer')) {
+            $normalized = Normalizer::normalize($text, Normalizer::FORM_C);
+            if (is_string($normalized)) {
+                $text = $normalized;
+            }
+        }
+        return trim((string) preg_replace('/\s+/u', ' ', $text));
     }
 
     private static function word_count(string $text): int {
