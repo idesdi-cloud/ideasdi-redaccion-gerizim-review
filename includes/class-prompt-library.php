@@ -40,9 +40,9 @@ final class IDG_Prompt_Library {
         $versions = [
             'material_card' => 'material-card-v1.1.0-RC1.5.2',
             'editorial_plan' => 'editorial-plan-v2.1.0-RC1.5.2',
-            'generate' => 'generate-v2.1.0-RC1.5.2',
-            'editorial' => 'editorial-v2.1.0-RC1.5.2',
-            'seo' => 'seo-v2.1.0-RC1.7.3',
+            'generate' => 'generate-v2.2.0-RC1.7.8',
+            'editorial' => 'editorial-v2.2.0-RC1.7.8',
+            'seo' => 'seo-v2.2.0-RC1.7.8',
             'web_research' => 'web-research-v1.2.0-RC1.5.2',
         ];
         return $versions[$type] ?? 'unknown';
@@ -60,12 +60,12 @@ Reglas centrales:
 - En proyectos de diseño, relaciona decisiones verificables con efectos perceptivos, uso y significado cuando esa cadena sea pertinente. En Concursos y Eventos prioriza utilidad, contexto, programación y oportunidad; no fuerces una traducción perceptiva sobre fechas, sedes o instituciones.
 - En Diseño de producto, Arquitectura e interiores, Moda, Movilidad y Diseño digital y 3D, la identidad del diseñador, estudio o marca es opcional, solo con evidencia verificable.
 - No conviertas el artículo en catálogo de especificaciones: ningún dato técnico debe quedar aislado de una consecuencia perceptiva, funcional, cultural o de identidad.
-- H1 máximo 68 caracteres; preferido hasta 60 como guía de calidad, sin invalidar 61–68.
+- ARTÍCULO FINAL contiene exactamente un H1, de máximo 68 caracteres. Ese H1 es el post_title de WordPress.
 - H2 máximo 100 caracteres.
-- Empieza por una decisión, gesto, material, silueta, interfaz o disposición espacial verificable y explica su efecto. No abras con abstracciones ni vuelvas a enunciar la misma tesis después de demostrarla.
+- Empieza por decisiones de diseño concretas: una decisión, gesto, material, silueta, interfaz o disposición espacial verificable, y explica su efecto. No abras con abstracciones ni vuelvas a enunciar la misma tesis después de demostrarla.
 - La intención de autor exige documentación; la autoría es transversal y se vincula a decisiones concretas. Evita metalenguaje editorial cuando reemplace la observación, usa vocabulario de experiencia y percepción propio de la categoría y no sobreexplique: interpreta solo para aportar una relación nueva.
-- Introducción: dos párrafos es la preferencia no rígida. La primera frase entra de forma narrativa y directa en el caso e integra la keyword principal de forma natural; identifica asunto, relevancia, ángulo y decisiones centrales sin repetir la caja.
-- Caja editorial factual de 40 a 55 palabras después de la introducción: qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. Sin enlaces, negritas ni lenguaje promocional; no repite la tesis ni adelanta el análisis. No exige abrir con la keyword.
+- Introducción: dos párrafos es la preferencia no rígida. Cerca de la apertura integra la keyword principal o una variante reconocible solo cuando resulte natural; no la impongas en el H1 ni persigas densidad.
+- Incluye exactamente una caja editorial factual de 40 a 55 palabras después de la introducción y antes del primer H3, en un solo párrafo: qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. Sin enlaces, negritas ni lenguaje promocional. No exige abrir con la keyword. No la sintetices ni la reubiques durante revisiones técnicas: un incumplimiento vuelve a revisión.
 - H3 jerárquicos, descriptivos y concisos, con eje claro sin forzar la tesis completa. Evita bloques de un solo párrafo poco desarrollados: fusiónalos o amplíalos cuando haga falta, sin cuota fija de H3 ni mínimo universal de párrafos.
 - Transiciones flexibles: continuidad cuando sea natural y cortes directos cuando el eje cambie con claridad. Evita muletillas como “en ese sentido”, “a la vez”, “desde ahí” o “más allá de”; elige la relación concreta o elimina el puente. El cierre prefiere una observación abierta antes que repetir la tesis.
 - No usar “Conclusión” como subtítulo final.
@@ -76,7 +76,7 @@ Reglas centrales:
 - calendar_event es distinto de article: no aplica el contrato de tags del artículo. Solo puede usarse una vez, contextualmente, una URL real de archivo CPT o taxonomía propia suministrada en los datos; si no existe, no fabriques una URL.
 - En Eventos, Agenda define la función de la pieza; la tipología del evento y su Categoría editorial definen el vocabulario. Una feria, una semana de la moda, una exposición o una conferencia no deben redactarse con los mismos conceptos. La presentación debe ser narrativa y útil, no una ficha ni una reflexión abstracta sobre fechas o ciudad.
 - El paquete reel debe ser estructurado y máquina-legible: 6 escenas en orden, cada una con su VO y exactamente 3 overlays.
-- VO 1 a VO 5 deben tener exactamente 14 palabras. VO 6 debe contener textualmente el CTA fijo: “Conoce más de este proyecto en ideasDi.com”.
+- VO 1 a VO 5 deben tener exactamente 14 palabras. VO 6 debe ser exactamente “Conoce más de este proyecto en ideasDi.com”, sin punto, prefijo ni sufijo.
 - En cada escena, escribe primero “VO n:” y después “Overlay n.1:”, “Overlay n.2:” y “Overlay n.3:”. Cada overlay debe tener máximo 40 caracteres. No añadas overlays extra.
 - La salida final debe incluir META DESCRIPTION, INFORME SEO INTERNO, COPY PARA REDES, PAQUETE REEL y RETROALIMENTACIÓN GERIZIM.
 - No usar tono comercial, precios, urgencia ni superlativos de venta.
@@ -377,10 +377,10 @@ Usa el brief como punto de partida y la ficha documental temporal como base fact
 Si el tipo de pieza es Artículo patrocinado, trabaja desde el brief del cliente y las restricciones internas. No es obligatorio tener fuente oficial. No inventes cifras, premios, certificaciones, historia de marca, beneficios ni claims. Integra el enlace obligatorio solo si existe y puede entrar de forma natural; si el anchor solicitado suena forzado, conviértelo en una frase contextual cercana sin perder el objetivo. Evita sonar promocional.
 
 Estructura editorial:
-# H1 de máximo 68 caracteres, preferiblemente hasta 60: concreto, atractivo y específico, sin clichés; es distinto del TÍTULO SEO.
+# Un único H1 de máximo 68 caracteres, preferiblemente hasta 60: concreto, atractivo y específico, sin clichés. Será el post_title de WordPress.
 ## H2 de máximo 100 caracteres
-La introducción prefiere 2 párrafos sin convertirlo en cuota rígida. La primera frase debe entrar de forma narrativa y directa en el caso e integrar la keyword principal de forma natural; identifica asunto, relevancia, ángulo y decisiones centrales sin repetir la caja.
-Caja editorial factual después de la introducción: 40 a 55 palabras que respondan qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No debe repetir la tesis ni adelantar el análisis, ni contener enlaces, negritas o lenguaje promocional; no requiere abrir con keyword.
+La introducción prefiere 2 párrafos sin convertirlo en cuota rígida. La primera frase debe entrar de forma narrativa y directa en el caso; cerca de la apertura integra la keyword principal de forma natural o una variante reconocible. No la fuerces en el H1 ni repitas términos para alcanzar densidad.
+Incluye exactamente una caja editorial factual después de la introducción y antes del primer H3: un único párrafo de 40 a 55 palabras que responda qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. Sin enlaces, negritas ni lenguaje promocional.
 ### H3 de desarrollo jerárquicos, descriptivos y concisos, sin cuota fija. Deben hacer avanzar la información; una pregunta solo es útil si aclara una duda real. Evita bloques de un solo párrafo poco desarrollados y fusiónalos o amplíalos cuando haga falta.
 H2 y H3 deben sostener una progresión informativa, no reiterar la tesis ni convertir cada hallazgo en sección.
 Los H3 distribuyen los ejes que la evidencia sostenga, sin convertir cada hallazgo del plan en un subtítulo independiente.
@@ -436,7 +436,7 @@ PROMPT;
 
 TAREA: Revisión editorial.
 Revisa el artículo base sin optimizarlo todavía para SEO técnico.
-Objetivo: comprobar primero si el artículo cumple la tesis y el plan editorial, y después corregir estructura, naturalidad, precisión, ritmo y fuerza. Puedes reemplazar H3, reorganizar bloques o reescribir fragmentos cuando la tesis o la disciplina no estén visibles; no te limites a pulir superficie.
+Objetivo: comprobar primero si el artículo cumple la tesis y el plan editorial, y después corregir estructura, naturalidad, precisión, ritmo y fuerza desde la voz ideasDi Diseñador Traductor. Revisa decisiones de diseño verificables y traduce sus efectos perceptivos, funcionales o culturales sin inventar hechos. Puedes reemplazar H3, reorganizar bloques o reescribir fragmentos solo cuando exista un problema sustantivo comprobable.
 Usa la ficha documental temporal solo para verificar datos, conservar precisión y evitar que se pierdan hechos relevantes. No vuelvas a copiar el tono de la nota de prensa ni reescribas desde el material temporal completo.
 Si el artículo es patrocinado, cuida que conserve una voz editorial, que el enlace obligatorio no parezca inserción mecánica y que no se afirmen datos no sustentados por el brief o material temporal.
 Evita:
@@ -453,9 +453,10 @@ Evita:
 - especificaciones sin consecuencia perceptiva o de uso;
 - voz dependiente de claims corporativos;
 - cierres que hablan de fuentes, documentación o del propio artículo.
-- reiteración de la tesis, mini conclusiones o párrafos que no añaden evidencia, relación o consecuencia; si el artículo ya cumple y no hay un problema sustantivo, devuélvelo idéntico.
+- reiteración de la tesis, mini conclusiones, relleno o párrafos que no añaden evidencia, relación o consecuencia;
+- meta-discurso sobre la revisión o afirmaciones de que corregiste algo que quedó idéntico; si el artículo ya cumple y no hay un problema sustantivo, devuélvelo idéntico y registra “sin cambios”.
 
-Verifica además que el H1 sea natural, concreto e informativo, sin cliché (preferido hasta 60, máximo 68), que sea distinto del título SEO, y que la primera frase integre la keyword solo si cabe de forma natural y sin falsear el caso. Conserva datos útiles, fechas, relaciones, atribuciones y decisiones documentadas; no completes información escasa con análisis inventado.
+Verifica además que exista un único H1 natural, concreto e informativo, de máximo 68 caracteres. La keyword o una variante puede aparecer cerca de la apertura si cabe de forma natural, pero nunca se impone como coincidencia exacta en el H1. Conserva datos útiles, fechas, relaciones, atribuciones y decisiones documentadas; “obra de”, “a cargo de”, “firmado por” y “proyecto de” son atribuciones válidas cuando la evidencia las respalda, no motivos automáticos de bloqueo.
 Revisa que H2 y H3 hagan avanzar la información. Una pregunta en un subtítulo es opcional y solo procede si resulta útil; no impongas cuotas de secciones ni de párrafos.
 
 Si el contenido es un Concurso o convocatoria:
@@ -500,7 +501,7 @@ TAREA: Revisión SEO final.
 Trabaja sobre la versión editorial revisada, no sobre el texto base.
 Objetivo: dejar el artículo listo para crear borrador en WordPress sin endurecer la voz ni volverlo artificial.
 Modo de trabajo obligatorio: conservación editorial y cambios localizados. Preserva sin alterar la tesis editorial ya aprobada, la caja editorial, H1, H2 y la estructura del artículo, además de su pulso y mejores frases. Solo modifica la oración o el fragmento imprescindible para integrar enlaces, keyword o claridad. No agregues párrafos de rescate, no redactes cierres documentales, no introduzcas nueva semántica editorial y no reescribas un bloque completo que ya funciona. Usa la ficha documental temporal únicamente como verificación de precisión, no como base para rehacer el artículo.
-Conserva datos útiles, fechas, relaciones, atribuciones, decisiones y los criterios generales confirmados del jurado o proceso creativo. No inventes requisitos detallados, rúbricas, ponderaciones, cifras ni hechos para SEO. Mantén la keyword natural en la primera frase si ya cumple esa función y no alteres el H1 editorial para igualarlo al TÍTULO SEO.
+Conserva datos útiles, fechas, relaciones, atribuciones, decisiones y los criterios generales confirmados del jurado o proceso creativo. No inventes requisitos detallados, rúbricas, ponderaciones, cifras ni hechos para SEO. Mantén la keyword o una variante reconocible cerca de la apertura solo si resulta natural; no impongas coincidencia exacta en H1 ni densidad. El H1 editorial es el único título y gobierna WordPress; Yoast usa %%title%% de forma dinámica. No generes ningún rótulo ni campo TÍTULO SEO nuevo (solo se lee en resultados antiguos).
 
 Debes entregar exactamente en este orden y con estos rótulos en líneas independientes. No cambies los nombres de los rótulos. El rótulo RETROALIMENTACIÓN GERIZIM es interno y no debe entrar al artículo público:
 
@@ -508,9 +509,6 @@ Regla de calidad: la Revisión SEO no debe bajar el nivel de redacción. Conserv
 
 ARTÍCULO FINAL
 [Incluye únicamente el contenido público del artículo. No incluyas meta description, informe SEO, copy ni paquete reel dentro de esta sección.]
-
-TÍTULO SEO
-[Título SEO interno para Yoast. Puede diferir del H1 si mejora la claridad de búsqueda; no modifica el H1 editorial ni entra al artículo público.]
 
 META DESCRIPTION
 [Una sola línea de 106 a 150 caracteres; objetivo recomendado 120 a 145. Incluye la keyword principal o una variante suficientemente reconocible y un ángulo concreto, sin relleno ni extractos largos.]
@@ -526,7 +524,7 @@ COPY PARA REDES
 [Copy breve + hashtags + pie de imagen sugerido.]
 
 PAQUETE REEL
-[VO en 6 bloques y overlays por escena. VO 1 a VO 5 deben tener exactamente 14 palabras. VO 6 debe incluir textualmente: Conoce más de este proyecto en ideasDi.com. Entrega 6 escenas con 3 overlays por escena, cada overlay de máximo 40 caracteres.]
+[VO en 6 bloques y overlays por escena. VO 1 a VO 5 tienen exactamente 14 palabras. VO 6 es exactamente: Conoce más de este proyecto en ideasDi.com, sin punto, prefijo ni sufijo. Entrega 3 overlays por escena, cada uno de máximo 40 caracteres.]
 
 RETROALIMENTACIÓN GERIZIM
 [3 a 5 bullets breves con las correcciones realizadas o comentarios útiles para mejorar el flujo.]
@@ -553,12 +551,12 @@ Reglas de formato para WordPress dentro de ARTÍCULO FINAL:
 - Usa ## solo una vez para el subtítulo H2 principal.
 - Usa ### para todos los subtítulos de desarrollo H3.
 - Los H3 de desarrollo son jerárquicos, descriptivos y concisos: aclaran el eje sin forzar la tesis completa. No hay cuota fija; una sección sobre identidad es opcional y requiere evidencia verificable. Evita bloques de un solo párrafo poco desarrollados: fusiónalos o amplíalos cuando haga falta, sin mínimo universal de párrafos.
-- La caja editorial aparece como una línea “Caja editorial” seguida por un párrafo factual de 40 a 55 palabras, después de la introducción y antes del primer H3. Responde qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No repite la tesis, no adelanta el análisis ni rellena con adjetivos, y no incluye enlaces, negritas ni lenguaje promocional; no exige abrir con keyword.
+- Aparece exactamente una línea “Caja editorial” seguida por un único párrafo factual de 40 a 55 palabras, después de la introducción y antes del primer H3. No la sintetices, completes ni reubiques: si incumple, devuelve la pieza a revisión. No rellena con adjetivos ni incluye enlaces, negritas o lenguaje promocional.
 - Usa **negrita** con criterio editorial solo dentro de párrafos o listas cuando aporte lectura. Prioriza materiales, procesos, tipologías, gestos de uso, conceptos de diseño y entidades secundarias.
 - No uses negritas en H1, H2, H3, enlaces internos, caja editorial ni frases largas. No repitas siempre la keyword principal.
 - En article, usa la URL responsable resuelta en orden canonical_context.responsible_official_url > responsible_official_url > official_source, solo si es válida y no vacía. Integra exactamente un enlace externo contextual al responsable en ARTÍCULO FINAL, sin duplicar la URL, sin línea suelta visible “Fuente oficial:”, sin enlazar otra entidad y sin usar la keyword principal como anchor. No inventes hechos para el anchor. Si falta URL válida, solicita resolución editorial, no la inventes. source_information_url es solo fuente documental/complementaria, nunca la URL responsable.
 - Verifica coherencia del enlace externo: no enlaces una entidad hacia una URL que pertenece a otra entidad. Ejemplo: no enlaces LoveFrom hacia Ferrari si la URL entregada no es de LoveFrom.
-- En article, integra una sola vez la única URL interna ya resuelta por IDG_Internal_Links, con anchor contextual Markdown. Consume como máximo esa URL; la categoría no es fallback ni enlace principal del artículo. Si no hay URL o está unresolved, informa resolución editorial en RETROALIMENTACIÓN GERIZIM sin fabricar ni sustituir destinos. En calendar_event, usa solo navegación real suministrada de CPT/taxonomía propia, una vez y de forma contextual.
+- En article, si IDG_Internal_Links resuelve un tag canónico real, integra exactamente un anchor Markdown a esa única URL, de 3 a 8 palabras, y ningún otro enlace interno. Se auditan absolutos, relativos, protocolo relativo, www, subdominios, query, fragmentos y codificación equivalente. Si está unresolved, no crees ningún destino: informa resolución editorial y acepta que el borrador será bloqueado. En calendar_event y excepciones verificadas conserva únicamente su navegación real suministrada.
 - Distribución de enlaces disponibles, salvo los cierres oficiales de concursos y eventos: uno puede aparecer dentro de los dos primeros párrafos y el segundo después de la caja editorial y antes de la mitad del artículo. No fabriques enlaces ausentes para cumplir esta distribución. Nunca incluyas enlaces dentro de la caja editorial.
 - No fuerces un enlace si degrada una frase buena. Integra cada enlace modificando una oración existente; nunca añadas un párrafo nuevo solo para cumplir el enlace. Si no existe un lugar natural, indícalo en RETROALIMENTACIÓN GERIZIM para que la validación lo devuelva a revisión.
 - Para la URL interna resuelta, crea tú el anchor contextual dentro del párrafo; no copies nombres de tags ni títulos de entradas como anchor literal. Nunca uses la keyword principal como anchor interno.
@@ -576,7 +574,7 @@ Reglas obligatorias del PAQUETE REEL:
 - Entrega exactamente 6 escenas y respeta el orden de VO 1 a VO 6.
 - Cada escena debe seguir este formato exacto: VO n:, Overlay n.1:, Overlay n.2:, Overlay n.3:.
 - VO 1, VO 2, VO 3, VO 4 y VO 5 deben tener exactamente 14 palabras cada uno.
-- VO 6 debe incluir textualmente: Conoce más de este proyecto en ideasDi.com.
+- VO 6 debe ser exactamente: Conoce más de este proyecto en ideasDi.com (sin punto, prefijo ni sufijo).
 - Cada escena debe contener exactamente 3 overlays y cada overlay debe tener máximo 40 caracteres.
 - No añadas escenas, VO, overlays ni líneas explicativas fuera de esta estructura.
 PROMPT;
@@ -602,7 +600,7 @@ PROMPT;
             $rows[] = 'Notas editoriales sobre enlaces internos: ' . $legacy;
         }
         if (empty($rows)) {
-            return 'No se detectaron enlaces internos automáticos.';
+            return 'UNRESOLVED: no existe un tag canónico real con URL resuelta. No inventes, copies ni sustituyas ninguna URL interna; la creación del borrador quedará bloqueada hasta resolución editorial.';
         }
         return implode("\n", $rows);
     }

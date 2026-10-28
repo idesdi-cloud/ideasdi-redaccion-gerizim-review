@@ -4,6 +4,19 @@ if (!defined('ABSPATH')) {
 }
 
 final class IDG_Editorial_Rules {
+    public static function hard_contract(): array {
+        return [
+            'h1_max_chars' => 68,
+            'editorial_box_min_words' => 40,
+            'editorial_box_max_words' => 55,
+            'reel_vo_words' => 14,
+            'reel_scenes' => 6,
+            'reel_overlays_per_scene' => 3,
+            'reel_overlay_max_chars' => 40,
+            'reel_cta' => 'Conoce más de este proyecto en ideasDi.com',
+        ];
+    }
+
     public static function defaults(): array {
         return [
             'rules_version_name' => 'Reglas ideasDi base RC1.4',
@@ -22,7 +35,7 @@ final class IDG_Editorial_Rules {
             'editorial_box_rules' => 'La caja editorial factual, de 40 a 55 palabras, debe responder qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No debe contener enlaces, negritas ni tono promocional; no repite la tesis ni adelanta el análisis. Va después de la introducción, sin requisito de apertura por keyword.',
             'internal_link_rules' => 'El enlace interno debe integrarse dentro de un párrafo de análisis, nunca como línea suelta, botón, “ver más” ni cierre genérico. El anchor debe tener entre 3 y 8 palabras, no usar la keyword principal exacta y ampliar una idea del bloque.',
             'external_link_rules' => 'El enlace externo debe apuntar a la URL del responsable configurado y entrar de forma contextual. No debe enlazar una entidad distinta ni quedar como enlace suelto al final del artículo.',
-            'reel_rules' => 'El paquete reel debe incluir 6 escenas en orden. Cada escena usa VO n seguido de Overlay n.1, n.2 y n.3. VO 1 a VO 5 deben tener exactamente 14 palabras; VO 6 debe incluir el CTA fijo; cada overlay admite máximo 40 caracteres.',
+            'reel_rules' => 'El paquete reel debe incluir 6 escenas en orden. Cada escena usa VO n seguido de Overlay n.1, n.2 y n.3. VO 1 a VO 5 deben tener exactamente 14 palabras; VO 6 debe ser exactamente «Conoce más de este proyecto en ideasDi.com», sin punto, prefijo ni sufijo; cada overlay admite máximo 40 caracteres.',
             'forbidden_phrases' => 'Conclusión\nFuente oficial:\nEn este artículo\nLa lectura editorial\nBajada al lifestyle\nSi quieres',
             'category_rules' => '',
             'last_updated_at' => '',
@@ -36,7 +49,9 @@ final class IDG_Editorial_Rules {
         if (!is_array($saved)) {
             $saved = [];
         }
-        return array_merge(self::defaults(), $saved);
+        // Las preferencias guardadas siguen disponibles para guías blandas,
+        // pero nunca pueden relajar el contrato editorial fijo de WordPress.
+        return array_replace(self::defaults(), $saved, self::hard_contract());
     }
 
     public static function int_rule(string $key): int {
@@ -61,7 +76,7 @@ final class IDG_Editorial_Rules {
         $lines[] = 'REGLAS EDITORIALES ACTIVAS DESDE WORDPRESS — ' . self::version_label();
         $lines[] = 'Estas reglas no modifican archivos del plugin; sobrescriben el comportamiento en tiempo de ejecución.';
         $lines[] = '- H1 máximo: ' . (int) $r['h1_max_chars'] . ' caracteres.';
-        $lines[] = '- Política keyword en H1: ' . (string) ($r['h1_keyword_policy'] ?? 'flexible') . ' (exacta, flexible o aviso).';
+        $lines[] = '- Política keyword en H1 (legacy, no bloqueante): no impone coincidencia exacta; la keyword o una variante natural se revisa cerca de la apertura.';
         $lines[] = '- H2 máximo: ' . (int) $r['h2_max_chars'] . ' caracteres.';
         $lines[] = '- Caja editorial: ' . (int) $r['editorial_box_min_words'] . '–' . (int) $r['editorial_box_max_words'] . ' palabras.';
         $lines[] = '- Reel: ' . (int) $r['reel_scenes'] . ' escenas, ' . (int) $r['reel_overlays_per_scene'] . ' overlays por escena, VO 1–5 de ' . (int) $r['reel_vo_words'] . ' palabras.';
@@ -69,6 +84,15 @@ final class IDG_Editorial_Rules {
         foreach (['structure_rules','editorial_box_rules','internal_link_rules','external_link_rules','reel_rules','forbidden_phrases','category_rules'] as $key) {
             $value = trim((string) ($r[$key] ?? ''));
             if ($value !== '') {
+                // La preferencia histórica «VO 6 debe incluir el CTA» no puede
+                // contrariar la igualdad literal del contrato duro. La opción
+                // sigue guardada y exportable, pero no se incorpora al prompt.
+                if ($key === 'reel_rules'
+                    && preg_match('/\b(?:VO\s*6|CTA)\b/iu', $value)
+                    && $value !== (string) self::defaults()['reel_rules']) {
+                    $lines[] = 'REEL RULES: preferencia legacy con CTA ambiguo omitida; rige exclusivamente el CTA fijo exacto.';
+                    continue;
+                }
                 $lines[] = strtoupper(str_replace('_', ' ', $key)) . ':';
                 $lines[] = $value;
             }
@@ -145,7 +169,7 @@ final class IDG_Editorial_Rules {
             'Última actualización' => (string) ($r['last_updated_at'] ?? ''),
             'Plugin al guardar reglas' => (string) ($r['plugin_version'] ?? ''),
             'H1 máximo' => (string) (int) $r['h1_max_chars'],
-            'Keyword en H1' => (string) ($r['h1_keyword_policy'] ?? 'flexible'),
+            'Keyword en H1' => 'Preferencia legacy; detector no bloqueante',
             'Caja editorial' => (int) $r['editorial_box_min_words'] . '–' . (int) $r['editorial_box_max_words'] . ' palabras',
             'Reel VO 1–5' => (string) (int) $r['reel_vo_words'] . ' palabras',
             'Reel overlays' => (int) $r['reel_scenes'] . ' × ' . (int) $r['reel_overlays_per_scene'],

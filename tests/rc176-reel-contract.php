@@ -64,7 +64,7 @@ function rc176_valid_reel() {
     }
 
     $lines[] =
-        'VO 6: Cierre. Conoce más de este proyecto en ideasDi.com';
+        'VO 6: Conoce más de este proyecto en ideasDi.com';
 
     for ($overlay = 1; $overlay <= 3; $overlay++) {
         $lines[] =
@@ -111,7 +111,7 @@ for ($scene = 1; $scene <= 6; $scene++) {
 /* CTA fuera de VO 6 */
 
 $bad_cta = str_replace(
-    'VO 6: Cierre. Conoce más de este proyecto en ideasDi.com',
+    'VO 6: Conoce más de este proyecto en ideasDi.com',
     'VO 6: Cierre sin llamada final',
     $valid
 );
@@ -138,7 +138,7 @@ rc176_check(
             ' | ',
             $inspection['issues']
         ),
-        'VO 6 debe incluir el CTA'
+        'VO 6 debe ser exactamente el CTA fijo obligatorio'
     ),
     'reporta CTA faltante específicamente en VO 6'
 );

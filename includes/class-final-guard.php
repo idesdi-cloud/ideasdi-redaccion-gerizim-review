@@ -11,10 +11,9 @@ final class IDG_Final_Guard {
         $official = self::resolved_official_source_url($workflow);
         $entity = trim((string) ($workflow['entity'] ?? ''));
         $title = self::extract_h1($content);
-        $rules = class_exists('IDG_Editorial_Rules') ? IDG_Editorial_Rules::get() : [];
-        $h1_max = (int) ($rules['h1_max_chars'] ?? 68);
-        $box_min = (int) ($rules['editorial_box_min_words'] ?? 40);
-        $box_max = (int) ($rules['editorial_box_max_words'] ?? 55);
+        $h1_max = 68;
+        $box_min = 40;
+        $box_max = 55;
 
         if (trim((string) ($workflow['assignment_card'] ?? '')) === '') {
             $errors[] = 'Falta la ficha de encargo editorial registrada.';
@@ -29,20 +28,20 @@ final class IDG_Final_Guard {
         if (self::plain_for_match((string) ($recipe_structure['primary_tag_role'] ?? '')) === 'entidad') {
             $errors[] = 'La entidad responsable no puede actuar como lente disciplinar.';
         }
+        $h1_count = self::h1_count($content);
         if ($title === '') {
             $errors[] = 'No se detectó H1 en ARTÍCULO FINAL.';
         } else {
+            if ($h1_count !== 1) {
+                $errors[] = 'ARTÍCULO FINAL debe contener un único H1. Detectados: ' . $h1_count . '.';
+            }
             if (mb_strlen($title) > $h1_max) {
                 $errors[] = 'El H1 supera ' . $h1_max . ' caracteres.';
             }
-            if ($keyword !== '' && !self::h1_keyword_ok($title, $keyword, $rules)) {
-                $policy = (string) ($rules['h1_keyword_policy'] ?? 'flexible');
-                if ($policy === 'exact') {
-                    $errors[] = 'El H1 no contiene la keyword principal exacta.';
-                } else {
-                    $warnings[] = 'El H1 no contiene la keyword principal exacta; se permite por política flexible y debe revisarse editorialmente.';
-                }
-            }
+        }
+
+        if ($keyword !== '' && !self::keyword_near_opening($content, $keyword)) {
+            $warnings[] = 'La keyword principal o una variante reconocible no aparece cerca de la apertura; el detector léxico es solo informativo.';
         }
 
         $snippet = self::extract_featured_snippet($content, $html);
@@ -59,10 +58,17 @@ final class IDG_Final_Guard {
             if (preg_match('/\*\*|__|<strong\b/i', $snippet)) {
                 $errors[] = 'La caja editorial no puede contener negritas.';
             }
+            if (preg_match('/\b(?:imperdible|revolucionari[oa]s?|inigualable|el mejor|la mejor|líder indiscutible|compra ahora|descubre ya)\b/iu', wp_strip_all_tags($snippet))) {
+                $errors[] = 'La caja editorial debe ser factual y no puede usar lenguaje promocional.';
+            }
             $snippet_order = self::featured_snippet_order_status($content);
             if (!$snippet_order['ok']) {
                 $errors[] = $snippet_order['message'];
             }
+        }
+        $snippet_structure = self::featured_snippet_structure_status($content, $html);
+        if (!$snippet_structure['ok']) {
+            $errors = array_merge($errors, (array) ($snippet_structure['errors'] ?? []));
         }
 
         $h3_depth = self::h3_depth_status($html);
@@ -121,22 +127,17 @@ final class IDG_Final_Guard {
         }
 
         $internal_links = class_exists('IDG_Internal_Links') ? IDG_Internal_Links::normalize($workflow) : [];
-        if (!empty($internal_links)) {
-            foreach ($internal_links as $link) {
+        $internal_audit = class_exists('IDG_Internal_Links') ? IDG_Internal_Links::audit_html($html, $workflow) : [
+            'policy_required' => true,
+            'errors' => ['No está disponible la auditoría completa de enlaces internos.'],
+            'expected_anchors' => [],
+        ];
+        $errors = array_merge($errors, (array) ($internal_audit['errors'] ?? []));
+        if (!empty($internal_audit['policy_required']) && !empty($internal_links)) {
+            foreach (array_slice($internal_links, 0, 1) as $link) {
                 $url = esc_url_raw((string) ($link['url'] ?? ''));
                 if ($url === '') {
                     continue;
-                }
-
-                $link_count = self::url_link_count($html, $url);
-
-                if ($link_count === 0) {
-                    $errors[] = 'Falta el enlace interno calculado desde matriz tag/categoría.';
-                    continue;
-                }
-
-                if ($link_count > 1) {
-                    $errors[] = 'El enlace interno principal aparece más de una vez. Conserva una sola aparición contextual.';
                 }
 
                 $source_type = (string) ($link['source_type'] ?? '');
@@ -144,7 +145,8 @@ final class IDG_Final_Guard {
                     continue;
                 }
 
-                $anchor = self::anchor_for_url($html, $url);
+                $expected_anchors = (array) ($internal_audit['expected_anchors'] ?? []);
+                $anchor = trim((string) ($expected_anchors[0]['anchor'] ?? ''));
                 $word_count = self::anchor_word_count($anchor);
 
                 if ($word_count < 3 || $word_count > 8) {
@@ -181,21 +183,21 @@ final class IDG_Final_Guard {
                 $warnings[] = 'La meta description cumple el mínimo, pero el rango recomendado es de 120 a 145 caracteres.';
             }
             if ($keyword !== '' && !self::text_contains_keyword($meta_description, $keyword)) {
-                $errors[] = 'La meta description no contiene la keyword principal ni una variante suficientemente reconocible.';
+                $warnings[] = 'La meta description no contiene la keyword principal ni una variante suficientemente reconocible; el detector léxico no bloquea el borrador.';
             }
         }
 
-        // RC1.4.4: el paquete reel queda como apoyo preliminar y no bloquea el borrador.
         $reel_validation = self::validate_reel_package((string) ($sections['reel_package'] ?? ''));
-        $warnings = array_merge($warnings, (array) ($reel_validation['warnings'] ?? []), (array) ($reel_validation['errors'] ?? []));
+        $errors = array_merge($errors, (array) ($reel_validation['errors'] ?? []));
+        $warnings = array_merge($warnings, (array) ($reel_validation['warnings'] ?? []));
         if (!str_contains($html, '<!-- wp:')) {
             $warnings[] = 'La validación Gutenberg se realiza después de convertir HTML a bloques.';
         }
 
         return [
             'ok' => empty($errors),
-            'errors' => $errors,
-            'warnings' => $warnings,
+            'errors' => array_values(array_unique($errors)),
+            'warnings' => array_values(array_unique($warnings)),
             'summary' => self::summary_lines($errors, $warnings),
         ];
     }
@@ -395,6 +397,10 @@ final class IDG_Final_Guard {
         return '';
     }
 
+    private static function h1_count(string $content): int {
+        return (int) preg_match_all('/^\s*#\s+\S.+$/mu', str_replace(["\r\n", "\r"], "\n", $content), $matches);
+    }
+
     private static function extract_featured_snippet(string $content, string $html): string {
         // El original editorial conserva marcas que el HTML puede escapar; se
         // inspecciona primero para que enlaces y negritas sean diagnosticables.
@@ -416,34 +422,53 @@ final class IDG_Final_Guard {
         return count($m[0] ?? []);
     }
 
-    private static function h1_keyword_ok(string $title, string $keyword, array $rules): bool {
-        $policy = (string) ($rules['h1_keyword_policy'] ?? 'flexible');
-        $title_plain = self::plain_for_match($title);
-        $keyword_plain = self::plain_for_match($keyword);
-        if ($keyword_plain === '') {
-            return true;
-        }
-        if (str_contains($title_plain, $keyword_plain)) {
-            return true;
-        }
-        if ($policy === 'exact') {
-            return false;
-        }
-        $tokens = preg_split('/\s+/u', $keyword_plain, -1, PREG_SPLIT_NO_EMPTY);
-        $tokens = array_values(array_filter((array) $tokens, static function ($token) {
-            return mb_strlen((string) $token) >= 4;
-        }));
-        if (empty($tokens)) {
-            return false;
-        }
-        $matched = 0;
-        foreach ($tokens as $token) {
-            if (str_contains($title_plain, (string) $token)) {
-                $matched++;
+    private static function featured_snippet_structure_status(string $content, string $html): array {
+        $errors = [];
+        $normalized = str_replace(["\r\n", "\r"], "\n", $content);
+        $label_pattern = '/^\s*(?:\*\*)?\s*Caja editorial\s*:?(?:\s*\*\*)?(?:\s+.*)?$/imu';
+        $label_count = (int) preg_match_all($label_pattern, $normalized, $labels, PREG_OFFSET_CAPTURE);
+        if ($label_count !== 1) {
+            $errors[] = 'ARTÍCULO FINAL debe contener una única caja editorial. Detectadas: ' . $label_count . '.';
+        } elseif (preg_match($label_pattern, $normalized, $label, PREG_OFFSET_CAPTURE)) {
+            $line = trim((string) ($label[0][0] ?? ''));
+            $inline = preg_replace('/^\s*(?:\*\*)?\s*Caja editorial\s*:?(?:\s*\*\*)?\s*/iu', '', $line);
+            if (trim((string) $inline) === '') {
+                $start = (int) $label[0][1] + strlen((string) $label[0][0]);
+                $tail = substr($normalized, $start);
+                $end = strlen($tail);
+                if (preg_match('/^\s*#{1,6}\s+/mu', $tail, $next, PREG_OFFSET_CAPTURE)) {
+                    $end = (int) $next[0][1];
+                }
+                $body = trim(substr($tail, 0, $end));
+                $paragraphs = array_values(array_filter(preg_split('/\n\s*\n|\n/u', $body), static fn($part): bool => trim((string) $part) !== ''));
+                if (count($paragraphs) !== 1) {
+                    $errors[] = 'La caja editorial debe ser un solo párrafo, sin líneas o bloques adicionales.';
+                }
             }
         }
-        // Flexible: aceptar si aparecen al menos la mitad de los términos significativos.
-        return $matched >= max(1, (int) ceil(count($tokens) / 2));
+
+        preg_match_all('/<p\b[^>]*class=(?:"[^"]*\bfeatured-snippet-box\b[^"]*"|\'[^\']*\bfeatured-snippet-box\b[^\']*\')[^>]*>(.*?)<\/p>/isu', $html, $boxes, PREG_SET_ORDER);
+        if (count($boxes) !== 1) {
+            $errors[] = 'El HTML final debe contener una única caja como párrafo Gutenberg. Detectadas: ' . count($boxes) . '.';
+        } elseif (preg_match('/<(?:p|div|section|ul|ol|h[1-6]|br)\b/iu', (string) ($boxes[0][1] ?? ''))) {
+            $errors[] = 'La caja editorial debe conservar una estructura de un solo párrafo Gutenberg.';
+        }
+        return ['ok' => empty($errors), 'errors' => array_values(array_unique($errors))];
+    }
+
+    private static function keyword_near_opening(string $content, string $keyword): bool {
+        $opening = [];
+        foreach (preg_split('/\R/u', $content) as $line) {
+            $line = trim((string) $line);
+            if ($line === '' || preg_match('/^#{1,6}\s+/u', $line) || preg_match('/^(?:\*\*)?\s*Caja editorial\b/iu', $line)) {
+                continue;
+            }
+            $opening[] = $line;
+            if (count($opening) >= 3) {
+                break;
+            }
+        }
+        return self::text_contains_keyword(implode("\n", $opening), $keyword);
     }
 
     private static function plain_for_match(string $text): string {
@@ -463,14 +488,27 @@ final class IDG_Final_Guard {
     }
 
     private static function html_has_url(string $html, string $url): bool {
-        return $url !== '' && stripos($html, $url) !== false;
+        return self::url_link_count($html, $url) > 0;
     }
 
     private static function anchor_for_url(string $html, string $url): string {
         if ($url === '') return '';
-        $pattern = '/<a\s+[^>]*href=["\']' . preg_quote($url, '/') . '["\'][^>]*>(.*?)<\/a>/isu';
-        if (preg_match($pattern, $html, $m)) {
-            return trim(wp_strip_all_tags($m[1]));
+        if (!class_exists('IDG_Internal_Links')) {
+            if (preg_match_all('/<a\b[^>]*href=(?:"([^"]+)"|\'([^\']+)\')[^>]*>(.*?)<\/a>/isu', $html, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $match) {
+                    $href = html_entity_decode((string) (($match[1] ?? '') !== '' ? $match[1] : ($match[2] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    if (rtrim($href, '/') === rtrim($url, '/')) {
+                        return trim(wp_strip_all_tags((string) ($match[3] ?? '')));
+                    }
+                }
+            }
+            return '';
+        }
+        $audit = IDG_Internal_Links::audit_html($html, []);
+        foreach ((array) ($audit['anchors'] ?? []) as $anchor) {
+            if (IDG_Internal_Links::equivalent_url((string) ($anchor['url'] ?? ''), $url)) {
+                return trim((string) ($anchor['anchor'] ?? ''));
+            }
         }
         return '';
     }
@@ -562,6 +600,9 @@ final class IDG_Final_Guard {
         if ($box_pos <= $after_h2) {
             return ['ok' => false, 'message' => 'La caja editorial debe ubicarse después de la introducción, no antes del desarrollo.'];
         }
+        if (preg_match('/^###\s+.+$/mu', $normalized, $first_h3, PREG_OFFSET_CAPTURE) && $box_pos > (int) $first_h3[0][1]) {
+            return ['ok' => false, 'message' => 'La caja editorial debe ubicarse después de la introducción y antes del primer H3.'];
+        }
         $between = trim(substr($normalized, $after_h2, $box_pos - $after_h2));
         $paragraphs = 0;
         foreach (preg_split('/\n+/', $between) as $line) {
@@ -570,6 +611,9 @@ final class IDG_Final_Guard {
                 continue;
             }
             $paragraphs++;
+        }
+        if ($paragraphs === 0) {
+            return ['ok' => false, 'message' => 'La caja editorial debe ubicarse después de al menos un párrafo de introducción.'];
         }
         if ($paragraphs < 2) {
             return ['ok' => true, 'message' => 'La introducción suele preferir dos párrafos, pero esta es una guía no rígida.'];
@@ -712,8 +756,26 @@ final class IDG_Final_Guard {
         if ($url === '') {
             return 0;
         }
-        $pattern = '/<a\s+[^>]*href=["\']' . preg_quote($url, '/') . '["\'][^>]*>/iu';
-        return (int) preg_match_all($pattern, $html, $matches);
+        if (!class_exists('IDG_Internal_Links')) {
+            $count = 0;
+            if (preg_match_all('/<a\b[^>]*href=(?:"([^"]+)"|\'([^\']+)\')[^>]*>/iu', $html, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $match) {
+                    $href = html_entity_decode((string) (($match[1] ?? '') !== '' ? $match[1] : ($match[2] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    if (rtrim($href, '/') === rtrim($url, '/')) {
+                        $count++;
+                    }
+                }
+            }
+            return $count;
+        }
+        $count = 0;
+        $audit = IDG_Internal_Links::audit_html($html, []);
+        foreach ((array) ($audit['anchors'] ?? []) as $anchor) {
+            if (IDG_Internal_Links::equivalent_url((string) ($anchor['url'] ?? ''), $url)) {
+                $count++;
+            }
+        }
+        return $count;
     }
 
     private static function contest_presentation_status(string $html): array {

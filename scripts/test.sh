@@ -43,7 +43,7 @@ printf '\n%s\n' "=== Contrato de versión actual ==="
 TEST_TOTAL=$((TEST_TOTAL + 1))
 : > "$TEST_LOG"
 
-if python3 tests/plugin-version-contract.py 0.4.0-RC1.7.6 >"$TEST_LOG" 2>&1; then
+if python3 tests/plugin-version-contract.py 0.4.0-RC1.7.8 >"$TEST_LOG" 2>&1; then
   echo "PASS: plugin-version-contract.py"
 else
   echo "FAIL: plugin-version-contract.py"

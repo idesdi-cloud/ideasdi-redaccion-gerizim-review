@@ -45,6 +45,93 @@ final class IDG_Internal_Links {
     }
 
     /**
+     * Audita todos los anchors del HTML final sin consultar ni abrir destinos.
+     * Las equivalencias ignoran esquema, www, slash final, query y fragmento,
+     * pero conservan host/subdominio y solo decodifican caracteres URL seguros.
+     */
+    public static function audit_html(string $html, array $workflow): array {
+        $expected_links = self::normalize($workflow);
+        $expected_url = trim((string) ($expected_links[0]['url'] ?? ''));
+        $expected_key = self::url_key($expected_url);
+        $base_url = function_exists('home_url') ? (string) home_url('/') : 'https://ideasdi.com/';
+        $root_host = self::root_host((string) self::parse_url_part($base_url, PHP_URL_HOST));
+        if ($root_host === '') {
+            $root_host = 'ideasdi.com';
+        }
+
+        $anchors = [];
+        if (preg_match_all('/<a\b([^>]*)>(.*?)<\/a>/isu', $html, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $attributes = (string) ($match[1] ?? '');
+                $href = self::href_from_attributes($attributes);
+                if ($href === '') {
+                    continue;
+                }
+                $absolute = self::absolute_audit_url($href, $base_url);
+                $key = self::url_key($absolute);
+                $host = mb_strtolower((string) self::parse_url_part($absolute, PHP_URL_HOST));
+                $host = preg_replace('/\.$/u', '', $host);
+                $internal = $host !== '' && ($host === $root_host || str_ends_with($host, '.' . $root_host));
+                $anchors[] = [
+                    'href' => $href,
+                    'url' => $absolute,
+                    'normalized_url' => $key,
+                    'anchor' => trim(wp_strip_all_tags(html_entity_decode((string) ($match[2] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'))),
+                    'internal' => $internal,
+                    'expected' => $expected_key !== '' && $key !== '' && hash_equals($expected_key, $key),
+                ];
+            }
+        }
+
+        $internal = array_values(array_filter($anchors, static fn(array $anchor): bool => !empty($anchor['internal'])));
+        $expected = array_values(array_filter($internal, static fn(array $anchor): bool => !empty($anchor['expected'])));
+        $unexpected = array_values(array_filter($internal, static fn(array $anchor): bool => empty($anchor['expected'])));
+        $policy_required = !self::has_verified_p2_exception($workflow);
+        $resolution_status = $expected_key !== '' ? 'resolved' : 'unresolved';
+        $errors = [];
+
+        // La excepción solo elimina la cuota de exactamente un enlace editorial.
+        // Nunca autoriza URL internas adicionales: incluso con unresolved,
+        // un destino interno debe proceder de normalize(), no del texto de IA
+        // ni de campos de workflow que cualquiera puede rellenar.
+        if ($policy_required) {
+            if ($resolution_status === 'unresolved') {
+                $errors[] = 'P2 bloqueado: no existe un tag canónico real resuelto por IDG_Internal_Links::normalize().';
+            } else {
+                if (count($expected) !== 1) {
+                    $errors[] = 'P2 exige exactamente un enlace al tag canónico resuelto; detectados: ' . count($expected) . '.';
+                }
+                if (count($internal) !== 1) {
+                    $errors[] = 'P2 exige exactamente un anchor interno real en el HTML final; detectados: ' . count($internal) . '.';
+                }
+            }
+        }
+        if (!empty($unexpected)) {
+            $errors[] = 'P2 prohíbe URL internas no autorizadas incluso en eventos, concursos y patrocinados; detectadas: ' . count($unexpected) . '.';
+        }
+
+        return [
+            'policy_required' => $policy_required,
+            'exception' => $policy_required ? '' : self::verified_p2_exception($workflow),
+            'resolution_status' => $resolution_status,
+            'expected_url' => $expected_url,
+            'anchors' => $anchors,
+            'internal_anchors' => $internal,
+            'expected_anchors' => $expected,
+            'unexpected_internal_anchors' => $unexpected,
+            'internal_count' => count($internal),
+            'expected_count' => count($expected),
+            'errors' => array_values(array_unique($errors)),
+        ];
+    }
+
+    public static function equivalent_url(string $left, string $right): bool {
+        $left_key = self::url_key(self::absolute_audit_url($left, function_exists('home_url') ? (string) home_url('/') : 'https://ideasdi.com/'));
+        $right_key = self::url_key(self::absolute_audit_url($right, function_exists('home_url') ? (string) home_url('/') : 'https://ideasdi.com/'));
+        return $left_key !== '' && $right_key !== '' && hash_equals($left_key, $right_key);
+    }
+
+    /**
      * Biblioteca de enlaces: resolución editorial canónica para artículos.
      * Las categorías son contexto; no son destinos alternativos.
      */
@@ -243,6 +330,111 @@ final class IDG_Internal_Links {
             'post_id' => isset($row['post_id']) ? absint($row['post_id']) : 0,
             'context' => sanitize_text_field((string) ($row['context'] ?? 'Gerizim debe crear un anchor contextual dentro del artículo.')),
         ];
+    }
+
+    private static function has_verified_p2_exception(array $workflow): bool {
+        return self::verified_p2_exception($workflow) !== '';
+    }
+
+    private static function verified_p2_exception(array $workflow): string {
+        $origin = (string) ($workflow['workflow_origin'] ?? '');
+        $target_type = (string) ($workflow['recurring_target_post_type'] ?? '');
+        $context = (string) ($workflow['editorial_context'] ?? '');
+        if ($target_type === 'evento' && ($origin === 'recurring_update' || $context === 'event_calendar')) {
+            return 'evento_cpt_verificado';
+        }
+        if ($target_type === 'post' && $origin === 'recurring_update') {
+            return 'concurso_recurrente_verificado';
+        }
+        $piece_type = mb_strtolower(function_exists('remove_accents') ? remove_accents((string) ($workflow['piece_type'] ?? '')) : (string) ($workflow['piece_type'] ?? ''));
+        if ((str_contains($piece_type, 'patrocinado') || str_contains($piece_type, 'colaboraci'))
+            && trim((string) ($workflow['sponsored_brief'] ?? '')) !== '') {
+            return 'patrocinado_verificado';
+        }
+        return '';
+    }
+
+    private static function href_from_attributes(string $attributes): string {
+        if (!preg_match('/(?:^|\s)href\s*=\s*(?:(["\'])(.*?)\1|([^\s>]+))/isu', $attributes, $match)) {
+            return '';
+        }
+        return trim(html_entity_decode((string) (($match[2] ?? '') !== '' ? $match[2] : ($match[3] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+
+    private static function absolute_audit_url(string $href, string $base_url): string {
+        $href = trim(html_entity_decode($href, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($href === '' || preg_match('/[\x00-\x1F\x7F]/u', $href)) {
+            return '';
+        }
+        if (str_starts_with($href, '//')) {
+            $scheme = (string) self::parse_url_part($base_url, PHP_URL_SCHEME);
+            return ($scheme !== '' ? $scheme : 'https') . ':' . $href;
+        }
+        if (preg_match('#^https?://#iu', $href)) {
+            return $href;
+        }
+        if (preg_match('#^[a-z][a-z0-9+.-]*:#iu', $href)) {
+            return '';
+        }
+        $scheme = (string) self::parse_url_part($base_url, PHP_URL_SCHEME);
+        $host = (string) self::parse_url_part($base_url, PHP_URL_HOST);
+        $port = self::parse_url_part($base_url, PHP_URL_PORT);
+        if ($host === '') {
+            return '';
+        }
+        $authority = ($scheme !== '' ? $scheme : 'https') . '://' . $host . ($port ? ':' . (int) $port : '');
+        if (str_starts_with($href, '#') || str_starts_with($href, '?')) {
+            return $authority . '/' . $href;
+        }
+        if (str_starts_with($href, '/')) {
+            return $authority . '/' . ltrim($href, '/');
+        }
+        // Sin la URL del documento no es seguro equiparar una ruta relativa
+        // al tag raíz: se audita como interna, pero nunca como canónica.
+        return $authority . '/__ruta_relativa__/' . ltrim($href, './');
+    }
+
+    private static function url_key(string $url): string {
+        if ($url === '') {
+            return '';
+        }
+        $scheme = mb_strtolower((string) self::parse_url_part($url, PHP_URL_SCHEME));
+        $host = mb_strtolower((string) self::parse_url_part($url, PHP_URL_HOST));
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+            return '';
+        }
+        $host = preg_replace('/\.$/u', '', $host);
+        $host = preg_replace('/^www\./iu', '', (string) $host);
+        $port = self::parse_url_part($url, PHP_URL_PORT);
+        $port_part = ($port && !(($scheme === 'http' && (int) $port === 80) || ($scheme === 'https' && (int) $port === 443))) ? ':' . (int) $port : '';
+        $path = (string) self::parse_url_part($url, PHP_URL_PATH);
+        $path = preg_replace_callback('/%[0-9a-f]{2}/iu', static function (array $match): string {
+            $character = chr((int) hexdec(substr((string) $match[0], 1)));
+            return preg_match('/[A-Za-z0-9\-._~]/', $character) ? $character : strtoupper((string) $match[0]);
+        }, $path);
+        $segments = [];
+        foreach (explode('/', (string) $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                array_pop($segments);
+                continue;
+            }
+            $segments[] = $segment;
+        }
+        $path = '/' . implode('/', $segments);
+        return $host . $port_part . ($path === '/' ? '/' : rtrim($path, '/'));
+    }
+
+    private static function root_host(string $host): string {
+        $host = mb_strtolower(trim($host));
+        $host = preg_replace('/\.$/u', '', $host);
+        return (string) preg_replace('/^www\./iu', '', (string) $host);
+    }
+
+    private static function parse_url_part(string $url, int $part) {
+        return function_exists('wp_parse_url') ? wp_parse_url($url, $part) : parse_url($url, $part);
     }
 
     private static function display(string $value): string {

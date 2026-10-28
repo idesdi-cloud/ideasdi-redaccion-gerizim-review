@@ -12,8 +12,9 @@ final class IDG_Validator {
         if (mb_strlen($first_line) > 68) {
             $warnings[] = 'El posible H1 supera 68 caracteres.';
         }
-        if ($keyword !== '' && stripos($content, $keyword) === false && !self::keyword_flexible_match($content, $keyword)) {
-            $warnings[] = 'La keyword principal no aparece ni de forma exacta ni mediante una variante suficientemente reconocible.';
+        $opening = self::opening_excerpt($content);
+        if ($keyword !== '' && !self::keyword_flexible_match($opening, $keyword)) {
+            $warnings[] = 'La keyword principal o una variante reconocible no aparece cerca de la apertura; es un aviso editorial, no un bloqueo.';
         }
         if (stripos($content, 'Fuente oficial:') !== false) {
             $warnings[] = 'Evitar el rótulo visible “Fuente oficial:”.';
@@ -27,11 +28,6 @@ final class IDG_Validator {
 
 
     private static function keyword_flexible_match(string $content, string $keyword): bool {
-        $rules = class_exists('IDG_Editorial_Rules') ? IDG_Editorial_Rules::get() : [];
-        $policy = (string) ($rules['h1_keyword_policy'] ?? 'flexible');
-        if ($policy === 'exact') {
-            return false;
-        }
         $text = self::plain_for_match($content);
         $kw = self::plain_for_match($keyword);
         if ($kw === '' || str_contains($text, $kw)) {
@@ -49,6 +45,23 @@ final class IDG_Validator {
             }
         }
         return $matched >= max(1, (int) ceil(count($tokens) / 2));
+    }
+
+    private static function opening_excerpt(string $content): string {
+        $plain = wp_strip_all_tags(str_replace(["\r\n", "\r"], "\n", $content));
+        $lines = preg_split('/\n/u', $plain);
+        $opening = [];
+        foreach ((array) $lines as $line) {
+            $line = trim((string) $line);
+            if ($line === '' || preg_match('/^#{1,6}\s+/u', $line) || preg_match('/^Caja editorial\b/iu', $line)) {
+                continue;
+            }
+            $opening[] = $line;
+            if (count($opening) >= 3) {
+                break;
+            }
+        }
+        return implode("\n", $opening);
     }
 
     private static function plain_for_match(string $text): string {

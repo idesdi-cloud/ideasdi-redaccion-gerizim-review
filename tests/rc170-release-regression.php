@@ -27,9 +27,9 @@ $historical_text = file_get_contents($historical_manifest);
 $historical = IDG_Canonical_Regression::parse_historical($historical_text);
 release_ok(!isset($historical['REGRESION-EDITORIAL-RC1.7.2.sha256']), 'historical manifest has no self reference');
 
-$text = file_get_contents($root . '/REGRESION-EDITORIAL-RC1.7.6.sha256');
+$text = file_get_contents($root . '/REGRESION-EDITORIAL-RC1.7.8.sha256');
 $current = IDG_Canonical_Regression::parse_current($text);
-release_ok(!isset($current['REGRESION-EDITORIAL-RC1.7.6.sha256']), 'current manifest has no self reference');
+release_ok(!isset($current['REGRESION-EDITORIAL-RC1.7.8.sha256']), 'current manifest has no self reference');
 release_ok(IDG_Canonical_Regression::current_state_matches($root, $current), 'exact current regression state');
 release_ok(array_keys(IDG_Canonical_Regression::RECONCILED) === [
     'includes/class-prompt-library.php',
@@ -75,7 +75,7 @@ $invalid_manifests = [
     $text . $lines[0] . "\n",
     implode("\n", array_slice($lines, 1)) . "\n",
     implode("\n", array_reverse($lines)) . "\n",
-    $text . $bad . "  REGRESION-EDITORIAL-RC1.7.6.sha256\n",
+    $text . $bad . "  REGRESION-EDITORIAL-RC1.7.8.sha256\n",
     $text . $bad . "  unexpected.php\n",
     str_replace($lines[0], 'invalid', $text),
     rtrim($text, "\n"),

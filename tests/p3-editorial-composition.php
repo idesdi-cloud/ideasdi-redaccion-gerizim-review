@@ -49,7 +49,8 @@ foreach ([
     'No inventes requisitos detallados, rúbricas, ponderaciones, cifras ni hechos para SEO',
     'criterios generales confirmados del jurado o proceso creativo',
     'lista cronológica de fechas verificadas es preferible cuando aclare el calendario, pero no obligatoria',
-    'no alteres el H1 editorial para igualarlo al TÍTULO SEO',
+    'El H1 editorial es el único título y gobierna WordPress; Yoast usa %%title%% de forma dinámica.',
+    'No generes ningún rótulo ni campo TÍTULO SEO nuevo',
 ] as $needle) {
     p3c_require(str_contains($seo, $needle), 'seo:' . $needle);
 }
