@@ -4,6 +4,15 @@ if (!defined('ABSPATH')) {
 }
 
 final class IDG_Internal_Links {
+    private const ARTICLE_CATEGORIES = [
+        57 => ['name' => 'Diseño de Producto', 'slug' => 'diseno-de-productos'],
+        1231 => ['name' => 'Arquitectura y diseño interior', 'slug' => 'diseno-interior'],
+        1238 => ['name' => 'Moda', 'slug' => 'diseno-de-indumentaria'],
+        1236 => ['name' => 'Movilidad', 'slug' => 'diseno-transporte'],
+        1232 => ['name' => 'Diseño digital', 'slug' => 'modelado-3d'],
+        34 => ['name' => 'Concursos y convocatorias', 'slug' => 'concursos-de-diseno'],
+    ];
+
     /**
      * Devuelve un único enlace interno principal para reducir ruido editorial.
      * En artículos, solo se enlaza a un tag editorial canónico real y elegible.
@@ -140,30 +149,30 @@ final class IDG_Internal_Links {
             return self::event_library($workflow);
         }
         $category_id = !empty($workflow['category_id']) ? (int) $workflow['category_id'] : 0;
-        $category = $category_id > 0 ? get_term($category_id, 'category') : null;
-        $category_name = ($category && !is_wp_error($category)) ? (string) $category->name : '';
+        $category = self::validated_article_category($category_id);
+        $category_name = $category instanceof WP_Term ? (string) $category->name : '';
         $category_url = self::category_url($category_id, $category_name);
+        if (!$category instanceof WP_Term) {
+            return self::unresolved_article_library('', '');
+        }
         $resolved = class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::resolve($workflow) : [];
         $lenses = array_values(array_unique(array_filter(array_merge(
             [$resolved['primary_lens'] ?? null], $resolved['secondary_lenses'] ?? []
         ))));
         $terms = [];
+        $seen_term_ids = [];
         foreach ((array) ($workflow['tag_ids'] ?? []) as $id) {
-            $term = get_term((int) $id, 'post_tag');
-            if ($term instanceof WP_Term && $term->term_id > 0 && $term->taxonomy === 'post_tag') {
-                $terms[$term->term_id] = $term;
+            $id = (int) $id;
+            if ($id <= 0 || isset($seen_term_ids[$id])) {
+                continue;
             }
-        }
-        // Optional exact-name lookup still requires an existing WordPress term.
-        if (function_exists('get_term_by')) {
-            foreach (['primary_lens', 'radar_lente_sugerida', 'lens_suggested', 'radar_tag_principal', 'secondary_lenses', 'radar_tags_secundarios', 'tag_names'] as $field) {
-                foreach ((array) ($workflow[$field] ?? []) as $name) {
-                    if (!is_string($name) || trim($name) === '') continue;
-                    $term = get_term_by('name', $name, 'post_tag');
-                    if ($term instanceof WP_Term && $term->term_id > 0 && $term->taxonomy === 'post_tag') {
-                        $terms[$term->term_id] = $term;
-                    }
-                }
+            $seen_term_ids[$id] = true;
+            $term = get_term($id, 'post_tag');
+            if ($term instanceof WP_Term
+                && $term->term_id > 0
+                && $term->taxonomy === 'post_tag'
+                && self::eligible_matrix_term($term, $category)) {
+                $terms[$term->term_id] = $term;
             }
         }
         $primary = [];
@@ -190,6 +199,24 @@ final class IDG_Internal_Links {
                     'context' => 'Usar como enlace interno principal. No enlazar la keyword ni el nombre literal del tag; crear una frase contextual de 3 a 8 palabras dentro del párrafo.',
                 ]);
                 break 2;
+            }
+        }
+
+        if (empty($primary)) {
+            foreach ($terms as $term) {
+                $url = self::tag_url($term, $category_name);
+                if ($url === '') continue;
+                $tag_name = (string) $term->name;
+                $tag_url = $url;
+                $primary = self::sanitize_link_row([
+                    'url' => $tag_url,
+                    'type' => 'tag_fallback_seleccionado',
+                    'label' => 'Página del primer tag editorial seleccionado y elegible',
+                    'source_name' => $tag_name,
+                    'source_type' => 'tag',
+                    'context' => 'Usar como enlace interno principal. No enlazar la keyword ni el nombre literal del tag; crear una frase contextual de 3 a 8 palabras dentro del párrafo.',
+                ]);
+                break;
             }
         }
 
@@ -225,8 +252,55 @@ final class IDG_Internal_Links {
         $link = isset($library['primary']) && is_array($library['primary']) ? $library['primary'] : [];
         $lines[] = '- Enlace interno calculado: ' . self::display((string) ($link['url'] ?? '')) . (!empty($link['context']) ? ' · ' . (string) $link['context'] : '');
         $lines[] = '- Resolución editorial: ' . $library['editorial_resolution_status'];
-        $lines[] = '- Regla: lente canónica primaria y después secundarias en orden; solo tags reales elegibles con URL real. Sin destino elegible, no hay enlace interno.';
+        $lines[] = '- Regla: lente canónica primaria, después secundarias en orden y, si ninguna resuelve, primer post_tag explícitamente seleccionado y elegible; solo tags reales, indexables, de la categoría WordPress validada y con URL HTTP(S) real.';
+        $lines[] = '- Sin lente canónica ni post_tag seleccionado elegible con URL real: unresolved y revisión editorial; la categoría es contexto y nunca fallback P2.';
         return implode("\n", $lines);
+    }
+
+    private static function unresolved_article_library(string $category_name, string $category_url): array {
+        return [
+            'editorial_resolution_status' => 'unresolved',
+            'resolved_lens' => '',
+            'category_name' => $category_name,
+            'category_url' => $category_url,
+            'primary_tag' => '',
+            'primary_tag_status' => '',
+            'tag_url' => '',
+            'primary' => [],
+        ];
+    }
+
+    private static function validated_article_category(int $category_id): ?WP_Term {
+        if (!isset(self::ARTICLE_CATEGORIES[$category_id])) {
+            return null;
+        }
+        $term = get_term($category_id, 'category');
+        if (!$term instanceof WP_Term || is_wp_error($term)) {
+            return null;
+        }
+        $expected = self::ARTICLE_CATEGORIES[$category_id];
+        if ($term->term_id !== $category_id
+            || $term->taxonomy !== 'category'
+            || (string) $term->name !== $expected['name']
+            || (string) $term->slug !== $expected['slug']) {
+            return null;
+        }
+        return $term;
+    }
+
+    private static function eligible_matrix_term(WP_Term $term, WP_Term $category): bool {
+        if (!class_exists('IDG_Priority_Readings')) {
+            return false;
+        }
+        foreach (IDG_Priority_Readings::tag_matrix() as $row) {
+            if ((string) ($row['tag'] ?? '') === (string) $term->name
+                && (string) ($row['tag_slug'] ?? '') === (string) $term->slug
+                && (string) ($row['category_slug'] ?? '') === (string) $category->slug
+                && in_array((string) ($row['status'] ?? ''), ['Index', 'Index / Transversal'], true)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static function is_event_workflow(array $workflow): bool {
@@ -299,18 +373,29 @@ final class IDG_Internal_Links {
     private static function category_url(int $category_id, string $category_name): string {
         $url = '';
         if (class_exists('IDG_Priority_Readings')) {
-            $url = IDG_Priority_Readings::category_curated_url($category_name);
+            $candidate = IDG_Priority_Readings::category_curated_url($category_name);
+            $url = self::http_url(is_string($candidate) ? $candidate : '');
         }
         if ($url === '' && $category_id > 0) {
             $cat_link = get_category_link($category_id);
-            $url = (!is_wp_error($cat_link) && is_string($cat_link)) ? $cat_link : '';
+            $url = (!is_wp_error($cat_link) && is_string($cat_link)) ? self::http_url($cat_link) : '';
         }
-        return $url !== '' ? esc_url_raw($url) : '';
+        return $url;
     }
 
     private static function tag_url(WP_Term $tag, string $category_name = ''): string {
         $tag_link = get_term_link($tag, 'post_tag');
-        return (!is_wp_error($tag_link) && is_string($tag_link)) ? esc_url_raw($tag_link) : '';
+        return (!is_wp_error($tag_link) && is_string($tag_link)) ? self::http_url($tag_link) : '';
+    }
+
+    private static function http_url(string $url): string {
+        $url = trim($url);
+        $scheme = mb_strtolower((string) self::parse_url_part($url, PHP_URL_SCHEME));
+        $host = trim((string) self::parse_url_part($url, PHP_URL_HOST));
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+            return '';
+        }
+        return esc_url_raw($url);
     }
 
     private static function sanitize_link_row($row): array {

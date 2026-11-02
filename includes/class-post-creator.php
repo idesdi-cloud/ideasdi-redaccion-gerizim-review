@@ -189,13 +189,12 @@ final class IDG_Post_Creator {
         ];
     }
 
+    public static function override_eligible(array $validation): bool {
+        return false;
+    }
+
     private static function editorial_override_allowed(array $validation): bool {
-        foreach ((array) ($validation['errors'] ?? []) as $error) {
-            if (preg_match('/gutenberg|identidad|permis|firma|id\b|taxonom|slug|autor|seguridad|\bH1\b|caja editorial|P2\b|enlace interno|paquete reel|\bVO\s*[1-6]\b|overlays?|CTA fijo/iu', (string) $error)) {
-                return false;
-            }
-        }
-        return true;
+        return self::override_eligible($validation);
     }
 
     public static function update_existing_event(array $workflow): array {

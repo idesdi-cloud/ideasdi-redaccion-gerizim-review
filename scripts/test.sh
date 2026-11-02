@@ -43,7 +43,7 @@ printf '\n%s\n' "=== Contrato de versión actual ==="
 TEST_TOTAL=$((TEST_TOTAL + 1))
 : > "$TEST_LOG"
 
-if python3 tests/plugin-version-contract.py 0.4.0-RC1.7.8 >"$TEST_LOG" 2>&1; then
+if python3 tests/plugin-version-contract.py 0.4.0-RC1.7.8.1 >"$TEST_LOG" 2>&1; then
   echo "PASS: plugin-version-contract.py"
 else
   echo "FAIL: plugin-version-contract.py"
@@ -54,6 +54,18 @@ fi
 printf '\n%s\n' "=== Pruebas PHP ==="
 
 while IFS= read -r -d '' TEST_FILE; do
+  case "$TEST_FILE" in
+    tests/rc170-canonical-consumption.php|\
+    tests/rc170-canonical-core.php|\
+    tests/rc170-canonical-external-guard.php|\
+    tests/rc170-canonical-internal-links.php|\
+    tests/rc170-canonical-prompts-admin.php|\
+    tests/rc170-release-regression.php|\
+    tests/rc178-targeted-regression.php)
+      continue
+      ;;
+  esac
+
   TEST_TOTAL=$((TEST_TOTAL + 1))
   TEST_NAME="$(basename "$TEST_FILE")"
 
@@ -111,6 +123,22 @@ for TEST_FILE in tests/rc172-seo-alignment.py tests/rc172-release-integration.py
     FAILURES=$((FAILURES + 1))
   fi
 done
+
+echo
+echo "Pruebas ejecutadas: $TEST_TOTAL"
+
+printf '\n%s\n' "=== Regresión histórica protegida RC1.7.8 ==="
+
+TEST_TOTAL=$((TEST_TOTAL + 1))
+: > "$TEST_LOG"
+
+if python3 tests/rc1781-historical-suite.py >"$TEST_LOG" 2>&1; then
+  cat "$TEST_LOG"
+else
+  echo "FAIL: rc1781-historical-suite.py"
+  cat "$TEST_LOG"
+  FAILURES=$((FAILURES + 1))
+fi
 
 echo
 echo "Pruebas ejecutadas: $TEST_TOTAL"
