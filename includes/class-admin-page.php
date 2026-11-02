@@ -1952,13 +1952,12 @@ final class IDG_Workflow_Admin_Controller {
         if (!empty($workflow['draft_post_id'])) {
             return false;
         }
-        $last_error = (string) ($workflow['last_error'] ?? '');
-        if ($last_error !== '' && str_contains($last_error, 'Validación real bloqueó')) {
-            return true;
-        }
-        $history = isset($workflow['history']) && is_array($workflow['history']) ? $workflow['history'] : [];
-        $last = end($history);
-        return is_array($last) && (string) ($last['event'] ?? '') === 'draft_failed';
+        $workflow['force_validation_override'] = false;
+        $preflight = class_exists('IDG_Post_Creator')
+            ? IDG_Post_Creator::preflight_public($workflow)
+            : [];
+        return !empty($preflight)
+            && IDG_Post_Creator::override_eligible((array) ($preflight['validation'] ?? []));
     }
 
     private static function render_sponsored_fields(array $workflow): void {

@@ -40,9 +40,9 @@ final class IDG_Prompt_Library {
         $versions = [
             'material_card' => 'material-card-v1.1.0-RC1.5.2',
             'editorial_plan' => 'editorial-plan-v2.1.0-RC1.5.2',
-            'generate' => 'generate-v2.2.0-RC1.7.8',
-            'editorial' => 'editorial-v2.2.0-RC1.7.8',
-            'seo' => 'seo-v2.2.0-RC1.7.8',
+            'generate' => 'generate-v2.2.0-RC1.7.8.1',
+            'editorial' => 'editorial-v2.2.0-RC1.7.8.1',
+            'seo' => 'seo-v2.2.0-RC1.7.8.1',
             'web_research' => 'web-research-v1.2.0-RC1.5.2',
         ];
         return $versions[$type] ?? 'unknown';
@@ -72,7 +72,7 @@ Reglas centrales:
 - No usar “Fuente oficial:” como rótulo visible.
 - No usar metalenguaje en el artículo: “la documentación oficial describe”, “desde la categoría”, “la lectura editorial”, “ese detalle importa porque”, “quienes siguen de cerca”.
 - En article, usa la URL responsable resuelta en orden canonical_context.responsible_official_url > responsible_official_url > official_source, solo si es válida y no vacía. Integra exactamente un enlace externo contextual al responsable en ARTÍCULO FINAL, sin duplicar la URL, sin línea suelta visible “Fuente oficial:”, sin enlazar otra entidad y sin usar la keyword principal como anchor. No inventes hechos para el anchor. Si falta URL válida, solicita resolución editorial, no la inventes. source_information_url es solo fuente documental/complementaria, nunca la URL responsable.
-- En article, el enlace interno es exactamente un enlace contextual a una etiqueta editorial real resuelta por IDG_Internal_Links: primero primary_lens canónica, después secondary_lenses canónicas aprobadas en su orden. Solo es elegible un tag WordPress existente e indexable con URL real. Si ninguno resuelve, marca unresolved y solicita resolución editorial en el informe interno; no fabriques ni sustituyas categoría, entrada, tag o URL. La categoría es contexto, no fallback. Los tags desconocidos o ajenos son solo contexto y no se convierten en lentes canónicas.
+- En article, el enlace interno es exactamente un enlace contextual a una etiqueta editorial real resuelta por IDG_Internal_Links: primero primary_lens canónica, después secondary_lenses canónicas aprobadas en su orden y, si ninguna resuelve, el primer post_tag explícitamente seleccionado por el editor que sea elegible. Solo es elegible un tag WordPress existente e indexable, perteneciente a la categoría WordPress validada y con URL real HTTP(S). Si ninguna de ambas fases resuelve, marca unresolved y solicita revisión editorial en el informe interno; no fabriques ni sustituyas categoría, entrada, tag o URL. La categoría es contexto, no fallback. Los tags desconocidos o ajenos son solo contexto y no se convierten en lentes canónicas.
 - calendar_event es distinto de article: no aplica el contrato de tags del artículo. Solo puede usarse una vez, contextualmente, una URL real de archivo CPT o taxonomía propia suministrada en los datos; si no existe, no fabriques una URL.
 - En Eventos, Agenda define la función de la pieza; la tipología del evento y su Categoría editorial definen el vocabulario. Una feria, una semana de la moda, una exposición o una conferencia no deben redactarse con los mismos conceptos. La presentación debe ser narrativa y útil, no una ficha ni una reflexión abstracta sobre fechas o ciudad.
 - El paquete reel debe ser estructurado y máquina-legible: 6 escenas en orden, cada una con su VO y exactamente 3 overlays.
@@ -536,7 +536,7 @@ Reglas específicas para Concursos y convocatorias:
 - Elimina requisitos técnicos, formatos, entregables, elegibilidad detallada, rúbricas y ponderaciones; conserva solo criterios generales confirmados del jurado o proceso creativo y remite los detalles a la web oficial.
 - Mantén un tono claro, cordial, cercano e inspirador. No conviertas fechas, instituciones o ciudades en reflexiones abstractas, no las infles como H3 independientes cuando hay poca información y no uses “las fuentes consultadas”.
 - Si el tag principal es noindex u operativo, no lo uses como enlace interno ni como eje editorial.
-- Concursos y convocatorias define la superficie/categoría de la pieza; el enlace interno de article sigue el mismo contrato canónico de tag resuelto: primary_lens, secondary_lenses aprobadas en orden y, si ninguna es elegible, unresolved / resolución editorial. No fuerces una landing de categoría.
+- Concursos y convocatorias define la superficie/categoría de la pieza; el enlace interno de article sigue el mismo contrato de tag resuelto: primary_lens, secondary_lenses aprobadas en orden y, si ninguna resuelve, primer post_tag explícitamente seleccionado y elegible. Si ambas fases fallan, queda unresolved y requiere revisión editorial. No fuerces una landing de categoría.
 - El último párrafo debe cerrar: “Para consultar las bases completas y participar en [Nombre del concurso], visita la [web oficial del concurso](URL oficial).” No dupliques esa URL antes si coincide con la URL del responsable.
 
 Reglas específicas para Calendario de eventos / Agenda:
@@ -556,7 +556,7 @@ Reglas de formato para WordPress dentro de ARTÍCULO FINAL:
 - No uses negritas en H1, H2, H3, enlaces internos, caja editorial ni frases largas. No repitas siempre la keyword principal.
 - En article, usa la URL responsable resuelta en orden canonical_context.responsible_official_url > responsible_official_url > official_source, solo si es válida y no vacía. Integra exactamente un enlace externo contextual al responsable en ARTÍCULO FINAL, sin duplicar la URL, sin línea suelta visible “Fuente oficial:”, sin enlazar otra entidad y sin usar la keyword principal como anchor. No inventes hechos para el anchor. Si falta URL válida, solicita resolución editorial, no la inventes. source_information_url es solo fuente documental/complementaria, nunca la URL responsable.
 - Verifica coherencia del enlace externo: no enlaces una entidad hacia una URL que pertenece a otra entidad. Ejemplo: no enlaces LoveFrom hacia Ferrari si la URL entregada no es de LoveFrom.
-- En article, si IDG_Internal_Links resuelve un tag canónico real, integra exactamente un anchor Markdown a esa única URL, de 3 a 8 palabras, y ningún otro enlace interno. Se auditan absolutos, relativos, protocolo relativo, www, subdominios, query, fragmentos y codificación equivalente. Si está unresolved, no crees ningún destino: informa resolución editorial y acepta que el borrador será bloqueado. En calendar_event y excepciones verificadas conserva únicamente su navegación real suministrada.
+- En article, si IDG_Internal_Links resuelve un tag editorial real como tag_principal o tag_fallback_seleccionado, integra exactamente un anchor Markdown a esa única URL, de 3 a 8 palabras, y ningún otro enlace interno. Se auditan absolutos, relativos, protocolo relativo, www, subdominios, query, fragmentos y codificación equivalente. Si está unresolved, no crees ningún destino: informa que requiere revisión editorial y acepta que el borrador será bloqueado. En calendar_event y excepciones verificadas conserva únicamente su navegación real suministrada.
 - Distribución de enlaces disponibles, salvo los cierres oficiales de concursos y eventos: uno puede aparecer dentro de los dos primeros párrafos y el segundo después de la caja editorial y antes de la mitad del artículo. No fabriques enlaces ausentes para cumplir esta distribución. Nunca incluyas enlaces dentro de la caja editorial.
 - No fuerces un enlace si degrada una frase buena. Integra cada enlace modificando una oración existente; nunca añadas un párrafo nuevo solo para cumplir el enlace. Si no existe un lugar natural, indícalo en RETROALIMENTACIÓN GERIZIM para que la validación lo devuelva a revisión.
 - Para la URL interna resuelta, crea tú el anchor contextual dentro del párrafo; no copies nombres de tags ni títulos de entradas como anchor literal. Nunca uses la keyword principal como anchor interno.
@@ -600,7 +600,7 @@ PROMPT;
             $rows[] = 'Notas editoriales sobre enlaces internos: ' . $legacy;
         }
         if (empty($rows)) {
-            return 'UNRESOLVED: no existe un tag canónico real con URL resuelta. No inventes, copies ni sustituyas ninguna URL interna; la creación del borrador quedará bloqueada hasta resolución editorial.';
+            return 'UNRESOLVED: ninguna lente canónica ni ningún post_tag explícitamente seleccionado por el editor resolvió un tag existente e indexable con URL real HTTP(S) en la misma categoría WordPress validada. Requiere revisión editorial; no infieras por Radar, nombre o categoría ni inventes, copies o sustituyas una URL interna.';
         }
         return implode("\n", $rows);
     }
