@@ -53,9 +53,9 @@ def run(
 
 
 def main() -> int:
-    head = git_bytes("rev-parse", "HEAD").decode().strip()
-    if head != BASELINE:
-        print(f"FAIL baseline: HEAD={head}, expected={BASELINE}")
+    resolved = git_bytes("rev-parse", BASELINE + "^{commit}").decode().strip()
+    if resolved != BASELINE:
+        print("FAIL: no se pudo verificar el commit histórico exacto")
         return 1
 
     archive = git_bytes("archive", "--format=tar", BASELINE)
@@ -79,8 +79,21 @@ def main() -> int:
         runner.write_bytes(historical_script)
         runner.chmod(0o755)
 
+        # HEAD histórico aislado; el repositorio actual permanece intacto.
+        historical_git = Path(temp) / "history.git"
+        initialized = run(["git", "init", "--bare", str(historical_git)], ROOT)
+        if initialized.returncode != 0:
+            print("FAIL: no se pudo preparar el contexto Git histórico")
+            return 1
+        objects = Path(git_bytes("rev-parse", "--git-path", "objects").decode().strip())
+        if not objects.is_absolute():
+            objects = ROOT / objects
+        (historical_git / "objects/info/alternates").write_text(
+            str(objects.resolve()) + "\n", encoding="utf-8"
+        )
+        (historical_git / "HEAD").write_text(BASELINE + "\n", encoding="ascii")
         read_only_git = {
-            "GIT_DIR": str(ROOT / ".git"),
+            "GIT_DIR": str(historical_git),
             "GIT_WORK_TREE": str(snapshot),
         }
         baseline_suite = run(["bash", "scripts/test.sh"], snapshot, read_only_git)

@@ -118,9 +118,9 @@ $check(str_contains($unresolved_seo, 'no infieras por Radar, nombre o categoría
 $check(str_contains($unresolved_seo, 'ni inventes, copies o sustituyas una URL interna'), 'SEO unresolved forbids URL fabrication');
 $check(!str_contains($unresolved_seo, 'no existe un tag canónico real con URL resuelta'), 'obsolete unresolved statement removed');
 
-$check(IDG_Prompt_Library::version('generate') === 'generate-v2.2.0-RC1.7.8.1', 'generate prompt version');
-$check(IDG_Prompt_Library::version('editorial') === 'editorial-v2.2.0-RC1.7.8.1', 'editorial prompt version');
-$check(IDG_Prompt_Library::version('seo') === 'seo-v2.2.0-RC1.7.8.1', 'SEO prompt version');
+$check(IDG_Prompt_Library::version('generate') === 'generate-v2.2.0-RC1.7.8.3', 'generate prompt version');
+$check(IDG_Prompt_Library::version('editorial') === 'editorial-v2.2.0-RC1.7.8.3', 'editorial prompt version');
+$check(IDG_Prompt_Library::version('seo') === 'seo-v2.2.0-RC1.7.8.3', 'SEO prompt version');
 $check(IDG_Prompt_Library::version('material_card') === 'material-card-v1.1.0-RC1.5.2', 'material prompt version unchanged');
 $check(IDG_Prompt_Library::version('editorial_plan') === 'editorial-plan-v2.1.0-RC1.5.2', 'plan prompt version unchanged');
 $check(IDG_Prompt_Library::version('web_research') === 'web-research-v1.2.0-RC1.5.2', 'research prompt version unchanged');

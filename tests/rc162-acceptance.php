@@ -67,8 +67,8 @@ $complete_calls = 0;
 foreach (glob($root . '/includes/*.php') ?: [] as $path) {
     $complete_calls += substr_count(file_get_contents($path) ?: '', '->complete(');
 }
-rc162_ok($complete_calls === 8, 'número de llamadas OpenAI permanece en ocho');
-rc162_ok(substr_count($planning_redaction, 'IDG_Prompt_Library::') === 6, 'puntos de construcción de prompts preservados en pipelines');
+rc162_ok($complete_calls === 9, 'puntos de llamada OpenAI iguales al baseline RC1.7.8.2');
+rc162_ok(substr_count($planning_redaction, 'IDG_Prompt_Library::') === 7, 'puntos de construcción de prompts preservados en pipelines');
 rc162_ok(str_contains($read('tests/workflow-policies-equivalence.php'), 'PASS workflow policies equivalence'), 'prueba de equivalencia de políticas incluida');
 rc162_ok(str_contains($read('tests/workflow-policies-routing-static.php'), 'PASS workflow policies routing static'), 'prueba estática de políticas incluida');
 rc162_ok(str_contains($read('tests/workflow-action-strategy-center-equivalence.php'), 'PASS workflow action strategy center equivalence'), 'regresión del centro de estrategias incluida');

@@ -288,6 +288,32 @@ $bad_inspection = IDG_Reel_Contract::inspect($bad_reel);
 rc1782_ok($inspection['vo'][3] === $bad_inspection['vo'][3] && $inspection['vo'][5] === $bad_inspection['vo'][5] && $inspection['vo'][6] === $bad_inspection['vo'][6] && $inspection['overlays'] === $bad_inspection['overlays'], 'VO 3/5/6 y todos los overlays quedan byte idénticos');
 rc1782_ok(str_contains((string) $action_done['seo_result'], rc1782_article(rc1782_box('ActionForge', 40))), 'la reparación Reel no regenera ni altera el artículo');
 rc1782_ok(str_contains($action_done['seo_result'], 'sitio oficial de la herramienta') && !str_contains($action_done['seo_result'], '[ActionForge](https://actionforge.app/'), 'enlace externo contextual usa anchor no keyword');
+rc1782_ok(str_contains((string) $action_done['seo_result'], 'Validaciones verificadas por plugin: preflight Gutenberg aprobado; Reel validado.'), 'informe SEO sustituye el claim del modelo por resultado real de preflight y Reel');
+
+/* La decisión P2 se fija en el workflow completo antes de formar el payload reducido. */
+$prompt_data = IDG_Workflow_Prompt_Data::prepare($action, $action['editorial_result'], 'seo');
+rc1782_ok(($prompt_data['primary_lens'] ?? '') === 'Animación' && ($prompt_data['internal_links_resolved'] ?? []) === IDG_Internal_Links::normalize($action), 'Prompt_Data conserva primary_lens y transmite exactamente la resolución P2 canónica');
+
+/* Recorrido preventivo completo: una llamada válida por fase, sin usar reparación. */
+$journey = rc1782_workflow('ActionForge217-prevention');
+$journey['base_article'] = ''; $journey['editorial_result'] = ''; $journey['seo_result'] = '';
+$journey_editorial = "ARTÍCULO REVISADO\n" . rc1782_article(rc1782_box('ActionForge', 40)) . "\n\nDIAGNÓSTICO EDITORIAL INTERNO\n- Sin cambios.\n\nNOTAS EDITORIALES INTERNAS\nSin notas.";
+$GLOBALS['rc1782_http_queue'] = [
+    rc1782_response(rc1782_article(rc1782_box('ActionForge', 40))),
+    rc1782_response($journey_editorial),
+    rc1782_response(rc1782_seo(rc1782_article(rc1782_box('ActionForge', 40)), rc1782_reel())),
+];
+$GLOBALS['rc1782_http_calls'] = [];
+$GLOBALS['rc1782_options']['ActionForge217-prevention'] = $journey;
+$pipeline = new IDG_Workflow_Redaction_Pipeline();
+$pipeline->execute('ActionForge217-prevention', 'generate', $journey, new IDG_OpenAI_Client('local-only', 'local-mock'));
+$journey = get_option('ActionForge217-prevention', []);
+$pipeline->execute('ActionForge217-prevention', 'editorial', $journey, new IDG_OpenAI_Client('local-only', 'local-mock'));
+$journey = get_option('ActionForge217-prevention', []);
+$pipeline->execute('ActionForge217-prevention', 'seo', $journey, new IDG_OpenAI_Client('local-only', 'local-mock'));
+$journey_done = get_option('ActionForge217-prevention', []);
+rc1782_ok(count($GLOBALS['rc1782_http_calls']) === 3 && empty($journey_done['generate_repair']['attempted']) && empty($journey_done['editorial_repair']['attempted']) && empty($journey_done['seo_repair']['attempted']), 'salida válida desde origen completa generate/editorial/SEO con una llamada por fase y sin reparación');
+rc1782_ok(!empty($journey_done['generate_validation']['ok']) && !empty($journey_done['editorial_validation']['ok']) && !empty($journey_done['seo_validation']['ok']) && str_contains((string) $journey_done['seo_result'], 'Caja editorial'), 'recorrido preventivo conserva caja, estructura, tesis y validación final');
 
 $created = IDG_Post_Creator::create_pending_post($action_done);
 rc1782_ok(!empty($created['success']), 'create_pending_post escribe ActionForge217 después de aprobación');
@@ -348,5 +374,21 @@ $GLOBALS['rc1782_options']['ActionForge217-editorial-unchanged'] = $unchanged;
 (new IDG_Workflow_Redaction_Pipeline())->execute('ActionForge217-editorial-unchanged', 'editorial', $unchanged, new IDG_OpenAI_Client('local-only', 'local-mock'));
 $unchanged_done = get_option('ActionForge217-editorial-unchanged', []);
 rc1782_ok(array_key_exists('editorial_changed', $unchanged_done) && $unchanged_done['editorial_changed'] === false && str_contains((string) $unchanged_done['editorial_diagnosis'], 'unchanged; no se atribuyen correcciones ni mejoras no realizadas'), 'editorial unchanged se registra por comparación real');
+
+
+/* Correcciones acotadas de la revisión RC1.7.8.3. */
+$ui = file_get_contents(ABSPATH . 'includes/class-admin-page.php');
+rc1782_ok(
+    str_contains($ui, '$seo_available && self::should_show_force_draft($workflow)')
+    && !str_contains($ui, '$seo_done && self::should_show_force_draft($workflow)'),
+    'la excepción depende de salida SEO disponible, no de validación aprobada'
+);
+$public_line = '- Validaciones: frase pública preservada.';
+$sample = "ARTÍCULO FINAL\n{$public_line}\n\nINFORME SEO INTERNO\n- Validaciones: cumple\n- Caja editorial: cumple\n\nCOPY PARA REDES\nCopy.";
+$method = new ReflectionMethod(IDG_Workflow_Redaction_Pipeline::class, 'verified_seo_result');
+$verified = $method->invoke(new IDG_Workflow_Redaction_Pipeline(), $sample, ['ok'=>false], ['valid'=>false]);
+rc1782_ok(str_starts_with($verified, "ARTÍCULO FINAL\n{$public_line}\n"), 'el informe verificado no modifica una línea pública homónima');
+rc1782_ok(str_contains($verified, 'Declaraciones del modelo (no equivalen a verificación del plugin):') && str_contains($verified, 'preflight Gutenberg requiere intervención; Reel requiere intervención.'), 'el informe distingue afirmaciones del modelo de resultados rechazados');
+rc1782_ok($method->invoke(new IDG_Workflow_Redaction_Pipeline(), $verified, ['ok'=>false], ['valid'=>false]) === $verified, 'la verificación del informe es idempotente');
 
 echo "RC1782_TARGETED_FUNCTIONAL_OK\n";

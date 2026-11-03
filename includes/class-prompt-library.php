@@ -44,6 +44,8 @@ CONTRATO COMPARTIDO GERIZIM — PREVALECE TAMBIÉN SOBRE OVERRIDES EDITABLES
 - Identidad global: Diseñador Traductor. Leer el presente a través del diseño, con profundidad sin densidad y claridad para no especialistas.
 - Vincula decisiones concretas verificables con percepción, uso o significado solo cuando la evidencia lo permita. Escribe con naturalidad, sin propaganda, reiteración ni mejoras fingidas.
 - Conserva y usa el contexto canónico, la ficha documental y de encargo, el plan aplicado, recetas y biblioteca, reglas activas, resolución P2, caja editorial y contrato Reel recibidos en este prompt.
+- En las tres fases, la caja debe tener la línea literal “Caja editorial” y un único párrafo factual de 40 a 55 palabras, después de la introducción y antes del primer H3, sin enlaces ni negritas. Si ya es válida, consérvala; corrige solo el defecto propio de la fase.
+- Mantén un único H1 y la jerarquía H2/H3. Para el Reel, cuenta palabras como secuencias Unicode de letras o números, admitiendo guiones internos; no afirmes cumplimiento sin ajustarte a ese conteo.
 - No inventes responsables, destinos, entidades, URLs, datos ni demostraciones factuales. Un vacío se diagnostica; no se rellena.
 - En revisión editorial, declara cambios solo si el artículo entregado difiere realmente del de entrada. En SEO, responde también por calidad, estructura y coherencia editorial.
 PROMPT;
@@ -53,9 +55,9 @@ PROMPT;
         $versions = [
             'material_card' => 'material-card-v1.1.0-RC1.5.2',
             'editorial_plan' => 'editorial-plan-v2.1.0-RC1.5.2',
-            'generate' => 'generate-v2.2.0-RC1.7.8.2',
-            'editorial' => 'editorial-v2.2.0-RC1.7.8.2',
-            'seo' => 'seo-v2.2.0-RC1.7.8.2',
+            'generate' => 'generate-v2.2.0-RC1.7.8.3',
+            'editorial' => 'editorial-v2.2.0-RC1.7.8.3',
+            'seo' => 'seo-v2.2.0-RC1.7.8.3',
             'web_research' => 'web-research-v1.2.0-RC1.5.2',
         ];
         return $versions[$type] ?? 'unknown';
@@ -622,7 +624,9 @@ PROMPT;
 
     private static function format_internal_links(array $data): string {
         $rows = [];
-        $links = IDG_Internal_Links::normalize($data);
+        $links = array_key_exists('internal_links_resolved', $data)
+            ? (array) $data['internal_links_resolved']
+            : IDG_Internal_Links::normalize($data);
         foreach ($links as $link) {
             $url = trim((string) ($link['url'] ?? ''));
             if ($url === '') {

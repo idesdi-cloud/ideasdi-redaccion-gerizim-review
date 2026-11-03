@@ -44,7 +44,7 @@ foreach ([
 ] as $mapping) {
     rc161_ok(str_contains($strategies, $mapping), "mapeo {$mapping} preservado");
 }
-rc161_ok(str_contains($strategies, 'draft_force_requested') && str_contains($strategies, 'recurring_content_force_requested'), 'eventos de override preservados');
+rc161_ok(str_contains($strategies, 'draft_force_requested') && str_contains($strategies, 'recurring_content_force_rejected'), 'override de pending y rechazo del override recurrente preservados');
 rc161_ok(str_contains($strategies, 'return false;') && str_contains($strategies, 'return null;'), 'acción desconocida conserva no-op');
 
 $expected_hashes = [
@@ -65,8 +65,8 @@ $complete_calls = 0;
 foreach (glob($root . '/includes/*.php') ?: [] as $path) {
     $complete_calls += substr_count(file_get_contents($path) ?: '', '->complete(');
 }
-rc161_ok($complete_calls === 8, 'número de llamadas OpenAI permanece en ocho');
-rc161_ok(substr_count($planning_redaction, 'IDG_Prompt_Library::') === 6, 'construcción de prompts preservada en pipelines');
+rc161_ok($complete_calls === 9, 'puntos de llamada OpenAI iguales al baseline RC1.7.8.2');
+rc161_ok(substr_count($planning_redaction, 'IDG_Prompt_Library::') === 7, 'construcción de prompts preservada en pipelines');
 rc161_ok(str_contains($read('tests/workflow-action-strategy-center-equivalence.php'), 'PASS workflow action strategy center equivalence'), 'prueba de equivalencia del centro incluida');
 rc161_ok(str_contains($read('tests/workflow-strategy-runner-routing-static.php'), 'PASS workflow strategy runner routing static'), 'prueba de enrutamiento incluida');
 

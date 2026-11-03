@@ -82,13 +82,13 @@ foreach (glob($root . '/includes/*.php') ?: [] as $path) {
 }
 
 rc165_ok(
-    $completeCalls === 8,
-    'ocho llamadas OpenAI preservadas'
+    $completeCalls === 9,
+    'puntos de llamada OpenAI del baseline preservados'
 );
 
 rc165_ok(
-    substr_count($planningRedaction, 'IDG_Prompt_Library::') === 6,
-    'seis puntos de construcción de prompts preservados'
+    substr_count($planningRedaction, 'IDG_Prompt_Library::') === 7,
+    'puntos de construcción de prompts del baseline preservados'
 );
 
 foreach ([

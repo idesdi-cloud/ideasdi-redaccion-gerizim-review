@@ -8,6 +8,11 @@ if (!defined('ABSPATH')) {
  */
 final class IDG_Workflow_Prompt_Data {
     public static function prepare(array $workflow, string $article, string $phase = 'generic'): array {
+        // P2 se resuelve una sola vez contra el workflow completo antes de reducirlo
+        // para el prompt. El formateador recibe esta decisión, no vuelve a inferirla.
+        $resolved_internal_links = class_exists('IDG_Internal_Links')
+            ? IDG_Internal_Links::normalize($workflow)
+            : [];
         $category_name = '';
         if (!empty($workflow['editorial_context_name'])) {
             $category_name = (string) $workflow['editorial_context_name'];
@@ -50,6 +55,9 @@ final class IDG_Workflow_Prompt_Data {
         return [
             'canonical_context' => class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::resolve($workflow) : [],
             'canonical_guidance' => class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::prompt_block($workflow) : '',
+            'primary_lens' => (string) ($workflow['primary_lens'] ?? ''),
+            'secondary_lenses' => (array) ($workflow['secondary_lenses'] ?? []),
+            'responsible_official_url' => (string) ($workflow['responsible_official_url'] ?? ''),
             'keyword' => $workflow['keyword'] ?? '',
             'entity' => $workflow['entity'] ?? '',
             'piece_type' => $workflow['piece_type'] ?? '',
@@ -71,6 +79,7 @@ final class IDG_Workflow_Prompt_Data {
             'official_source' => $workflow['official_source'] ?? '',
             'internal_links' => $workflow['internal_links'] ?? '',
             'internal_links_structured' => $workflow['internal_links_structured'] ?? [],
+            'internal_links_resolved' => $resolved_internal_links,
             'editor_notes' => $workflow['editor_notes'] ?? '',
             'sponsor_client' => $workflow['sponsor_client'] ?? '',
             'sponsored_topic' => $workflow['sponsored_topic'] ?? '',

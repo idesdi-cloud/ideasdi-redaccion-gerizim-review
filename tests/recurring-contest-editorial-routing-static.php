@@ -31,6 +31,6 @@ $complete_calls = 0;
 foreach (glob($root . '/includes/*.php') ?: [] as $path) {
     $complete_calls += substr_count(file_get_contents($path) ?: '', '->complete(');
 }
-contest_route_assert($complete_calls === 8, 'No se añadieron llamadas a OpenAI.');
+contest_route_assert($complete_calls === 9, 'No se añadieron llamadas a OpenAI.');
 
 echo "PASS recurring contest editorial routing static\n";

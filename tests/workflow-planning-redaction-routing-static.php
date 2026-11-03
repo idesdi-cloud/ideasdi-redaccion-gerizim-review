@@ -28,14 +28,14 @@ split_static_ok(!str_contains($runner, 'ensure_document_card') && !str_contains(
 split_static_ok(str_contains($planning, 'material_card_prompt') && str_contains($planning, 'editorial_plan_prompt'), 'pipeline de planificación conserva ficha y plan');
 split_static_ok(str_contains($redaction, 'generate_prompt') && str_contains($redaction, 'editorial_prompt') && str_contains($redaction, 'seo_prompt'), 'pipeline de redacción conserva las tres fases');
 split_static_ok(str_contains($prompt_data, "'temporary_material_excerpt'") && str_contains($prompt_data, "'editorial_plan'"), 'payload histórico de prompts está encapsulado');
-split_static_ok(!str_contains($redaction, 'IDG_Post_Creator::') && !str_contains($planning, 'IDG_Post_Creator::'), 'planificación y redacción no publican');
+split_static_ok(!preg_match('/IDG_Post_Creator::(?!(?:preflight_public|prepared_payload_hash)\s*\()/u', $planning . $redaction), 'planificación y redacción no publican');
 split_static_ok(str_contains($runner, 'IDG_Post_Creator::create_pending_post') && str_contains($runner, 'IDG_Post_Creator::update_existing_event'), 'publicación permanece en el runner histórico');
 
 $complete_calls = 0;
 foreach (glob($root . '/includes/*.php') ?: [] as $path) {
     $complete_calls += substr_count(file_get_contents($path) ?: '', '->complete(');
 }
-split_static_ok($complete_calls === 8, 'número total de llamadas OpenAI permanece en ocho');
-split_static_ok(substr_count($planning . $redaction, 'IDG_Prompt_Library::') === 6, 'seis puntos de construcción de prompts preservados');
+split_static_ok($complete_calls === 9, 'puntos de llamada OpenAI iguales al baseline RC1.7.8.2');
+split_static_ok(substr_count($planning . $redaction, 'IDG_Prompt_Library::') === 7, 'puntos de construcción de prompts del baseline preservados');
 
 echo "PASS workflow planning redaction routing static\n";

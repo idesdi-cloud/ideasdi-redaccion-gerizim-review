@@ -34,7 +34,7 @@ rc163_ok(!str_contains($runner, 'IDG_Prompt_Library::') && !str_contains($runner
 rc163_ok(!str_contains($runner, 'ensure_editorial_plan') && !str_contains($runner, 'ensure_document_card'), 'runner desacoplado de planificación');
 rc163_ok(str_contains($planning, 'editorial_plan_prompt') && str_contains($planning, 'material_card_prompt'), 'planificación conserva prompts existentes');
 rc163_ok(str_contains($redaction, 'generate_prompt') && str_contains($redaction, 'editorial_prompt') && str_contains($redaction, 'seo_prompt'), 'redacción conserva fases existentes');
-rc163_ok(!str_contains($planning . $redaction, 'IDG_Post_Creator::'), 'pipelines no publican');
+rc163_ok(!preg_match('/IDG_Post_Creator::(?!(?:preflight_public|prepared_payload_hash)\s*\()/u', $planning . $redaction), 'pipelines no publican');
 rc163_ok(str_contains($runner, 'IDG_Post_Creator::create_pending_post') && str_contains($runner, 'IDG_Post_Creator::update_existing_event'), 'publicación histórica permanece en runner');
 rc163_ok(str_contains($prompt_data, "'keyword'") && str_contains($prompt_data, "'temporary_material_mode'") && str_contains($prompt_data, "'article'"), 'payload de prompt conservado');
 rc163_ok(str_contains($output_parser, 'parse_editorial') && str_contains($output_parser, 'extract_feedback_notes'), 'postprocesamiento determinista separado');
@@ -58,8 +58,8 @@ $complete_calls = 0;
 foreach (glob($root . '/includes/*.php') ?: [] as $path) {
     $complete_calls += substr_count(file_get_contents($path) ?: '', '->complete(');
 }
-rc163_ok($complete_calls === 8, 'número de llamadas OpenAI permanece en ocho');
-rc163_ok(substr_count($planning . $redaction, 'IDG_Prompt_Library::') === 6, 'seis puntos de construcción de prompts preservados');
+rc163_ok($complete_calls === 9, 'puntos de llamada OpenAI iguales al baseline RC1.7.8.2');
+rc163_ok(substr_count($planning . $redaction, 'IDG_Prompt_Library::') === 7, 'puntos de construcción de prompts del baseline preservados');
 rc163_ok(str_contains($read('tests/workflow-planning-redaction-equivalence.php'), 'PASS workflow planning redaction equivalence'), 'prueba de equivalencia incluida');
 rc163_ok(str_contains($read('tests/workflow-planning-redaction-routing-static.php'), 'PASS workflow planning redaction routing static'), 'prueba estática incluida');
 rc163_ok(str_contains($read('tests/workflow-policies-equivalence.php'), 'PASS workflow policies equivalence'), 'regresión de políticas incluida');

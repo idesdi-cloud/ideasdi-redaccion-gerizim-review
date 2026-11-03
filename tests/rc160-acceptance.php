@@ -57,8 +57,8 @@ $complete_calls = 0;
 foreach (glob($root . '/includes/*.php') ?: [] as $path) {
     $complete_calls += substr_count(file_get_contents($path) ?: '', '->complete(');
 }
-rc160_ok($complete_calls === 8, 'número de llamadas OpenAI permanece en ocho');
-rc160_ok(substr_count($planning_redaction, 'IDG_Prompt_Library::') === 6, 'puntos de construcción de prompts preservada en pipelines');
+rc160_ok($complete_calls === 9, 'puntos de llamada OpenAI iguales al baseline RC1.7.8.2');
+rc160_ok(substr_count($planning_redaction, 'IDG_Prompt_Library::') === 7, 'puntos de construcción de prompts preservada en pipelines');
 rc160_ok(str_contains($read('includes/class-post-creator.php'), 'has_category(34, $post_before)') && str_contains($read('includes/class-post-creator.php'), 'target_post_fingerprint($post_id, $content_type)'), 'escritor recurrente amplía destino a concursos con identidad protegida');
 rc160_ok(str_contains($recurring, 'build_contest_editorial_workflow_data') && !str_contains($recurring, 'La escritura de concursos o convocatorias permanece desactivada'), 'concursos pueden aplicar datos y preparar workflow editorial');
 rc160_ok(str_contains($read('tests/workflow-adapters-equivalence.php'), 'PASS workflow adapters equivalence'), 'prueba de adaptadores incluida');

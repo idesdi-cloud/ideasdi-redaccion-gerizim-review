@@ -1871,22 +1871,25 @@ final class IDG_Workflow_Admin_Controller {
                     <?php self::render_internal_links_fields($workflow); ?>
 
                     <?php
-                    $base_done = trim((string) ($workflow['base_article'] ?? '')) !== '';
-                    $editorial_done = !empty($workflow['editorial_result']);
-                    $seo_done = !empty($workflow['seo_result']);
+                    $base_available = trim((string) ($workflow['base_article'] ?? '')) !== '';
+                    $base_done = !empty($workflow['generate_validation']['ok']);
+                    $editorial_available = trim((string) ($workflow['editorial_result'] ?? '')) !== '';
+                    $editorial_done = !empty($workflow['editorial_validation']['ok']);
+                    $seo_available = trim((string) ($workflow['seo_result'] ?? '')) !== '';
+                    $seo_done = !empty($workflow['seo_validation']['ok']);
                     $draft_done = $is_recurring_workflow ? !empty($workflow['recurring_event_content_updated']) : !empty($workflow['draft_post_id']);
                     ?>
                     <div class="idg-actions">
-                        <?php $generate_done = !empty($workflow['base_article']) && ((string) ($workflow['last_action'] ?? '') === 'generate' || !empty($workflow['generated_from_brief'])); ?>
+                        <?php $generate_done = $base_done && ((string) ($workflow['last_action'] ?? '') === 'generate' || !empty($workflow['generated_from_brief'])); ?>
                         <button type="submit" id="idg_generate_button" name="step" value="generate" class="button button-primary <?php echo $generate_done ? 'idg-step-done' : ''; ?>" title="Generar artículo base desde el brief editorial">Generar artículo base</button>
-                        <button type="submit" name="step" value="editorial" class="button button-primary <?php echo $editorial_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$base_done); ?> title="<?php echo esc_attr($base_done ? 'Ejecutar o repetir Revisión editorial' : 'Primero ejecuta Generar artículo base'); ?>">Revisión editorial</button>
-                        <button type="submit" name="step" value="seo" class="button button-primary <?php echo $seo_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$editorial_done); ?> title="<?php echo esc_attr($editorial_done ? 'Ejecutar o repetir Revisión SEO' : 'Primero ejecuta Revisión editorial'); ?>">Revisión SEO</button>
+                        <button type="submit" name="step" value="editorial" class="button button-primary <?php echo $editorial_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$base_available); ?> title="<?php echo esc_attr($base_available ? 'Ejecutar o repetir Revisión editorial' : 'Primero ejecuta Generar artículo base'); ?>">Revisión editorial</button>
+                        <button type="submit" name="step" value="seo" class="button button-primary <?php echo $seo_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$editorial_done); ?> title="<?php echo esc_attr($editorial_done ? 'Ejecutar o repetir Revisión SEO' : ($editorial_available ? 'La salida editorial requiere corrección antes de SEO' : 'Primero ejecuta Revisión editorial')); ?>">Revisión SEO</button>
                         <?php if ($is_recurring_workflow) : ?>
                             <?php if ($seo_done && !$draft_done) : ?><div class="notice notice-warning inline idg-recurring-content-pending"><p><strong>Versión 3 lista, todavía no aplicada:</strong> abrir la publicación ahora mostrará el contenido anterior. Usa el botón siguiente para reemplazarlo.</p></div><?php endif; ?>
                             <button type="submit" name="step" value="recurring_event_content" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> data-confirm="¿Aplicar la Versión 3 · Revisión SEO final a la publicación ID <?php echo esc_attr((string) ($workflow['recurring_target_post_id'] ?? '')); ?>? Se reemplazarán título, contenido y extracto; se conservarán slug, campos estructurados, estado, autor, taxonomías e imagen." title="<?php echo esc_attr($seo_done ? 'Aplicar la Versión 3 validada a la publicación existente' : 'Primero ejecuta Revisión SEO'); ?>"><?php echo $draft_done ? 'Versión 3 aplicada a la publicación' : 'Aplicar Versión 3 a la publicación ID ' . esc_html((string) ($workflow['recurring_target_post_id'] ?? '')); ?></button>
                         <?php else : ?>
                             <button type="submit" name="step" value="draft" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> title="<?php echo esc_attr($seo_done ? 'Crear o repetir entrada pendiente en WordPress' : 'Primero ejecuta Revisión SEO'); ?>">Crear entrada en WordPress</button>
-                            <?php if ($seo_done && self::should_show_force_draft($workflow)) : ?>
+                            <?php if ($seo_available && self::should_show_force_draft($workflow)) : ?>
                                 <?php
                                 $force_user_id = get_current_user_id();
                                 $force_hash = IDG_Post_Creator::override_content_hash($workflow);
@@ -1900,6 +1903,8 @@ final class IDG_Workflow_Admin_Controller {
                                     <input type="hidden" name="idg_force_nonce" value="<?php echo esc_attr(wp_create_nonce($force_action)); ?>">
                                 </div>
                                 <button type="submit" name="step" value="draft_force" class="button idg-button-warning" data-confirm="La validación seguirá rechazada. ¿Crear únicamente una entrada pending nueva con revisión manual obligatoria?" title="Crear pending con excepción editorial confirmada">Crear pending con excepción editorial</button>
+                            <?php elseif ($seo_available && !$seo_done && !$draft_done) : ?>
+                                <div class="notice notice-warning inline"><p><strong>Revisión SEO pendiente de corrección:</strong> <?php echo esc_html((string) ($workflow['seo_validation_summary'] ?? 'La salida existe, pero el preflight no está aprobado y no admite excepción editorial.')); ?></p></div>
                             <?php endif; ?>
                         <?php endif; ?>
                     </div>

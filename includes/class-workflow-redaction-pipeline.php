@@ -139,7 +139,18 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
 
         $prepared = (array) ($preflight['prepared'] ?? []);
         $reel = class_exists('IDG_Reel_Contract') ? IDG_Reel_Contract::inspect((string) ($prepared['reel_package'] ?? '')) : ['valid' => false, 'issues' => ['Reel Contract no disponible.']];
-        $workflow['seo_result'] = (string) ($prepared['processed_seo_result'] ?? $candidate);
+        $workflow['seo_result'] = $this->verified_seo_result(
+            (string) ($prepared['processed_seo_result'] ?? $candidate),
+            $validation,
+            $reel
+        );
+        // El informe forma parte del sello de escritura. Recalcula el mismo
+        // preflight tras sustituir únicamente esa línea interna, sin reparar
+        // ni alterar artículo, Reel ni Gutenberg.
+        $preflight = IDG_Post_Creator::preflight_public($workflow);
+        $validation = (array) ($preflight['validation'] ?? []);
+        $prepared = (array) ($preflight['prepared'] ?? []);
+        $reel = class_exists('IDG_Reel_Contract') ? IDG_Reel_Contract::inspect((string) ($prepared['reel_package'] ?? '')) : ['valid' => false, 'issues' => ['Reel Contract no disponible.']];
         $workflow['seo_validation'] = $validation;
         $workflow['seo_validation_summary'] = (string) ($validation['summary'] ?? '');
         $workflow['seo_article_validation'] = [
@@ -312,5 +323,23 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             'usage' => (array) ($repair['usage'] ?? []),
             'model' => (string) ($repair['model'] ?? ''),
         ];
+    }
+
+    /** Reemplaza únicamente el claim del modelo por el resultado real del plugin. */
+    private function verified_seo_result(string $result, array $validation, array $reel): string {
+        $preflight = !empty($validation['ok']) ? 'preflight Gutenberg aprobado' : 'preflight Gutenberg requiere intervención';
+        $reel_status = !empty($reel['valid']) ? 'Reel validado' : 'Reel requiere intervención';
+        $line = '- Validaciones verificadas por plugin: ' . $preflight . '; ' . $reel_status . '.';
+        $label = 'Declaraciones del modelo (no equivalen a verificación del plugin):';
+        return (string) preg_replace_callback(
+            '/(^INFORME SEO INTERNO[ \t]*\R)(.*?)(?=^COPY PARA REDES[ \t]*\r?$)/msu',
+            static function (array $match) use ($line, $label): string {
+                $body = str_replace($label, '', $match[2]);
+                $body = preg_replace('/^[ \t]*[-*][ \t]*Validaciones(?:[ \t]+verificadas[ \t]+por[ \t]+plugin)?[ \t]*:.*$/imu', '', $body);
+                return $match[1] . $label . "\n" . trim((string) $body) . "\n\n" . $line . "\n\n";
+            },
+            $result,
+            1
+        );
     }
 }

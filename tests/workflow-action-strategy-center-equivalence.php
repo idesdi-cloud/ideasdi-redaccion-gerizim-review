@@ -3,9 +3,15 @@ define('ABSPATH', __DIR__ . '/');
 
 final class IDG_Job_Runner {
     public static array $calls = [];
+    public static array $saved = [];
+
+    public static function save_workflow(string $id, array $workflow): void {
+        self::$saved[] = ['workflow_id' => $id, 'workflow' => $workflow];
+    }
 
     public static function reset(): void {
         self::$calls = [];
+        self::$saved = [];
     }
 
     public static function append_history_snapshot(array $workflow, string $event, string $message): array {
@@ -92,6 +98,17 @@ foreach ($stage_map as $action => $expected_stage) {
     ];
     $executed = IDG_Workflow_Action_Strategy_Center::execute('idg_strategy_fixture', $action, $fixture);
     strategy_ok($executed === true, "acción {$action} ejecutada");
+    if ($action === 'recurring_event_content_force') {
+        strategy_ok(IDG_Job_Runner::$calls === [], 'override recurrente nunca ejecuta escritura');
+        strategy_ok(count(IDG_Job_Runner::$saved) === 1, 'rechazo recurrente se guarda una vez');
+        $saved = IDG_Job_Runner::$saved[0];
+        strategy_ok($saved['workflow_id'] === 'idg_strategy_fixture', 'rechazo conserva workflow_id');
+        strategy_ok(($saved['workflow']['status'] ?? '') === 'failed', 'override recurrente queda rechazado');
+        strategy_ok(($saved['workflow']['nested'] ?? null) === $fixture['nested'], 'rechazo conserva datos anidados');
+        $last = end($saved['workflow']['history']);
+        strategy_ok(($last['event'] ?? '') === 'recurring_content_force_rejected', 'rechazo recurrente queda trazado');
+        continue;
+    }
     strategy_ok(count(IDG_Job_Runner::$calls) === 1, "acción {$action} ejecuta una sola etapa");
     $call = IDG_Job_Runner::$calls[0];
     strategy_ok($call['stage'] === $expected_stage, "acción {$action} conserva etapa {$expected_stage}");
