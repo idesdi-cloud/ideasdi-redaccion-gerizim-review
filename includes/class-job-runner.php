@@ -156,6 +156,9 @@ final class IDG_Job_Runner {
                 $workflow['final_validation_summary'] = (string) $result['validation_summary'];
             }
             $workflow = self::append_history($workflow, 'draft_failed', $result['message']);
+            foreach (['force_validation_override', 'force_confirmation', 'force_confirmation_user_id', 'force_confirmation_workflow_id', 'force_confirmation_content_hash', 'force_confirmation_nonce'] as $key) {
+                unset($workflow[$key]);
+            }
             self::save_workflow($workflow_id, $workflow);
             IDG_Logger::log('draft_failed', $result['message'], ['workflow_id' => $workflow_id]);
             return;
@@ -179,8 +182,18 @@ final class IDG_Job_Runner {
         if (!empty($result['postprocessing_audit']) && is_array($result['postprocessing_audit'])) {
             $workflow['postprocessing_audit'] = $result['postprocessing_audit'];
         }
-        $workflow = self::append_history($workflow, 'draft_created', !empty($workflow['force_validation_override']) ? 'Entrada creada en Pendiente de revisión con validación ignorada manualmente.' : 'Entrada creada en Pendiente de revisión.');
-        unset($workflow['force_validation_override']);
+        $was_overridden = !empty($result['validation']['overridden']);
+        if ($was_overridden) {
+            $workflow['final_validation_overridden'] = true;
+            $workflow['final_validation_ignored_errors'] = (array) ($result['validation']['ignored_errors'] ?? []);
+            $workflow['manual_review_required'] = true;
+        }
+        $workflow = self::append_history($workflow, $was_overridden ? 'draft_created_with_editorial_override' : 'draft_created', $was_overridden
+            ? 'Entrada pending nueva creada con validación rechazada, excepción editorial confirmada y revisión manual obligatoria.'
+            : 'Entrada creada en Pendiente de revisión.');
+        foreach (['force_validation_override', 'force_confirmation', 'force_confirmation_user_id', 'force_confirmation_workflow_id', 'force_confirmation_content_hash', 'force_confirmation_nonce'] as $key) {
+            unset($workflow[$key]);
+        }
         self::save_workflow($workflow_id, $workflow);
         if (class_exists('IDG_Traceability')) {
             IDG_Traceability::safe_capture_wordpress_post_created($workflow_id, (int) $result['post_id']);

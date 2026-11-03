@@ -17,8 +17,15 @@ final class IDG_Post_Creator {
             $workflow = IDG_Assignment_Card::attach($workflow);
         }
 
+        if (!empty($workflow['force_validation_override']) && !self::force_target_is_new_pending($workflow)) {
+            return [
+                'success' => false,
+                'message' => 'La excepción editorial solo puede crear una entrada pendiente nueva y nunca reutilizar un destino existente o recurrente.',
+            ];
+        }
+
         $prepared = self::preflight_public($workflow, 'Artículo ideasDi');
-        if (empty($prepared['ok'])) {
+        if (empty($prepared['write_allowed'])) {
             return [
                 'success' => false,
                 'message' => 'Validación real bloqueó la creación de la entrada: ' . implode(' · ', (array) ($prepared['errors'] ?? [])),
@@ -27,6 +34,20 @@ final class IDG_Post_Creator {
         }
         $workflow = $prepared['workflow'];
         extract($prepared['prepared'], EXTR_OVERWRITE);
+
+        $approved_payload_hash = (string) ($workflow['seo_preflight_payload_hash'] ?? '');
+        $approved_post_content = (string) ($workflow['seo_preflight_post_content'] ?? '');
+        $payload_hash = self::prepared_payload_hash($prepared);
+        if (empty($validation['overridden']) && ($approved_payload_hash === ''
+            || $approved_post_content === ''
+            || !hash_equals($approved_payload_hash, $payload_hash)
+            || !hash_equals($approved_post_content, (string) $post_content))) {
+            return [
+                'success' => false,
+                'message' => 'El payload Gutenberg cambió o no conserva el sello del preflight SEO aprobado. Ejecuta nuevamente Revisión SEO.',
+                'validation_summary' => (string) ($validation['summary'] ?? ''),
+            ];
+        }
 
         $slug_source = (string) ($workflow['keyword'] ?? '');
         if ($slug_source === '') {
@@ -91,7 +112,27 @@ final class IDG_Post_Creator {
             'created_at' => current_time('mysql'),
             'user_id' => get_current_user_id(),
             'workflow_id' => $workflow['workflow_id'] ?? '',
+            'validation_ok' => !empty($validation['ok']),
+            'validation_overridden' => !empty($validation['overridden']),
+            'manual_review_required' => !empty($validation['overridden']),
         ]));
+        if (!empty($validation['overridden'])) {
+            $override_record = [
+                'overridden' => true,
+                'validation_ok' => false,
+                'manual_review_required' => true,
+                'ignored_errors' => array_values((array) ($validation['ignored_errors'] ?? $validation['errors'] ?? [])),
+                'error_codes' => array_values((array) ($validation['error_codes'] ?? [])),
+                'user_id' => get_current_user_id(),
+                'workflow_id' => (string) ($workflow['workflow_id'] ?? ''),
+                'content_hash' => self::override_content_hash($workflow),
+                'payload_hash' => $payload_hash,
+                'confirmed_at' => current_time('mysql'),
+            ];
+            $override_record['seal'] = hash('sha256', (string) wp_json_encode($override_record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            update_post_meta($post_id, '_idg_validation_override', wp_json_encode($override_record));
+            update_post_meta($post_id, '_idg_manual_review_required', '1');
+        }
 
         $radar_brief_id = absint($workflow['radar_brief_id'] ?? 0);
         $radar_hallazgo_id = absint($workflow['radar_hallazgo_id'] ?? 0);
@@ -121,6 +162,8 @@ final class IDG_Post_Creator {
             'postprocessing_audit' => $postprocessing_audit,
             'seo_result' => $processed_seo_result,
             'reel_package' => $reel_package,
+            'validation' => $validation,
+            'payload_hash' => $payload_hash,
         ];
     }
 
@@ -164,7 +207,13 @@ final class IDG_Post_Creator {
         $feedback_notes = self::repair_feedback_link_notes($feedback_notes, $html_content, $workflow);
         $processed_seo_result = self::rebuild_seo_result($content, $seo_title, $meta_description, $seo_report, $social_copy, $reel_package, $feedback_notes);
         $post_content = self::html_to_gutenberg_blocks($html_content);
-        $validation = ['ok' => true, 'errors' => [], 'warnings' => [], 'summary' => 'Final Guard no disponible.'];
+        $validation = [
+            'ok' => false,
+            'errors' => ['Final Guard no disponible: la escritura queda bloqueada.'],
+            'warnings' => [],
+            'summary' => '- ERROR: Final Guard no disponible: la escritura queda bloqueada.',
+            'error_codes' => ['guard_unavailable'],
+        ];
         if (class_exists('IDG_Final_Guard')) {
             $validation = IDG_Final_Guard::validate_before_draft($content, $html_content, $sections, $workflow);
             $gutenberg_validation = IDG_Final_Guard::validate_gutenberg_blocks($post_content);
@@ -173,15 +222,23 @@ final class IDG_Post_Creator {
                 $validation['errors'] = array_merge((array) ($validation['errors'] ?? []), (array) ($gutenberg_validation['errors'] ?? []));
                 $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "\n" . implode("\n", array_map(static fn($error) => '- ERROR: ' . $error, (array) ($gutenberg_validation['errors'] ?? []))));
             }
+            $validation['error_codes'] = IDG_Final_Guard::classify_errors((array) ($validation['errors'] ?? []));
         }
-        if (empty($validation['ok']) && !empty($workflow['force_validation_override']) && self::editorial_override_allowed($validation)) {
+        $write_allowed = !empty($validation['ok']);
+        if (empty($validation['ok'])
+            && !empty($workflow['force_validation_override'])
+            && self::editorial_override_allowed($validation)
+            && self::valid_force_confirmation($workflow)) {
             $validation['warnings'] = array_merge((array) ($validation['warnings'] ?? []), (array) ($validation['errors'] ?? []));
-            $validation['summary'] .= "\n- AVISO: Validación editorial ignorada manualmente por el editor; requiere revisión antes de publicar.";
-            $validation['ok'] = true;
+            $validation['summary'] .= "\n- AVISO: La validación sigue rechazada; se autorizó únicamente la escritura de un pending nuevo para revisión manual.";
             $validation['overridden'] = true;
+            $validation['ignored_errors'] = (array) ($validation['errors'] ?? []);
+            $validation['manual_review_required'] = true;
+            $write_allowed = true;
         }
         return [
             'ok' => !empty($validation['ok']),
+            'write_allowed' => $write_allowed,
             'errors' => (array) ($validation['errors'] ?? []),
             'validation' => $validation,
             'workflow' => $workflow,
@@ -190,11 +247,96 @@ final class IDG_Post_Creator {
     }
 
     public static function override_eligible(array $validation): bool {
-        return false;
+        if (!empty($validation['ok']) || empty($validation['errors']) || !class_exists('IDG_Final_Guard')) {
+            return false;
+        }
+        $codes = isset($validation['error_codes']) && is_array($validation['error_codes'])
+            ? array_values($validation['error_codes'])
+            : IDG_Final_Guard::classify_errors((array) $validation['errors']);
+        if (count($codes) !== count((array) $validation['errors'])) {
+            return false;
+        }
+        $allowed = ['editorial_structure', 'reel_contract', 'p2_unresolved'];
+        foreach ($codes as $code) {
+            if (!in_array((string) $code, $allowed, true)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static function editorial_override_allowed(array $validation): bool {
         return self::override_eligible($validation);
+    }
+
+    public static function override_content_hash(array $workflow): string {
+        $critical = [];
+        foreach ([
+            'workflow_id', 'seo_result', 'keyword', 'entity', 'official_source',
+            'responsible_official_url', 'category_id', 'tag_ids',
+            'internal_links_structured', 'assignment_card', 'editorial_plan_raw',
+            'editorial_recipe_applied', 'draft_post_id', 'workflow_origin',
+            'recurring_target_post_id', 'recurring_target_post_type',
+        ] as $key) {
+            $critical[$key] = $workflow[$key] ?? null;
+        }
+        self::sort_hash_value($critical);
+        return hash('sha256', (string) wp_json_encode($critical, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+
+    public static function force_nonce_action(array $workflow, int $user_id): string {
+        return 'idg_draft_force|' . (string) ($workflow['workflow_id'] ?? '') . '|' . self::override_content_hash($workflow) . '|' . $user_id;
+    }
+
+    public static function prepared_payload_hash(array $preflight): string {
+        $prepared = (array) ($preflight['prepared'] ?? []);
+        $payload = [
+            'title' => (string) ($prepared['title'] ?? ''),
+            'post_content' => (string) ($prepared['post_content'] ?? ''),
+            'meta_description' => (string) ($prepared['meta_description'] ?? ''),
+            'seo_result' => (string) ($prepared['processed_seo_result'] ?? ''),
+            'reel_package' => (string) ($prepared['reel_package'] ?? ''),
+        ];
+        return hash('sha256', (string) wp_json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+
+    private static function valid_force_confirmation(array $workflow): bool {
+        if (!self::force_target_is_new_pending($workflow)
+            || empty($workflow['force_confirmation'])
+            || !function_exists('current_user_can')
+            || !current_user_can('edit_posts')
+            || !function_exists('wp_verify_nonce')) {
+            return false;
+        }
+        $user_id = (int) get_current_user_id();
+        $confirmed_user = (int) ($workflow['force_confirmation_user_id'] ?? 0);
+        $confirmed_workflow = (string) ($workflow['force_confirmation_workflow_id'] ?? '');
+        $confirmed_hash = (string) ($workflow['force_confirmation_content_hash'] ?? '');
+        $nonce = (string) ($workflow['force_confirmation_nonce'] ?? '');
+        return $user_id > 0
+            && $confirmed_user === $user_id
+            && $confirmed_workflow !== ''
+            && hash_equals((string) ($workflow['workflow_id'] ?? ''), $confirmed_workflow)
+            && $confirmed_hash !== ''
+            && hash_equals(self::override_content_hash($workflow), $confirmed_hash)
+            && (bool) wp_verify_nonce($nonce, self::force_nonce_action($workflow, $user_id));
+    }
+
+    private static function force_target_is_new_pending(array $workflow): bool {
+        return empty($workflow['draft_post_id'])
+            && empty($workflow['recurring_target_post_id'])
+            && empty($workflow['recurring_target_post_type'])
+            && (string) ($workflow['workflow_origin'] ?? '') !== 'recurring_update';
+    }
+
+    private static function sort_hash_value(array &$value): void {
+        foreach ($value as &$item) {
+            if (is_array($item)) {
+                self::sort_hash_value($item);
+            }
+        }
+        unset($item);
+        ksort($value);
     }
 
     public static function update_existing_event(array $workflow): array {
@@ -257,6 +399,20 @@ final class IDG_Post_Creator {
         }
         $workflow = $prepared['workflow'];
         extract($prepared['prepared'], EXTR_OVERWRITE);
+
+        $approved_payload_hash = (string) ($workflow['seo_preflight_payload_hash'] ?? '');
+        $approved_post_content = (string) ($workflow['seo_preflight_post_content'] ?? '');
+        $payload_hash = self::prepared_payload_hash($prepared);
+        if ($approved_payload_hash === ''
+            || $approved_post_content === ''
+            || !hash_equals($approved_payload_hash, $payload_hash)
+            || !hash_equals($approved_post_content, (string) $post_content)) {
+            return [
+                'success' => false,
+                'message' => 'El payload Gutenberg recurrente cambió o no conserva el sello del preflight SEO aprobado. Ejecuta nuevamente Revisión SEO.',
+                'validation_summary' => (string) ($validation['summary'] ?? ''),
+            ];
+        }
 
 
         // Justo antes de escribir se revalidan los límites de identidad. Un
@@ -1561,6 +1717,10 @@ final class IDG_Post_Creator {
     }
 
     private static function ensure_official_source_link(string $html, array $workflow): string {
+        // En Diseño digital el enlace y su frase pertenecen a SEO, no a esta capa.
+        if (str_contains(self::workflow_category_plain($workflow), 'digital')) {
+            return $html;
+        }
         $url = self::resolved_official_source_url($workflow);
         if ($url === '' || self::is_ideasdi_url($url) || self::html_anchor_count_for_url($html, $url) > 0) {
             return $html;
@@ -1582,6 +1742,9 @@ final class IDG_Post_Creator {
             $candidates = array_merge(['página oficial del evento', 'web oficial del evento'], $candidates);
         }
         foreach (array_values(array_unique(array_filter(array_map('trim', $candidates)))) as $candidate) {
+            if (self::same_plain($candidate, (string) ($workflow['keyword'] ?? ''))) {
+                continue;
+            }
             $linked = self::link_first_anchor_occurrence($html, $candidate, $url);
             if ($linked !== $html) {
                 return $linked;

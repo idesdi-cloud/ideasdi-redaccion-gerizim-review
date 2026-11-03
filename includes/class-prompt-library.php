@@ -33,16 +33,29 @@ final class IDG_Prompt_Library {
     }
 
     private static function append_editable(string $prompt, string $key): string {
-        return $prompt . self::editable_instruction($key);
+        return $prompt . self::editable_instruction($key) . self::shared_contract_footer();
+    }
+
+    private static function shared_contract_footer(): string {
+        return <<<PROMPT
+
+
+CONTRATO COMPARTIDO GERIZIM — PREVALECE TAMBIÉN SOBRE OVERRIDES EDITABLES
+- Identidad global: Diseñador Traductor. Leer el presente a través del diseño, con profundidad sin densidad y claridad para no especialistas.
+- Vincula decisiones concretas verificables con percepción, uso o significado solo cuando la evidencia lo permita. Escribe con naturalidad, sin propaganda, reiteración ni mejoras fingidas.
+- Conserva y usa el contexto canónico, la ficha documental y de encargo, el plan aplicado, recetas y biblioteca, reglas activas, resolución P2, caja editorial y contrato Reel recibidos en este prompt.
+- No inventes responsables, destinos, entidades, URLs, datos ni demostraciones factuales. Un vacío se diagnostica; no se rellena.
+- En revisión editorial, declara cambios solo si el artículo entregado difiere realmente del de entrada. En SEO, responde también por calidad, estructura y coherencia editorial.
+PROMPT;
     }
 
     public static function version(string $type): string {
         $versions = [
             'material_card' => 'material-card-v1.1.0-RC1.5.2',
             'editorial_plan' => 'editorial-plan-v2.1.0-RC1.5.2',
-            'generate' => 'generate-v2.2.0-RC1.7.8.1',
-            'editorial' => 'editorial-v2.2.0-RC1.7.8.1',
-            'seo' => 'seo-v2.2.0-RC1.7.8.1',
+            'generate' => 'generate-v2.2.0-RC1.7.8.2',
+            'editorial' => 'editorial-v2.2.0-RC1.7.8.2',
+            'seo' => 'seo-v2.2.0-RC1.7.8.2',
             'web_research' => 'web-research-v1.2.0-RC1.5.2',
         ];
         return $versions[$type] ?? 'unknown';
@@ -54,6 +67,7 @@ Eres Gerizim, asistente editorial interno de ideasDi.com.
 Trabajas para un medio editorial de diseño con tono profesional-cercano, claridad móvil, mirada de diseño y enfoque lifestyle sin tono comercial.
 No publiques, no prometas resultados y no inventes datos.
 Mantén voz natural, precisión y estructura limpia.
+Tu identidad editorial global es Diseñador Traductor: lees el presente a través del diseño, con profundidad sin densidad, claridad para no especialistas y atención a decisiones concretas verificables. Evita propaganda, reiteración y naturalidad impostada.
 Reglas centrales:
 - La biblioteca disciplinar es una guía contextual abierta, no una lista cerrada. No insertes términos por obligación. Puedes proponer vocabulario más preciso cuando la evidencia del caso lo justifique; la documentación prevalece sobre la biblioteca.
 - Usa sustantivos y verbos propios de la disciplina. Evita trasladar lenguaje de arquitectura, producto o software a Eventos, Concursos o Moda cuando no corresponda.
@@ -72,6 +86,7 @@ Reglas centrales:
 - No usar “Fuente oficial:” como rótulo visible.
 - No usar metalenguaje en el artículo: “la documentación oficial describe”, “desde la categoría”, “la lectura editorial”, “ese detalle importa porque”, “quienes siguen de cerca”.
 - En article, usa la URL responsable resuelta en orden canonical_context.responsible_official_url > responsible_official_url > official_source, solo si es válida y no vacía. Integra exactamente un enlace externo contextual al responsable en ARTÍCULO FINAL, sin duplicar la URL, sin línea suelta visible “Fuente oficial:”, sin enlazar otra entidad y sin usar la keyword principal como anchor. No inventes hechos para el anchor. Si falta URL válida, solicita resolución editorial, no la inventes. source_information_url es solo fuente documental/complementaria, nunca la URL responsable.
+- Para Diseño digital, formula una frase breve y útil que atribuya correctamente el acceso al responsable y enlace la URL oficial autorizada; por ejemplo: «CGstuff Interactive ofrece acceso a ActionForge desde el [sitio oficial de la herramienta](https://actionforge.app/), donde puede utilizarse directamente en el navegador». No uses la keyword como anchor ni añadas un segundo enlace externo.
 - En article, el enlace interno es exactamente un enlace contextual a una etiqueta editorial real resuelta por IDG_Internal_Links: primero primary_lens canónica, después secondary_lenses canónicas aprobadas en su orden y, si ninguna resuelve, el primer post_tag explícitamente seleccionado por el editor que sea elegible. Solo es elegible un tag WordPress existente e indexable, perteneciente a la categoría WordPress validada y con URL real HTTP(S). Si ninguna de ambas fases resuelve, marca unresolved y solicita revisión editorial en el informe interno; no fabriques ni sustituyas categoría, entrada, tag o URL. La categoría es contexto, no fallback. Los tags desconocidos o ajenos son solo contexto y no se convierten en lentes canónicas.
 - calendar_event es distinto de article: no aplica el contrato de tags del artículo. Solo puede usarse una vez, contextualmente, una URL real de archivo CPT o taxonomía propia suministrada en los datos; si no existe, no fabriques una URL.
 - En Eventos, Agenda define la función de la pieza; la tipología del evento y su Categoría editorial definen el vocabulario. Una feria, una semana de la moda, una exposición o una conferencia no deben redactarse con los mismos conceptos. La presentación debe ser narrativa y útil, no una ficha ni una reflexión abstracta sobre fechas o ciudad.
@@ -579,6 +594,30 @@ Reglas obligatorias del PAQUETE REEL:
 - No añadas escenas, VO, overlays ni líneas explicativas fuera de esta estructura.
 PROMPT;
         return self::append_editable($prompt, 'seo');
+    }
+
+    public static function localized_repair_prompt(array $data, string $phase, string $candidate, array $validation, array $allowed_segments): string {
+        $data['article'] = $candidate;
+        $errors = implode("\n", array_map(static fn($error): string => '- ' . (string) $error, (array) ($validation['errors'] ?? [])));
+        $segments = implode("\n", array_map(static fn($segment): string => '- ' . (string) $segment, $allowed_segments));
+        $context = self::build_context($data);
+        $prompt = $context . <<<PROMPT
+
+TAREA: reparación focalizada única de la fase {$phase}.
+No regeneres el artículo ni el paquete completo. Corrige en una sola respuesta todos los defectos reales listados, y solo dentro de segmentos autorizados. Conserva byte a byte todo lo demás. No introduzcas hechos, entidades, responsables, enlaces ni destinos nuevos.
+
+DEFECTOS DETECTADOS POR VALIDADORES
+{$errors}
+
+SEGMENTOS AUTORIZADOS
+{$segments}
+
+Devuelve exclusivamente JSON válido, sin Markdown ni explicación, con esta forma:
+{"patches":[{"segment":"VO:1 o LINE:12","replacement":"texto completo del segmento"}]}
+
+Para Reel solo puedes devolver VO:n autorizadas; no devuelvas overlays. Para artículo usa LINE:n y sustituye la línea completa. Si no puedes corregir sin tocar algo fuera de alcance, devuelve {"patches":[]}.
+PROMPT;
+        return self::append_editable($prompt, $phase === 'seo' ? 'seo' : ($phase === 'editorial' ? 'editorial' : 'generate'));
     }
 
     private static function format_internal_links(array $data): string {

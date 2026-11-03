@@ -84,12 +84,14 @@ final class IDG_Recurring_Content_Workflow_Action_Strategy extends IDG_Abstract_
 
     public function execute(string $workflow_id, string $action, array $workflow): void {
         if (IDG_Workflow_Policies::is_force_action($action)) {
-            $workflow['force_validation_override'] = true;
+            $workflow = IDG_Workflow_Policies::mark_failed($workflow, 'La excepción editorial no está permitida para workflows recurrentes ni publicaciones existentes.');
             $workflow = IDG_Job_Runner::append_history_snapshot(
                 $workflow,
-                'recurring_content_force_requested',
-                'El editor solicitó aplicar la redacción a la publicación ignorando la validación real.'
+                'recurring_content_force_rejected',
+                'Se rechazó la excepción editorial: nunca puede modificar una publicación recurrente o existente.'
             );
+            IDG_Job_Runner::save_workflow($workflow_id, $workflow);
+            return;
         } else {
             unset($workflow['force_validation_override']);
         }

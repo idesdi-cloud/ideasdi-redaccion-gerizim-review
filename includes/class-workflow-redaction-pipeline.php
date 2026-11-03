@@ -3,17 +3,10 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-/**
- * Etapa desacoplada de redacción. Solo genera, revisa y optimiza texto;
- * no contiene creación ni actualización de publicaciones WordPress.
- */
+/** Redacción por fases, con validación real y una reparación localizada máxima. */
 final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pipeline_Contract {
     public function phases(): array {
-        return [
-            IDG_Workflow_Policies::ACTION_GENERATE,
-            IDG_Workflow_Policies::ACTION_EDITORIAL,
-            IDG_Workflow_Policies::ACTION_SEO,
-        ];
+        return [IDG_Workflow_Policies::ACTION_GENERATE, IDG_Workflow_Policies::ACTION_EDITORIAL, IDG_Workflow_Policies::ACTION_SEO];
     }
 
     public function supports(string $phase): bool {
@@ -23,13 +16,9 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
     public function execute(string $workflow_id, string $phase, array $workflow, IDG_OpenAI_Client $client): void {
         if ($phase === IDG_Workflow_Policies::ACTION_GENERATE) {
             $this->run_generate($workflow_id, $workflow, $client);
-            return;
-        }
-        if ($phase === IDG_Workflow_Policies::ACTION_EDITORIAL) {
+        } elseif ($phase === IDG_Workflow_Policies::ACTION_EDITORIAL) {
             $this->run_editorial($workflow_id, $workflow, $client);
-            return;
-        }
-        if ($phase === IDG_Workflow_Policies::ACTION_SEO) {
+        } elseif ($phase === IDG_Workflow_Policies::ACTION_SEO) {
             $this->run_seo($workflow_id, $workflow, $client);
         }
     }
@@ -39,74 +28,289 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $workflow = IDG_Assignment_Card::attach($workflow);
             IDG_Job_Runner::save_workflow($workflow_id, $workflow);
         }
-        $prompt = IDG_Prompt_Library::generate_prompt(IDG_Workflow_Prompt_Data::prepare($workflow, '', 'generate'));
-        $result = $client->complete($prompt);
-
-        if (!$result['success']) {
-            $workflow = IDG_Workflow_Policies::mark_failed($workflow, (string) $result['message']);
-            $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'generate_failed', $result['message']);
-            IDG_Job_Runner::save_workflow($workflow_id, $workflow);
-            IDG_Logger::log('generate_failed', $result['message'], ['workflow_id' => $workflow_id]);
+        $data = IDG_Workflow_Prompt_Data::prepare($workflow, '', 'generate');
+        $result = $client->complete(IDG_Prompt_Library::generate_prompt($data));
+        if (empty($result['success'])) {
+            $this->save_model_failure($workflow_id, $workflow, 'generate', (string) ($result['message'] ?? 'Falló la generación.'));
             return;
         }
 
-        $workflow['base_article'] = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
-        $workflow['generated_from_brief'] = true;
-        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'generate');
+        $candidate = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
+        $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'generate');
+        $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
+        if (empty($validation['ok'])) {
+            $repair = $this->attempt_localized_repair($workflow_id, 'generate', $candidate, $validation, $workflow, $client);
+            if (!empty($repair['applied'])) {
+                $candidate = (string) $repair['content'];
+                $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'generate');
+            }
+        }
+
+        $workflow['base_article'] = $candidate;
+        $workflow['generate_validation'] = $validation;
+        $workflow['generate_repair'] = $this->repair_audit($repair);
         $workflow['usage_generate'] = $result['usage'] ?? [];
         $workflow['usage_generate_estimate'] = IDG_Usage_Estimator::record('generate', (array) ($result['usage'] ?? []), $workflow_id, (string) ($result['model'] ?? ''));
-        $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'generate_completed', 'Artículo base generado desde el brief editorial.');
+        if (empty($validation['ok'])) {
+            $this->save_validation_failure($workflow_id, $workflow, 'generate', $validation);
+            return;
+        }
+
+        $workflow['generated_from_brief'] = true;
+        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'generate');
+        $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'generate_completed', 'Artículo base generado y validado para estructura de fase; enlaces y Reel se validan en SEO.');
         IDG_Job_Runner::save_workflow($workflow_id, $workflow);
-        IDG_Logger::log('generate_completed', 'Artículo base generado desde WordPress.', ['workflow_id' => $workflow_id]);
+        IDG_Logger::log('generate_completed', 'Artículo base validado por fase.', ['workflow_id' => $workflow_id]);
     }
 
     private function run_editorial(string $workflow_id, array $workflow, IDG_OpenAI_Client $client): void {
-        $prompt = IDG_Prompt_Library::editorial_prompt(IDG_Workflow_Prompt_Data::prepare($workflow, (string) ($workflow['base_article'] ?? ''), 'editorial'));
-        $result = $client->complete($prompt);
-
-        if (!$result['success']) {
-            $workflow = IDG_Workflow_Policies::mark_failed($workflow, (string) $result['message']);
-            $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'editorial_failed', $result['message']);
-            IDG_Job_Runner::save_workflow($workflow_id, $workflow);
-            IDG_Logger::log('editorial_failed', $result['message'], ['workflow_id' => $workflow_id]);
+        $source = (string) ($workflow['base_article'] ?? '');
+        $data = IDG_Workflow_Prompt_Data::prepare($workflow, $source, 'editorial');
+        $result = $client->complete(IDG_Prompt_Library::editorial_prompt($data));
+        if (empty($result['success'])) {
+            $this->save_model_failure($workflow_id, $workflow, 'editorial', (string) ($result['message'] ?? 'Falló la revisión editorial.'));
             return;
         }
 
-        $editorial_output = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
-        $editorial_sections = IDG_Workflow_Output_Parser::parse_editorial($editorial_output);
-        $workflow['editorial_output_raw'] = $editorial_output;
-        $workflow['editorial_result'] = (string) ($editorial_sections['article'] ?? $editorial_output);
-        $workflow['editorial_diagnosis'] = (string) ($editorial_sections['diagnosis'] ?? '');
-        $workflow['editorial_notes'] = (string) ($editorial_sections['notes'] ?? '');
-        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'editorial');
+        $raw = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
+        $sections = IDG_Workflow_Output_Parser::parse_editorial($raw);
+        $candidate = (string) ($sections['article'] ?? $raw);
+        $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'editorial');
+        $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
+        if (empty($validation['ok'])) {
+            $repair = $this->attempt_localized_repair($workflow_id, 'editorial', $candidate, $validation, $workflow, $client);
+            if (!empty($repair['applied'])) {
+                $candidate = (string) $repair['content'];
+                $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'editorial');
+            }
+        }
+
+        $changed = $candidate !== $source;
+        $diagnosis = trim((string) ($sections['diagnosis'] ?? ''));
+        if (!$changed) {
+            $diagnosis = '- Comparación real de contenido: unchanged; no se atribuyen correcciones ni mejoras no realizadas.';
+        } else {
+            $diagnosis .= ($diagnosis !== '' ? "\n" : '') . '- Comparación real de contenido: changed; la versión revisada difiere byte a byte del artículo base. Esta comparación no demuestra por sí sola la veracidad de cada mejora descrita.';
+        }
+        $workflow['editorial_output_raw'] = $raw;
+        $workflow['editorial_result'] = $candidate;
+        $workflow['editorial_diagnosis'] = $diagnosis;
+        $workflow['editorial_notes'] = (string) ($sections['notes'] ?? '');
+        $workflow['editorial_changed'] = $changed;
+        $workflow['editorial_validation'] = $validation;
+        $workflow['editorial_repair'] = $this->repair_audit($repair);
         $workflow['usage_editorial'] = $result['usage'] ?? [];
         $workflow['usage_editorial_estimate'] = IDG_Usage_Estimator::record('editorial', (array) ($result['usage'] ?? []), $workflow_id, (string) ($result['model'] ?? ''));
-        $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'editorial_completed', 'Revisión editorial completada.');
+        if (empty($validation['ok'])) {
+            $this->save_validation_failure($workflow_id, $workflow, 'editorial', $validation);
+            return;
+        }
+
+        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'editorial');
+        $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'editorial_completed', 'Revisión editorial validada; comparación registrada como ' . ($changed ? 'changed.' : 'unchanged.'));
         IDG_Job_Runner::save_workflow($workflow_id, $workflow);
-        IDG_Logger::log('editorial_completed', 'Revisión editorial completada.', ['workflow_id' => $workflow_id]);
+        IDG_Logger::log('editorial_completed', 'Revisión editorial validada.', ['workflow_id' => $workflow_id, 'changed' => $changed]);
     }
 
     private function run_seo(string $workflow_id, array $workflow, IDG_OpenAI_Client $client): void {
         $article = (string) ($workflow['editorial_result'] ?? $workflow['base_article'] ?? '');
-        $prompt = IDG_Prompt_Library::seo_prompt(IDG_Workflow_Prompt_Data::prepare($workflow, $article, 'seo'));
-        $result = $client->complete($prompt);
-
-        if (!$result['success']) {
-            $workflow = IDG_Workflow_Policies::mark_failed($workflow, (string) $result['message']);
-            $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'seo_failed', $result['message']);
-            IDG_Job_Runner::save_workflow($workflow_id, $workflow);
-            IDG_Logger::log('seo_failed', $result['message'], ['workflow_id' => $workflow_id]);
+        $data = IDG_Workflow_Prompt_Data::prepare($workflow, $article, 'seo');
+        $result = $client->complete(IDG_Prompt_Library::seo_prompt($data));
+        if (empty($result['success'])) {
+            $this->save_model_failure($workflow_id, $workflow, 'seo', (string) ($result['message'] ?? 'Falló la revisión SEO.'));
             return;
         }
 
-        $workflow['seo_result'] = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
-        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'seo');
+        $candidate = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
+        $workflow['seo_model_response'] = $candidate;
+        $workflow['seo_result'] = $candidate;
+        $preflight = IDG_Post_Creator::preflight_public($workflow);
+        $validation = (array) ($preflight['validation'] ?? []);
+        $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
+        if (empty($preflight['ok'])) {
+            $repair = $this->attempt_localized_repair($workflow_id, 'seo', $candidate, $validation, $workflow, $client);
+            if (!empty($repair['applied'])) {
+                $candidate = (string) $repair['content'];
+                $workflow['seo_result'] = $candidate;
+                $preflight = IDG_Post_Creator::preflight_public($workflow);
+                $validation = (array) ($preflight['validation'] ?? []);
+            }
+        }
+
+        $prepared = (array) ($preflight['prepared'] ?? []);
+        $reel = class_exists('IDG_Reel_Contract') ? IDG_Reel_Contract::inspect((string) ($prepared['reel_package'] ?? '')) : ['valid' => false, 'issues' => ['Reel Contract no disponible.']];
+        $workflow['seo_result'] = (string) ($prepared['processed_seo_result'] ?? $candidate);
+        $workflow['seo_validation'] = $validation;
+        $workflow['seo_validation_summary'] = (string) ($validation['summary'] ?? '');
+        $workflow['seo_article_validation'] = [
+            'ok' => true,
+            'errors' => array_values(array_filter((array) ($validation['errors'] ?? []), static fn($error): bool => !preg_match('/\A(?:VO |Falta VO |Falta paquete reel|Las escenas del paquete reel|Escena |Overlay |Línea no reconocida en paquete reel)/u', (string) $error))),
+        ];
+        $workflow['seo_article_validation']['ok'] = empty($workflow['seo_article_validation']['errors']);
+        $workflow['seo_reel_validation'] = $reel;
+        $workflow['seo_repair'] = $this->repair_audit($repair);
         $workflow['usage_seo'] = $result['usage'] ?? [];
         $workflow['usage_seo_estimate'] = IDG_Usage_Estimator::record('seo', (array) ($result['usage'] ?? []), $workflow_id, (string) ($result['model'] ?? ''));
-        $workflow['warnings'] = IDG_Validator::summarize($result['content'], (string) ($workflow['keyword'] ?? ''));
-        $workflow['feedback_notes'] = IDG_Workflow_Output_Parser::extract_feedback_notes($result['content']);
-        $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'seo_completed', 'Revisión SEO completada.');
+        $workflow['warnings'] = IDG_Validator::summarize($workflow['seo_result'], (string) ($workflow['keyword'] ?? ''));
+        $workflow['feedback_notes'] = IDG_Workflow_Output_Parser::extract_feedback_notes($workflow['seo_result']);
+        if (empty($preflight['ok'])) {
+            $this->save_validation_failure($workflow_id, $workflow, 'seo', $validation);
+            return;
+        }
+
+        $workflow['seo_preflight_payload_hash'] = IDG_Post_Creator::prepared_payload_hash($preflight);
+        $workflow['seo_preflight_post_content'] = (string) ($prepared['post_content'] ?? '');
+        $workflow['seo_preflight_approved_at'] = current_time('mysql');
+        $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'seo');
+        $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'seo_completed', 'Revisión SEO completada después de aprobar el mismo preflight Gutenberg que usará la escritura.');
         IDG_Job_Runner::save_workflow($workflow_id, $workflow);
-        IDG_Logger::log('seo_completed', 'Revisión SEO completada.', ['workflow_id' => $workflow_id]);
+        IDG_Logger::log('seo_completed', 'SEO y payload Gutenberg validados.', ['workflow_id' => $workflow_id, 'payload_hash' => $workflow['seo_preflight_payload_hash']]);
+    }
+
+    private function attempt_localized_repair(string $workflow_id, string $phase, string $content, array $validation, array $workflow, IDG_OpenAI_Client $client): array {
+        $allowed = $this->allowed_segments($phase, $content, $validation);
+        $audit = ['attempted' => true, 'applied' => false, 'content' => $content, 'usage' => [], 'model' => '', 'reason' => ''];
+        if (empty($allowed)) {
+            $audit['attempted'] = false;
+            $audit['reason'] = 'no_permitted_segments';
+            return $audit;
+        }
+        $data = IDG_Workflow_Prompt_Data::prepare($workflow, $content, $phase);
+        $result = $client->complete(IDG_Prompt_Library::localized_repair_prompt($data, $phase, $content, $validation, $allowed));
+        $audit['usage'] = (array) ($result['usage'] ?? []);
+        $audit['model'] = (string) ($result['model'] ?? '');
+        IDG_Usage_Estimator::record($phase . '_repair', $audit['usage'], $workflow_id, $audit['model']);
+        if (empty($result['success'])) {
+            $audit['reason'] = 'client_failure';
+            return $audit;
+        }
+        $patched = $this->apply_segment_patches($content, (string) ($result['content'] ?? ''), $allowed);
+        if (empty($patched['ok'])) {
+            $audit['reason'] = (string) ($patched['reason'] ?? 'invalid_patch');
+            return $audit;
+        }
+        $audit['content'] = (string) $patched['content'];
+        $audit['applied'] = $audit['content'] !== $content;
+        $audit['reason'] = $audit['applied'] ? 'applied' : 'no_change';
+        return $audit;
+    }
+
+    private function allowed_segments(string $phase, string $content, array $validation): array {
+        $lines = preg_split('/\n/', str_replace(["\r\n", "\r"], "\n", $content)) ?: [];
+        $errors = implode("\n", array_map('strval', (array) ($validation['errors'] ?? [])));
+        $allowed = [];
+        if ($phase === 'seo') {
+            $inspection = IDG_Reel_Contract::inspect($this->section_body($content, 'PAQUETE REEL'));
+            foreach (range(1, 5) as $scene) {
+                if ((int) ($inspection['vo_counts'][$scene] ?? 0) !== 14) {
+                    $allowed[] = 'VO:' . $scene;
+                }
+            }
+        }
+
+        foreach ($lines as $index => $line) {
+            $line = (string) $line;
+            if (str_contains($errors, 'H1') && preg_match('/^\s*#\s+\S/u', $line)) {
+                $allowed[] = 'LINE:' . ($index + 1);
+            }
+            if (str_contains($errors, 'caja editorial') && $this->is_box_body_line($lines, $index)) {
+                $allowed[] = 'LINE:' . ($index + 1);
+            }
+            if (preg_match('/frase artificial, metaliteraria o documental: “([^”]+)”/u', $errors, $match)
+                && str_contains(mb_strtolower(remove_accents($line)), mb_strtolower(remove_accents((string) $match[1])))) {
+                $allowed[] = 'LINE:' . ($index + 1);
+            }
+        }
+        return array_values(array_unique($allowed));
+    }
+
+    private function is_box_body_line(array $lines, int $index): bool {
+        if (trim((string) ($lines[$index] ?? '')) === '') {
+            return false;
+        }
+        for ($cursor = $index - 1; $cursor >= 0; $cursor--) {
+            $previous = trim((string) ($lines[$cursor] ?? ''));
+            if ($previous === '') {
+                continue;
+            }
+            return (bool) preg_match('/^(?:\*\*)?\s*Caja editorial\s*:?/iu', $previous);
+        }
+        return false;
+    }
+
+    private function apply_segment_patches(string $content, string $response, array $allowed): array {
+        $response = preg_replace('/\A```(?:json)?\s*|\s*```\z/iu', '', trim($response));
+        $decoded = json_decode((string) $response, true);
+        if (!is_array($decoded) || !isset($decoded['patches']) || !is_array($decoded['patches']) || empty($decoded['patches'])) {
+            return ['ok' => false, 'reason' => 'invalid_or_empty_patch'];
+        }
+        $lines = preg_split('/\n/', str_replace(["\r\n", "\r"], "\n", $content));
+        if (!is_array($lines)) {
+            return ['ok' => false, 'reason' => 'content_split_failed'];
+        }
+        $seen = [];
+        foreach ($decoded['patches'] as $patch) {
+            $segment = is_array($patch) ? trim((string) ($patch['segment'] ?? '')) : '';
+            $replacement = is_array($patch) ? (string) ($patch['replacement'] ?? '') : '';
+            if ($segment === '' || !in_array($segment, $allowed, true) || isset($seen[$segment]) || str_contains($replacement, "\n") || trim($replacement) === '') {
+                return ['ok' => false, 'reason' => 'patch_outside_allowed_scope'];
+            }
+            $seen[$segment] = true;
+            if (preg_match('/\ALINE:(\d+)\z/', $segment, $m)) {
+                $index = (int) $m[1] - 1;
+                if (!array_key_exists($index, $lines)) {
+                    return ['ok' => false, 'reason' => 'line_not_found'];
+                }
+                $lines[$index] = $replacement;
+                continue;
+            }
+            if (preg_match('/\AVO:([1-5])\z/', $segment, $m)) {
+                $scene = (int) $m[1];
+                $matches = [];
+                foreach ($lines as $index => $line) {
+                    if (preg_match('/^\s*VO\s+' . $scene . '\s*:/iu', (string) $line)) {
+                        $matches[] = $index;
+                    }
+                }
+                if (count($matches) !== 1) {
+                    return ['ok' => false, 'reason' => 'vo_not_unique'];
+                }
+                $lines[$matches[0]] = 'VO ' . $scene . ': ' . trim($replacement);
+                continue;
+            }
+            return ['ok' => false, 'reason' => 'unknown_segment'];
+        }
+        return ['ok' => true, 'content' => implode("\n", $lines)];
+    }
+
+    private function section_body(string $content, string $label): string {
+        $pattern = '/^\s*(?:#{1,6}\s*)?' . preg_quote($label, '/') . '\s*:?\s*$\R(.*?)(?=^\s*(?:#{1,6}\s*)?(?:RETROALIMENTACIÓN GERIZIM|ARTÍCULO FINAL|META DESCRIPTION|INFORME SEO INTERNO|COPY PARA REDES)\s*:?\s*$|\z)/imsu';
+        return preg_match($pattern, $content, $m) ? trim((string) $m[1]) : '';
+    }
+
+    private function save_model_failure(string $workflow_id, array $workflow, string $phase, string $message): void {
+        $workflow = IDG_Workflow_Policies::mark_failed($workflow, $message);
+        $workflow = IDG_Job_Runner::append_history_snapshot($workflow, $phase . '_failed', $message);
+        IDG_Job_Runner::save_workflow($workflow_id, $workflow);
+        IDG_Logger::log($phase . '_failed', $message, ['workflow_id' => $workflow_id]);
+    }
+
+    private function save_validation_failure(string $workflow_id, array $workflow, string $phase, array $validation): void {
+        $message = ucfirst($phase) . ' requiere intervención: ' . implode(' · ', (array) ($validation['errors'] ?? []));
+        $workflow = IDG_Workflow_Policies::mark_failed($workflow, $message);
+        $workflow[$phase . '_requires_intervention'] = true;
+        $workflow = IDG_Job_Runner::append_history_snapshot($workflow, $phase . '_validation_failed', $message);
+        IDG_Job_Runner::save_workflow($workflow_id, $workflow);
+        IDG_Logger::log($phase . '_validation_failed', $message, ['workflow_id' => $workflow_id]);
+    }
+
+    private function repair_audit(array $repair): array {
+        return [
+            'attempted' => !empty($repair['attempted']),
+            'applied' => !empty($repair['applied']),
+            'reason' => (string) ($repair['reason'] ?? ''),
+            'usage' => (array) ($repair['usage'] ?? []),
+            'model' => (string) ($repair['model'] ?? ''),
+        ];
     }
 }

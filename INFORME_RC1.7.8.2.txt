@@ -1,0 +1,46 @@
+GERIZIM 0.4.0-RC1.7.8.2 — INFORME DE MODIFICACIÓN CORRECTIVA
+Fecha: 2026-11-03
+Baseline aislado: 6599ef23a5bff85f7c62159335cef6b7e5dc7ccc
+
+ALCANCE
+- Contrato compartido real en Generar, Editorial y SEO.
+- Validación por fase y una reparación localizada máxima por resultado inválido.
+- Preflight SEO sobre el Gutenberg real y sello de igualdad para escritura.
+- Excepción editorial fail closed solo para pending nuevo, confirmada y trazable.
+- Contrato de enlaces Diseño digital/P2 y Reel con conteos reales.
+- Harness funcional dirigido SkyPaint199/ActionForge217.
+
+SEMÁNTICA DE RESULTADOS
+- model_response: salida original del cliente; no implica aprobación.
+- validation: diagnóstico de guard/preflight; puede permanecer ok=false.
+- write_allowed: permiso excepcional y acotado de escritura; no cambia validation.ok.
+- write: wp_insert_post simulado o real; no ocurre si falta confirmación, el hash está
+  stale, cambia el usuario, faltan permisos, existe destino o aparece un error duro.
+
+SEGURIDAD DE LA EXCEPCIÓN
+P2 unresolved sin destino inventado puede quedar pendiente. Se bloquean URLs internas
+no autorizadas, URLs externas incoherentes, sustitución de entidad/destino, errores de
+integridad/escritura, Final Guard ausente y cualquier error desconocido. Recurrentes y
+publicaciones existentes no admiten force. La evidencia queda en post meta e historial.
+
+PRUEBAS Y REVISIÓN
+- El candidato fuente dcb8322bff94329275f99feadcf11dd0d32489ad terminó
+  runner SUCCESS con validación 1/1 y aceptación externa 1/1. El informe anterior
+  quedó escrito antes de esa aceptación y por ello decía "no concluido".
+- Revisión del árbol exacto: persistía el autolink de keyword, faltaba controlar
+  externos adicionales y el estado de artículo dependía del Reel. Se corrigen
+  exclusivamente esos defectos y sus negativos derivados de ActionForge217.
+- SkyPaint199 usa ahora Casey_Sheep y la URL responsable del brief199/hallazgo3366,
+  consultado en Radar, sin investigación web. Caja factual39, P2 unresolved y VO2
+  en dos líneas; se preserva el control de confirmación y escritura pending.
+- No se llama al modelo para reparar cuando no existe segmento permitido.
+- VALIDACION_DIRIGIDA_FINAL_OK: harness funcional y lint PHP aprobados por el cierre externo.
+- El cierre externo ejecuta una sola vez el harness local, lint PHP afectados y
+  git diff --check. No hay suite histórica, IA real, web ni WordPress real.
+- No hay prueba humana Gutenberg/Yoast, ZIP, commit, tag, push, release ni deploy.
+  El estado formal de Controlled Change no sustituye revisión ni aceptación humana.
+
+DOCUMENTACIÓN
+Actualizados: docs/gerizim-rc1782-integration.md y este informe.
+Sin cambios conscientes: editorial.canonical, Lead, manifiestos SHA-256, suites
+históricas, handoffs, notas de instalación y documentos de release.

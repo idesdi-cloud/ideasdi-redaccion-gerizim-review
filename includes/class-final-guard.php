@@ -133,6 +133,31 @@ final class IDG_Final_Guard {
             'expected_anchors' => [],
         ];
         $errors = array_merge($errors, (array) ($internal_audit['errors'] ?? []));
+        // Auditar todos los externos, reutilizando los anchors del HTML real.
+        // El enlace patrocinado explícito conserva su contrato separado.
+        if (!self::is_event_workflow($workflow) && class_exists('IDG_Internal_Links')) {
+            $authorized_external = array_filter([$official, (string) ($workflow['sponsored_required_link'] ?? '')]);
+            $external_count = 0;
+            foreach ((array) ($internal_audit['anchors'] ?? []) as $anchor_row) {
+                if (!empty($anchor_row['internal'])) {
+                    continue;
+                }
+                $external_count++;
+                $authorized = false;
+                foreach ($authorized_external as $authorized_url) {
+                    if (IDG_Internal_Links::equivalent_url((string) ($anchor_row['url'] ?? ''), (string) $authorized_url)) {
+                        $authorized = true;
+                        break;
+                    }
+                }
+                if (!$authorized) {
+                    $errors[] = 'El HTML final contiene un enlace externo no autorizado.';
+                }
+            }
+            if ($official !== '' && !self::is_ideasdi_url($official) && empty($workflow['sponsored_required_link']) && $external_count !== 1) {
+                $errors[] = 'El artículo debe contener exactamente un enlace externo oficial. Detectados: ' . $external_count . '.';
+            }
+        }
         if (!empty($internal_audit['policy_required']) && !empty($internal_links)) {
             foreach (array_slice($internal_links, 0, 1) as $link) {
                 $url = esc_url_raw((string) ($link['url'] ?? ''));
@@ -199,7 +224,141 @@ final class IDG_Final_Guard {
             'errors' => array_values(array_unique($errors)),
             'warnings' => array_values(array_unique($warnings)),
             'summary' => self::summary_lines($errors, $warnings),
+            'error_codes' => self::classify_errors($errors),
         ];
+    }
+
+    /**
+     * Valida el artículo antes de cerrar generación o revisión editorial.
+     * No exige todavía enlaces, metadatos SEO, Gutenberg ni Reel.
+     */
+    public static function validate_article_phase(string $content, array $workflow, string $phase): array {
+        $errors = [];
+        $warnings = [];
+        $phase_label = $phase === 'editorial' ? 'Revisión editorial' : 'Generación';
+        $normalized = str_replace(["\r\n", "\r"], "\n", trim($content));
+
+        if ($normalized === '') {
+            $errors[] = $phase_label . ': el artículo está vacío.';
+        }
+        if (trim((string) ($workflow['assignment_card'] ?? '')) === '') {
+            $errors[] = $phase_label . ': falta la ficha de encargo editorial.';
+        }
+        if (trim((string) ($workflow['editorial_plan_raw'] ?? '')) === '' || trim((string) ($workflow['editorial_recipe_applied'] ?? '')) === '') {
+            $errors[] = $phase_label . ': falta el plan editorial aplicado.';
+        }
+        $h1_count = self::h1_count($normalized);
+        if ($h1_count !== 1) {
+            $errors[] = $phase_label . ': el artículo debe contener un único H1; detectados: ' . $h1_count . '.';
+        }
+        $title = self::extract_h1($normalized);
+        if ($title !== '' && mb_strlen($title) > 68) {
+            $errors[] = $phase_label . ': el H1 supera 68 caracteres.';
+        }
+        if ((int) preg_match_all('/^\s*(?:\*\*)?\s*Caja editorial\s*:?/imu', $normalized) !== 1) {
+            $errors[] = $phase_label . ': debe existir una única caja editorial.';
+        } else {
+            $snippet = self::extract_featured_snippet($normalized, '');
+            $count = self::word_count($snippet);
+            if ($count < 40 || $count > 55) {
+                $errors[] = $phase_label . ': la caja editorial debe tener entre 40 y 55 palabras; detectadas: ' . $count . '.';
+            }
+            if (preg_match('/https?:\/\/|\[[^\]]+\]\(https?:\/\//iu', $snippet)) {
+                $errors[] = $phase_label . ': la caja editorial no puede contener enlaces.';
+            }
+        }
+        if (!preg_match('/^\s*##\s+\S/mu', $normalized)) {
+            $errors[] = $phase_label . ': falta el H2 principal.';
+        }
+        if (!preg_match('/^\s*###\s+\S/mu', $normalized)) {
+            $errors[] = $phase_label . ': falta desarrollo H3.';
+        }
+
+        foreach (['keyword' => 'keyword principal', 'entity' => 'entidad responsable'] as $key => $label) {
+            $expected = trim((string) ($workflow[$key] ?? ''));
+            if ($expected !== '' && !self::text_contains_keyword($normalized, $expected)) {
+                $warnings[] = $phase_label . ': no se detectó literalmente la ' . $label . '; requiere comprobación editorial, no demuestra por sí sola una sustitución.';
+            }
+        }
+
+        return [
+            'ok' => empty($errors),
+            'errors' => array_values(array_unique($errors)),
+            'warnings' => array_values(array_unique($warnings)),
+            'summary' => self::summary_lines($errors, $warnings),
+            'error_codes' => array_fill(0, count(array_unique($errors)), 'phase_editorial_structure'),
+        ];
+    }
+
+    /**
+     * Traduce únicamente mensajes normalizados emitidos por validadores reales.
+     * Lo no reconocido queda como unknown y jamás es omitible.
+     */
+    public static function classify_errors(array $errors): array {
+        $codes = [];
+        $rules = [
+            'p2_unresolved' => ['/\AP2 bloqueado: no existe un tag canónico real resuelto por IDG_Internal_Links::normalize\(\)\.\z/u'],
+            'p2_unauthorized' => [
+                '/\AP2 exige exactamente un enlace al tag canónico resuelto; detectados: \d+\.\z/u',
+                '/\AP2 exige exactamente un anchor interno real en el HTML final; detectados: \d+\.\z/u',
+                '/\AP2 prohíbe URL internas no autorizadas incluso en eventos, concursos y patrocinados; detectadas: \d+\.\z/u',
+            ],
+            'external_link_integrity' => [
+                '/\AEl HTML final contiene un enlace externo no autorizado\.\z/u',
+                '/\AEl artículo debe contener exactamente un enlace externo oficial\. Detectados: \d+\.\z/u',
+                '/\AFalta el enlace externo obligatorio hacia la URL del responsable\.\z/u',
+                '/\AEl enlace externo obligatorio aparece más de una vez\. Conserva una sola aparición contextual\.\z/u',
+                '/\AEl enlace externo no puede usar la keyword principal como anchor\.\z/u',
+                '/\AEl enlace externo parece apuntar a una entidad distinta del responsable configurado\.\z/u',
+                '/\AEl anchor del enlace externo usa el responsable configurado, pero la URL no parece corresponder a esa entidad\.\z/u',
+            ],
+            'identity_integrity' => [
+                '/\ALa entidad responsable no puede actuar como lente disciplinar\.\z/u',
+                '/\AFalta la ficha de encargo editorial registrada\.\z/u',
+                '/\AFalta el plan editorial aplicado de Recetas v2\. Genera nuevamente el artículo base\.\z/u',
+            ],
+            'write_integrity' => [
+                '/\ALas APIs nativas de bloques de WordPress no están disponibles\.\z/u',
+                '/\AWordPress no pudo interpretar el contenido como bloques Gutenberg\.\z/u',
+                '/\AEl contenido Gutenberg está vacío\.\z/u',
+                '/\ALa serialización Gutenberg no es canónica:.+\z/u',
+                '/\A(?:La estructura Gutenberg|Existe contenido suelto|Bloque Gutenberg|Gutenberg contiene|El heading Gutenberg|Un bloque de párrafo|Existe un core\/list-item|Un elemento de lista Gutenberg|RC1\.7\.5|Un core\/list|El core\/list|core\/list contiene|Un bloque Gutenberg simple).+\z/u',
+            ],
+            'postprocessing_integrity' => [
+                '/\ALa capa técnica alteró la prosa visible después de Revisión SEO\..+\z/u',
+                '/\AARTÍCULO FINAL contiene HTML <a> crudo\..+\z/u',
+            ],
+            'editorial_structure' => [
+                '/\ANo se detectó H1 en ARTÍCULO FINAL\.\z/u',
+                '/\AARTÍCULO FINAL debe contener un único H1\. Detectados: \d+\.\z/u',
+                '/\AEl H1 supera 68 caracteres\.\z/u',
+                '/\ANo se detectó caja editorial\.\z/u',
+                '/\ALa caja editorial .+\z/u',
+                '/\AARTÍCULO FINAL debe contener una única caja editorial\. Detectadas: \d+\.\z/u',
+                '/\AEl HTML final debe contener una única caja como párrafo Gutenberg\. Detectadas: \d+\.\z/u',
+                '/\A(?:Falta meta description|Falta informe SEO interno|Falta copy para redes|Falta retroalimentación Gerizim) en la salida final\.\z/u',
+                '/\ALa meta description debe tener entre 106 y 150 caracteres\. Detectados: \d+\.\z/u',
+                '/\ASe detectó una frase artificial, metaliteraria o documental:.+\z/u',
+                '/\A(?:Los concursos|La lista del bloque|Los eventos|El último párrafo del Evento).+\z/u',
+                '/\A(?:El anchor del enlace interno|El enlace interno no puede).+\z/u',
+            ],
+            'reel_contract' => [
+                '/\A(?:Falta paquete reel|VO |Falta VO |Las escenas del paquete reel|Escena |Overlay |Línea no reconocida en paquete reel).+\z/u',
+            ],
+        ];
+        foreach ($errors as $error) {
+            $code = 'unknown';
+            foreach ($rules as $candidate => $patterns) {
+                foreach ($patterns as $pattern) {
+                    if (preg_match($pattern, (string) $error)) {
+                        $code = $candidate;
+                        break 2;
+                    }
+                }
+            }
+            $codes[] = $code;
+        }
+        return $codes;
     }
 
     public static function validate_gutenberg_blocks(string $post_content): array {

@@ -365,6 +365,18 @@ final class IDG_Workflow_Admin_Controller {
         }
         $data = IDG_Workflow_Orchestrator::adapt($data, $is_recurring_workflow ? 'recurring' : 'admin');
 
+        if ($step === IDG_Workflow_Policies::ACTION_DRAFT_FORCE) {
+            $data['force_confirmation'] = isset($_POST['idg_force_confirm']) && (string) $_POST['idg_force_confirm'] === '1';
+            $data['force_confirmation_user_id'] = get_current_user_id();
+            $data['force_confirmation_workflow_id'] = isset($_POST['idg_force_workflow_id']) ? IDG_Sanitizer::text((string) wp_unslash($_POST['idg_force_workflow_id'])) : '';
+            $data['force_confirmation_content_hash'] = isset($_POST['idg_force_content_hash']) ? IDG_Sanitizer::text((string) wp_unslash($_POST['idg_force_content_hash'])) : '';
+            $data['force_confirmation_nonce'] = isset($_POST['idg_force_nonce']) ? IDG_Sanitizer::text((string) wp_unslash($_POST['idg_force_nonce'])) : '';
+        } else {
+            foreach (['force_validation_override', 'force_confirmation', 'force_confirmation_user_id', 'force_confirmation_workflow_id', 'force_confirmation_content_hash', 'force_confirmation_nonce'] as $key) {
+                unset($data[$key]);
+            }
+        }
+
         // El snapshot del Reinicio parcial es una barrera previa a cualquier
         // escritura del workflow. Si no puede almacenarse y releerse, se aborta
         // sin guardar siquiera los datos enviados por el formulario.
@@ -914,8 +926,17 @@ final class IDG_Workflow_Admin_Controller {
         $lines[] = self::md_block((string) ($workflow['editorial_notes'] ?? ''));
         $lines[] = '### Versión 3 · Revisión SEO final';
         $lines[] = self::md_block($seo_result);
+        $lines[] = '#### Respuesta original del modelo SEO';
+        $lines[] = self::md_block((string) ($workflow['seo_model_response'] ?? 'No registrada por versiones anteriores.'));
         $lines[] = '';
         $lines[] = '## 7. Etapas de validación y escritura';
+        $lines[] = '- **Respuesta del modelo disponible:** ' . (!empty($workflow['seo_model_response']) ? 'sí; no equivale a validación ni escritura' : 'no registrada');
+        $lines[] = '- **Validación SEO/preflight:** ' . (!empty($workflow['seo_validation']['ok']) ? 'aprobada' : (!empty($workflow['seo_validation']) ? 'rechazada / requiere intervención' : 'pendiente'));
+        $lines[] = '- **Excepción editorial:** ' . (!empty($workflow['final_validation_overridden']) ? 'sí; validation_ok=false y revisión manual obligatoria' : 'no');
+        $reel_report = isset($workflow['seo_reel_validation']) && is_array($workflow['seo_reel_validation']) ? $workflow['seo_reel_validation'] : [];
+        $lines[] = '- **Reel inspeccionado:** ' . (empty($reel_report) ? 'pendiente' : (!empty($reel_report['valid']) ? 'válido' : 'requiere intervención'));
+        $lines[] = '- **Conteos VO 1–5:** ' . self::md_value(empty($reel_report) ? '' : implode(', ', array_map('strval', array_slice((array) ($reel_report['vo_counts'] ?? []), 0, 5, true))));
+        $lines[] = '- **Overlays reales:** ' . self::md_value(empty($reel_report) ? '' : (string) ($reel_report['total_overlays'] ?? 0));
         if (!empty($workflow['final_validation_summary'])) {
             $lines[] = self::md_block((string) $workflow['final_validation_summary']);
         }
@@ -1863,13 +1884,22 @@ final class IDG_Workflow_Admin_Controller {
                         <?php if ($is_recurring_workflow) : ?>
                             <?php if ($seo_done && !$draft_done) : ?><div class="notice notice-warning inline idg-recurring-content-pending"><p><strong>Versión 3 lista, todavía no aplicada:</strong> abrir la publicación ahora mostrará el contenido anterior. Usa el botón siguiente para reemplazarlo.</p></div><?php endif; ?>
                             <button type="submit" name="step" value="recurring_event_content" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> data-confirm="¿Aplicar la Versión 3 · Revisión SEO final a la publicación ID <?php echo esc_attr((string) ($workflow['recurring_target_post_id'] ?? '')); ?>? Se reemplazarán título, contenido y extracto; se conservarán slug, campos estructurados, estado, autor, taxonomías e imagen." title="<?php echo esc_attr($seo_done ? 'Aplicar la Versión 3 validada a la publicación existente' : 'Primero ejecuta Revisión SEO'); ?>"><?php echo $draft_done ? 'Versión 3 aplicada a la publicación' : 'Aplicar Versión 3 a la publicación ID ' . esc_html((string) ($workflow['recurring_target_post_id'] ?? '')); ?></button>
-                            <?php if ($seo_done && self::should_show_force_draft($workflow)) : ?>
-                                <button type="submit" name="step" value="recurring_event_content_force" class="button idg-button-warning" data-confirm="Esta acción aplicará la redacción a la publicación aunque la validación real tenga errores. Úsala solo después de revisar el reporte.">Ignorar validación y aplicar redacción</button>
-                            <?php endif; ?>
                         <?php else : ?>
                             <button type="submit" name="step" value="draft" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> title="<?php echo esc_attr($seo_done ? 'Crear o repetir entrada pendiente en WordPress' : 'Primero ejecuta Revisión SEO'); ?>">Crear entrada en WordPress</button>
                             <?php if ($seo_done && self::should_show_force_draft($workflow)) : ?>
-                                <button type="submit" name="step" value="draft_force" class="button idg-button-warning" data-confirm="Esta acción crea la entrada pendiente aunque la validación real tenga errores. Úsalo solo para continuar una prueba o cuando una regla esté forzando demasiado la redacción." title="Crear entrada ignorando la validación real">Ignorar validación y crear entrada</button>
+                                <?php
+                                $force_user_id = get_current_user_id();
+                                $force_hash = IDG_Post_Creator::override_content_hash($workflow);
+                                $force_action = IDG_Post_Creator::force_nonce_action($workflow, $force_user_id);
+                                ?>
+                                <div class="notice notice-warning inline idg-force-confirmation">
+                                    <p><strong>Diagnóstico no aprobado:</strong> la excepción solo crea un pending nuevo y mantiene revisión manual obligatoria. No autoriza enlaces, identidad, seguridad ni destinos desconocidos.</p>
+                                    <label><input type="checkbox" name="idg_force_confirm" value="1"> Confirmo que revisé los errores omitibles y acepto crear esta entrada pendiente sin declarar la validación aprobada.</label>
+                                    <input type="hidden" name="idg_force_workflow_id" value="<?php echo esc_attr((string) ($workflow['workflow_id'] ?? '')); ?>">
+                                    <input type="hidden" name="idg_force_content_hash" value="<?php echo esc_attr($force_hash); ?>">
+                                    <input type="hidden" name="idg_force_nonce" value="<?php echo esc_attr(wp_create_nonce($force_action)); ?>">
+                                </div>
+                                <button type="submit" name="step" value="draft_force" class="button idg-button-warning" data-confirm="La validación seguirá rechazada. ¿Crear únicamente una entrada pending nueva con revisión manual obligatoria?" title="Crear pending con excepción editorial confirmada">Crear pending con excepción editorial</button>
                             <?php endif; ?>
                         <?php endif; ?>
                     </div>
@@ -1949,7 +1979,10 @@ final class IDG_Workflow_Admin_Controller {
     }
 
     private static function should_show_force_draft(array $workflow): bool {
-        if (!empty($workflow['draft_post_id'])) {
+        if (!empty($workflow['draft_post_id'])
+            || !empty($workflow['recurring_target_post_id'])
+            || !empty($workflow['recurring_target_post_type'])
+            || (string) ($workflow['workflow_origin'] ?? '') === 'recurring_update') {
             return false;
         }
         $workflow['force_validation_override'] = false;
@@ -2331,6 +2364,10 @@ final class IDG_Workflow_Admin_Controller {
             <div class="idg-card idg-result-full">
                 <h2>Versión 3 · Revisión SEO final</h2>
                 <textarea readonly rows="20" class="large-text code"><?php echo esc_textarea((string) ($workflow['seo_result'] ?? '')); ?></textarea>
+                <?php if (!empty($workflow['seo_validation_summary'])) : ?>
+                    <h3>Diagnóstico de validación SEO y escritura</h3>
+                    <textarea readonly rows="8" class="large-text code"><?php echo esc_textarea((string) $workflow['seo_validation_summary']); ?></textarea>
+                <?php endif; ?>
             </div>
             <?php if (!empty($workflow['feedback_notes'])) : ?>
                 <div class="idg-card idg-result-full idg-feedback-card">
