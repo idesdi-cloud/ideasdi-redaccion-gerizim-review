@@ -85,6 +85,20 @@ Resultado de comprobación de entrega: código 1. Log: rc1783-delivery-validatio
 
 ### Reconciliación de pruebas heredadas
 
+### Preparación de versión RC1.7.8.4 — 2026-11-04
+
+El RELEASE funcional previo está comprometido en `18f0a1435814262df3c43d22c121ea1b072bd493`.
+Esta intervención propone únicamente la nueva versión `0.4.0-RC1.7.8.4` en este
+workspace aislado; todavía no es un release. Se actualizaron de forma coherente el
+header, `IDG_VERSION` y el literal esperado por `plugin-version-contract.py`, y se
+generó un manifiesto editorial nuevo con hashes de los archivos candidatos finales.
+
+Se validaron el contrato de versión, el manifiesto con `sha256sum -c`, lint del
+bootstrap, las regresiones RC1.7.8.4 y RC1.7.8.2, y `scripts/test.sh` una sola vez.
+Antes de construir cualquier ZIP aún faltan revisión del resultado completo y una
+fase autorizada sobre un commit limpio y conocido; no hubo commit, ZIP, instalación,
+WordPress, despliegue ni release.
+
 ### Revisión final de enlaces RC1.7.8.4
 
 Se corrigieron dos defectos: editorial y SEO vuelven a preservar enlaces aprobados después de cada parche localizado y recalculan la validación sobre el contenido exacto; el comparador URL solo ignora mayúsculas en esquema/host y conserva sensibles a mayúsculas ruta, query, fragmento y slash final, fallando cerrado ante URLs ambiguas. Las regresiones dirigidas cubren ambos casos, restauración segura y rechazo sin contexto; RC1782 continúa incluido. La integridad manual y las pruebas del candidato previo fueron verificadas antes de este tercer modify. Cobertura restante: mocks locales, sin UI/E2E real de WordPress/Gutenberg. RELEASE/DEPLOY no realizados.

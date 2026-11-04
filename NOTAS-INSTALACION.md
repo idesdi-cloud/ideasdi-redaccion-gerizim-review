@@ -1,5 +1,13 @@
 # Instalación · ideasDi Redacción Gerizim
 
+## RC1.7.8.4 — propuesta de cambio de versión; NO INSTALAR
+
+El código fuente funcional ya está incorporado; en esta intervención solo se
+propone el bump de versión a RC1.7.8.4. No se ha construido ZIP, instalado en
+WordPress ni autorizado DEPLOY. La reversión deberá usar un respaldo real del
+plugin efectivamente instalado, observado en WordPress; no debe suponerse que
+RC1.7.8.3 sea la versión activa.
+
 ## RC1.7.8 — incorporación Git completada; NO INSTALAR SIN DEPLOY AUTORIZADO
 
 RC1.7.8 ya está fusionada en Git `main` por PR #1: merge
