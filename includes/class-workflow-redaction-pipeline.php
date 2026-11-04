@@ -35,7 +35,9 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             return;
         }
 
-        $candidate = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
+        $candidate = IDG_Workflow_Output_Parser::normalize_editorial_box_markdown(
+            IDG_Workflow_Output_Parser::sanitize((string) $result['content'])
+        );
         $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'generate');
         $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
         if (empty($validation['ok'])) {
@@ -74,14 +76,19 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
 
         $raw = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
         $sections = IDG_Workflow_Output_Parser::parse_editorial($raw);
-        $candidate = (string) ($sections['article'] ?? $raw);
+        $candidate = IDG_Workflow_Output_Parser::normalize_editorial_box_markdown((string) ($sections['article'] ?? $raw));
+        $links = IDG_Workflow_Output_Parser::preserve_approved_article_links($source, $candidate, $workflow);
+        $candidate = (string) $links['content'];
         $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'editorial');
+        $validation = $this->with_link_preservation_errors($validation, (array) ($links['errors'] ?? []));
         $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
-        if (empty($validation['ok'])) {
+        if (empty($validation['ok']) && !empty($links['ok'])) {
             $repair = $this->attempt_localized_repair($workflow_id, 'editorial', $candidate, $validation, $workflow, $client);
             if (!empty($repair['applied'])) {
                 $candidate = (string) $repair['content'];
-                $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'editorial');
+                $links = IDG_Workflow_Output_Parser::preserve_approved_article_links($source, $candidate, $workflow);
+                $candidate = (string) $links['content'];
+                $validation = $this->with_link_preservation_errors(IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'editorial'), (array) ($links['errors'] ?? []));
             }
         }
 
@@ -121,19 +128,39 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             return;
         }
 
-        $candidate = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
+        $candidate = IDG_Workflow_Output_Parser::normalize_editorial_box_markdown(
+            IDG_Workflow_Output_Parser::sanitize((string) $result['content']),
+            true
+        );
+        $links = IDG_Workflow_Output_Parser::preserve_approved_article_links($article, $candidate, $workflow, true);
+        $candidate = (string) $links['content'];
         $workflow['seo_model_response'] = $candidate;
         $workflow['seo_result'] = $candidate;
         $preflight = IDG_Post_Creator::preflight_public($workflow);
         $validation = (array) ($preflight['validation'] ?? []);
+        $validation = $this->with_link_preservation_errors($validation, (array) ($links['errors'] ?? []));
+        if (empty($validation['ok'])) {
+            $preflight['ok'] = false;
+            $preflight['validation'] = $validation;
+            $preflight['errors'] = (array) $validation['errors'];
+        }
         $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
-        if (empty($preflight['ok'])) {
+        if (empty($preflight['ok']) && !empty($links['ok'])) {
             $repair = $this->attempt_localized_repair($workflow_id, 'seo', $candidate, $validation, $workflow, $client);
             if (!empty($repair['applied'])) {
                 $candidate = (string) $repair['content'];
                 $workflow['seo_result'] = $candidate;
+                $links = IDG_Workflow_Output_Parser::preserve_approved_article_links($article, $candidate, $workflow, true);
+                $candidate = (string) $links['content'];
+                $workflow['seo_result'] = $candidate;
                 $preflight = IDG_Post_Creator::preflight_public($workflow);
                 $validation = (array) ($preflight['validation'] ?? []);
+                $validation = $this->with_link_preservation_errors($validation, (array) ($links['errors'] ?? []));
+                if (empty($validation['ok'])) {
+                    $preflight['ok'] = false;
+                    $preflight['validation'] = $validation;
+                    $preflight['errors'] = (array) $validation['errors'];
+                }
             }
         }
 
@@ -149,6 +176,12 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         // ni alterar artículo, Reel ni Gutenberg.
         $preflight = IDG_Post_Creator::preflight_public($workflow);
         $validation = (array) ($preflight['validation'] ?? []);
+        $validation = $this->with_link_preservation_errors($validation, (array) ($links['errors'] ?? []));
+        if (empty($validation['ok'])) {
+            $preflight['ok'] = false;
+            $preflight['validation'] = $validation;
+            $preflight['errors'] = (array) $validation['errors'];
+        }
         $prepared = (array) ($preflight['prepared'] ?? []);
         $reel = class_exists('IDG_Reel_Contract') ? IDG_Reel_Contract::inspect((string) ($prepared['reel_package'] ?? '')) : ['valid' => false, 'issues' => ['Reel Contract no disponible.']];
         $workflow['seo_validation'] = $validation;
@@ -204,6 +237,15 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $audit['applied'] = $audit['content'] !== $content;
         $audit['reason'] = $audit['applied'] ? 'applied' : 'no_change';
         return $audit;
+    }
+
+    private function with_link_preservation_errors(array $validation, array $errors): array {
+        if (empty($errors)) return $validation;
+        $validation['ok'] = false;
+        $validation['errors'] = array_values(array_unique(array_merge((array) ($validation['errors'] ?? []), $errors)));
+        $validation['summary'] = implode("\n", array_map(static fn($error): string => '- ERROR: ' . $error, $validation['errors']));
+        $validation['error_codes'] = class_exists('IDG_Final_Guard') ? IDG_Final_Guard::classify_errors($validation['errors']) : [];
+        return $validation;
     }
 
     private function allowed_segments(string $phase, string $content, array $validation): array {

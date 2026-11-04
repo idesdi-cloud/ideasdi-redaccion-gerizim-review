@@ -5,11 +5,10 @@ if (!defined('ABSPATH')) {
 
 final class IDG_Post_Creator {
     public static function create_pending_post(array $workflow): array {
-        $seo_result = (string) ($workflow['seo_result'] ?? '');
-        if ($seo_result === '') {
+        if (self::public_article_source($workflow) === '') {
             return [
                 'success' => false,
-                'message' => 'No existe una versión SEO final para crear la entrada.',
+                'message' => 'No existe una versión SEO, editorial ni artículo base para crear la entrada.',
             ];
         }
 
@@ -23,9 +22,14 @@ final class IDG_Post_Creator {
                 'message' => 'La excepción editorial solo puede crear una entrada pendiente nueva y nunca reutilizar un destino existente o recurrente.',
             ];
         }
+        $creation_lock = self::claim_new_pending_creation($workflow);
+        if (empty($creation_lock['ok'])) {
+            return ['success' => false, 'message' => (string) $creation_lock['message']];
+        }
 
         $prepared = self::preflight_public($workflow, 'Artículo ideasDi');
         if (empty($prepared['write_allowed'])) {
+            self::release_new_pending_creation($creation_lock);
             return [
                 'success' => false,
                 'message' => 'Validación real bloqueó la creación de la entrada: ' . implode(' · ', (array) ($prepared['errors'] ?? [])),
@@ -42,6 +46,7 @@ final class IDG_Post_Creator {
             || $approved_post_content === ''
             || !hash_equals($approved_payload_hash, $payload_hash)
             || !hash_equals($approved_post_content, (string) $post_content))) {
+            self::release_new_pending_creation($creation_lock);
             return [
                 'success' => false,
                 'message' => 'El payload Gutenberg cambió o no conserva el sello del preflight SEO aprobado. Ejecuta nuevamente Revisión SEO.',
@@ -66,11 +71,13 @@ final class IDG_Post_Creator {
 
         $post_id = wp_insert_post($postarr, true);
         if (is_wp_error($post_id)) {
+            self::release_new_pending_creation($creation_lock);
             return [
                 'success' => false,
                 'message' => $post_id->get_error_message(),
             ];
         }
+        self::complete_new_pending_creation($creation_lock, (int) $post_id);
 
         if (!empty($workflow['category_id'])) {
             wp_set_post_terms($post_id, [(int) $workflow['category_id']], 'category', false);
@@ -94,6 +101,7 @@ final class IDG_Post_Creator {
         update_post_meta($post_id, '_idg_social_copy', wp_kses_post($social_copy));
         update_post_meta($post_id, '_idg_reel_package', wp_kses_post($reel_package));
         update_post_meta($post_id, '_idg_feedback_notes', wp_kses_post($feedback_notes));
+        update_post_meta($post_id, '_idg_source_phase', sanitize_text_field((string) ($source_phase ?? 'seo')));
         update_post_meta($post_id, '_idg_sponsor_client', sanitize_text_field($workflow['sponsor_client'] ?? ''));
         update_post_meta($post_id, '_idg_sponsored_link', esc_url_raw($workflow['sponsored_required_link'] ?? ''));
         update_post_meta($post_id, '_idg_sponsored_anchor', sanitize_text_field($workflow['sponsored_anchor'] ?? ''));
@@ -125,6 +133,7 @@ final class IDG_Post_Creator {
                 'error_codes' => array_values((array) ($validation['error_codes'] ?? [])),
                 'user_id' => get_current_user_id(),
                 'workflow_id' => (string) ($workflow['workflow_id'] ?? ''),
+                'source_phase' => (string) ($source_phase ?? 'seo'),
                 'content_hash' => self::override_content_hash($workflow),
                 'payload_hash' => $payload_hash,
                 'confirmed_at' => current_time('mysql'),
@@ -160,7 +169,7 @@ final class IDG_Post_Creator {
             'validation_summary' => isset($validation) && is_array($validation) ? (string) ($validation['summary'] ?? '') : '',
             'postprocessed_html' => $html_content,
             'postprocessing_audit' => $postprocessing_audit,
-            'seo_result' => $processed_seo_result,
+            'seo_result' => (string) (($source_phase ?? 'seo') === 'seo' ? $processed_seo_result : ''),
             'reel_package' => $reel_package,
             'validation' => $validation,
             'payload_hash' => $payload_hash,
@@ -175,7 +184,12 @@ final class IDG_Post_Creator {
         if (class_exists('IDG_Assignment_Card')) {
             $workflow = IDG_Assignment_Card::attach($workflow);
         }
-        $sections = self::extract_sections((string) ($workflow['seo_result'] ?? ''));
+        $seo_result = (string) ($workflow['seo_result'] ?? '');
+        $source_phase = $seo_result !== '' ? 'seo' : (trim((string) ($workflow['editorial_result'] ?? '')) !== '' ? 'editorial' : 'base');
+        $sections = self::extract_sections(self::public_article_source($workflow));
+        if ($seo_result === '') {
+            $sections['missing_seo_result'] = true;
+        }
         $content = self::prepare_public_article_content((string) ($sections['article'] ?? ''), $workflow);
         $title = self::extract_title($content, $workflow['keyword'] ?? $fallback_title);
         // TÍTULO SEO se conserva únicamente como frontera legacy de entrada.
@@ -224,6 +238,12 @@ final class IDG_Post_Creator {
             }
             $validation['error_codes'] = IDG_Final_Guard::classify_errors((array) ($validation['errors'] ?? []));
         }
+        if (!empty($sections['missing_seo_result'])) {
+            $validation['ok'] = false;
+            $validation['errors'][] = 'Falta salida SEO final; la excepción mantiene revisión manual y no genera metadatos, Reel ni sello SEO.';
+            $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "\n- ERROR: Falta salida SEO final; la excepción mantiene revisión manual y no genera metadatos, Reel ni sello SEO.");
+            $validation['error_codes'] = IDG_Final_Guard::classify_errors((array) $validation['errors']);
+        }
         $write_allowed = !empty($validation['ok']);
         if (empty($validation['ok'])
             && !empty($workflow['force_validation_override'])
@@ -242,7 +262,7 @@ final class IDG_Post_Creator {
             'errors' => (array) ($validation['errors'] ?? []),
             'validation' => $validation,
             'workflow' => $workflow,
-            'prepared' => compact('sections', 'content', 'title', 'seo_title', 'meta_description', 'seo_report', 'social_copy', 'reel_package', 'feedback_notes', 'html_content', 'postprocessing_audit', 'processed_seo_result', 'post_content', 'validation'),
+            'prepared' => compact('sections', 'content', 'title', 'seo_title', 'meta_description', 'seo_report', 'social_copy', 'reel_package', 'feedback_notes', 'html_content', 'postprocessing_audit', 'processed_seo_result', 'post_content', 'validation', 'source_phase'),
         ];
     }
 
@@ -256,7 +276,7 @@ final class IDG_Post_Creator {
         if (count($codes) !== count((array) $validation['errors'])) {
             return false;
         }
-        $allowed = ['editorial_structure', 'reel_contract', 'p2_unresolved'];
+        $allowed = ['editorial_structure', 'reel_contract', 'p2_unresolved', 'recoverable_link_missing', 'missing_seo_result'];
         foreach ($codes as $code) {
             if (!in_array((string) $code, $allowed, true)) {
                 return false;
@@ -272,7 +292,7 @@ final class IDG_Post_Creator {
     public static function override_content_hash(array $workflow): string {
         $critical = [];
         foreach ([
-            'workflow_id', 'seo_result', 'keyword', 'entity', 'official_source',
+            'workflow_id', 'seo_result', 'editorial_result', 'base_article', 'keyword', 'entity', 'official_source',
             'responsible_official_url', 'category_id', 'tag_ids',
             'internal_links_structured', 'assignment_card', 'editorial_plan_raw',
             'editorial_recipe_applied', 'draft_post_id', 'workflow_origin',
@@ -327,6 +347,30 @@ final class IDG_Post_Creator {
             && empty($workflow['recurring_target_post_id'])
             && empty($workflow['recurring_target_post_type'])
             && (string) ($workflow['workflow_origin'] ?? '') !== 'recurring_update';
+    }
+
+    public static function public_article_source(array $workflow): string {
+        foreach (['seo_result', 'editorial_result', 'base_article'] as $key) {
+            $value = trim((string) ($workflow[$key] ?? ''));
+            if ($value !== '') return $value;
+        }
+        return '';
+    }
+
+    private static function claim_new_pending_creation(array $workflow): array {
+        $workflow_id = sanitize_text_field((string) ($workflow['workflow_id'] ?? ''));
+        if ($workflow_id === '' || !function_exists('add_option')) return ['ok' => false, 'message' => 'No se pudo establecer la barrera idempotente del workflow antes de crear la entrada.'];
+        $key = 'idg_pending_creation_' . hash('sha256', $workflow_id);
+        if (!add_option($key, 'creating', '', false)) return ['ok' => false, 'message' => 'Este workflow ya tiene una creación pendiente o completada; se evitó una entrada duplicada.'];
+        return ['ok' => true, 'key' => $key];
+    }
+
+    private static function release_new_pending_creation(array $lock): void {
+        if (!empty($lock['key']) && function_exists('delete_option')) delete_option((string) $lock['key']);
+    }
+
+    private static function complete_new_pending_creation(array $lock, int $post_id): void {
+        if (!empty($lock['key']) && function_exists('update_option')) update_option((string) $lock['key'], $post_id, false);
     }
 
     private static function sort_hash_value(array &$value): void {
@@ -810,9 +854,11 @@ final class IDG_Post_Creator {
     }
 
     private static function clean_featured_snippet_text(string $text): string {
-        // Nunca saneamos la caja para convertir un incumplimiento editorial en
-        // uno válido: Final Guard debe informar enlaces, negritas y ubicación.
-        return trim($text);
+        // Normalización exclusivamente tipográfica: no añade ni quita palabras,
+        // enlaces o párrafos. Las demás infracciones siguen llegando al guard.
+        $text = preg_replace('/\*\*([^*]+)\*\*/u', '$1', $text);
+        $text = preg_replace('/__([^_]+)__/u', '$1', (string) $text);
+        return trim((string) $text);
     }
 
     private static function html_to_gutenberg_blocks(string $html): string {
@@ -971,12 +1017,34 @@ final class IDG_Post_Creator {
         $content = self::remove_internal_instruction_leaks($content);
         $content = self::remove_visible_source_citations($content);
         $content = self::remove_bold_from_markdown_headings($content);
+        $content = self::normalize_featured_snippet_markdown($content);
         $content = self::repair_h1_length($content, $workflow);
         $content = self::ensure_featured_snippet_after_intro($content);
         $content = self::ensure_featured_snippet_contract($content, $workflow);
         $content = self::remove_generic_contest_closing($content);
         $content = self::remove_artificial_link_headings($content);
         return $content;
+    }
+
+    private static function normalize_featured_snippet_markdown(string $content): string {
+        $lines = preg_split('/\n/', self::normalize($content));
+        if (!is_array($lines)) return $content;
+        $in_box = false;
+        foreach ($lines as $i => $line) {
+            if (preg_match('/^\s*\*\*\s*Caja editorial\s*:?\s*\*\*\s*$/iu', (string) $line)) {
+                $lines[$i] = 'Caja editorial';
+                $in_box = true;
+                continue;
+            }
+            if (!$in_box) continue;
+            $trim = trim((string) $line);
+            if ($trim === '' || preg_match('/^#{1,6}\s+/u', $trim) || preg_match('/^(?:\*\*\s*)?Caja editorial\b/iu', $trim)) {
+                $in_box = false;
+                continue;
+            }
+            $lines[$i] = self::clean_featured_snippet_text((string) $line);
+        }
+        return trim(implode("\n", $lines));
     }
 
     private static function remove_internal_instruction_leaks(string $content): string {

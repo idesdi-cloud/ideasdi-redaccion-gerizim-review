@@ -57,6 +57,22 @@ Límite de fixtures: SkyPaint199 y ActionForge217 son mocks disponibles. XREAL21
 
 ### Ajustes de revisión del candidato
 
+## RC1.7.8.4 — correctivo focalizado en workspace aislado
+
+Sin cambio de versión, commit, ZIP, release, despliegue ni WordPress real. `preflight_public()` selecciona SEO y, solo para una excepción confirmada, revisión editorial o artículo base si SEO falta; deja el faltante expresamente en el guard y no genera ni persiste una salida SEO, Reel, meta ni sello ficticios. La excepción conserva `pending`, revisión manual, errores ignorados, usuario, identidad de workflow, hash/payload y fase fuente. Un candado atómico de opción por workflow evita doble inserción; recurrentes, destinos existentes, permisos/nonce inválidos e integridad Gutenberg continúan cerrados.
+
+Los faltantes de enlace/anchor autorizado se distinguen de URLs internas o externas no autorizadas: solo el faltante recuperable puede acompañar la excepción; URL, identidad o escritura no se omiten. La caja normaliza de forma determinista el rótulo `**Caja editorial**` con espacios Markdown y negritas tipográficas del cuerpo, sin cambiar palabras, enlaces ni número de párrafos; el guard y Gutenberg reciben la misma representación. No hubo IA real ni reparación adicional.
+
+Prueba dirigida nueva: `php tests/rc1784-targeted-regression.php`, reutilizando SkyPaint199 y ActionForge217 del harness RC1.7.8.2 y añadiendo Brief222/224 locales: excepción hasta `wp_insert_post` y metadatos, ausencia de SEO, caja Markdown, permiso/nonce, URLs no autorizadas, Gutenberg e idempotencia. También se ejecutan lint de PHP afectado y `git diff --check`. Pendiente: QA humano y WordPress/Gutenberg real; no se declara aceptación ni release. No requieren cambio otros documentos canónicos: no hubo contrato Radar, prompt, versión, artefacto ni circuito de producción modificado.
+
+### Segunda revisión RC1.7.8.4
+
+La salida de generación y editorial pasa por una normalización reutilizable antes de `Final_Guard`: convierte únicamente el rótulo Markdown `**Caja editorial**  ` en `Caja editorial` y elimina negrita tipográfica dentro de su único párrafo. No reescribe palabras, enlaces ni límites de párrafo, por lo que el guard conserva la decisión de 40–55 palabras, posición, unicidad, ausencia de enlaces/HTML y Gutenberg. En SEO esa operación queda limitada a `ARTÍCULO FINAL`; los informes y Reel no se transforman.
+
+Antes de validar editorial y SEO se comparan los enlaces Markdown realmente presentes en el artículo fuente contra la URL oficial autorizada y el P2 tag resuelto. Una ausencia solo se restaura si conserva exactamente el anchor y existe una única aparición en un párrafo normal fuera de la caja y sin enlaces; de otro modo se conserva el contenido y se falla cerrado con diagnóstico para revisión humana. El SEO vuelve a pasar por el mismo preflight HTML/Gutenberg después de esa restauración. No se solicita reparación IA para formato ya normalizado ni para una pérdida de enlace sin contexto seguro.
+
+Resultados locales verificables: `php tests/rc1784-targeted-regression.php` y `php tests/rc1782-targeted-regression.php` pasan con mocks. RC1.7.8.4 cubre dos espacios Markdown tras la etiqueta, prosa de caja inalterada, cadena base→editorial→SEO de URL oficial/P2, fallo sin recuperación inequívoca, Brief222 rechazado por SEO con excepción controlada, Brief224 sin SEO, nonce/permisos, idempotencia, destino recurrente y escritura `pending`/metadatos por estrategia. Límite: es integración de rutas con mocks WordPress; no constituye UI renderizada completa ni E2E en WordPress/Gutenberg real. No se requirieron otros documentos: no cambiaron versión, contrato Radar, prompt, release, ZIP ni operación productiva.
+
 Se corrige la visibilidad de la excepción usando salida SEO disponible, sin exigir validación aprobada. El informe verificado se limita a INFORME SEO INTERNO, preserva el artículo y distingue las declaraciones del modelo. Validación de estos ajustes: lint PHP y regresión dirigida aprobados en el host; pendiente contrastar la identidad final del candidato. El REVIEW_READY anterior corresponde a la ejecución previa a estos ajustes. Sin cambio de versión, commit, release ni WordPress.
 
 
@@ -68,5 +84,9 @@ Resultado de comprobación de entrega: código 1. Log: rc1783-delivery-validatio
 
 
 ### Reconciliación de pruebas heredadas
+
+### Revisión final de enlaces RC1.7.8.4
+
+Se corrigieron dos defectos: editorial y SEO vuelven a preservar enlaces aprobados después de cada parche localizado y recalculan la validación sobre el contenido exacto; el comparador URL solo ignora mayúsculas en esquema/host y conserva sensibles a mayúsculas ruta, query, fragmento y slash final, fallando cerrado ante URLs ambiguas. Las regresiones dirigidas cubren ambos casos, restauración segura y rechazo sin contexto; RC1782 continúa incluido. La integridad manual y las pruebas del candidato previo fueron verificadas antes de este tercer modify. Cobertura restante: mocks locales, sin UI/E2E real de WordPress/Gutenberg. RELEASE/DEPLOY no realizados.
 
 Los nueve fallos de entrega se reprodujeron en el baseline RC1.7.8.2. Se fijan sus conteos comprobados: 9 puntos OpenAI y 7 puntos de construcción de prompts; no se permiten incrementos. La comprobación de no escritura permite exclusivamente preflight_public y prepared_payload_hash. El mock de estrategias incorpora save_workflow y comprueba rechazo, cero escrituras y trazabilidad del override recurrente. Las versiones de los tres prompts modificados pasan a RC1.7.8.3. Resultado dirigido: 9/9 aprobados. No se retiraron casos ni se repitió la suite completa. Pendientes: revisar diff final y autorizar liberación.

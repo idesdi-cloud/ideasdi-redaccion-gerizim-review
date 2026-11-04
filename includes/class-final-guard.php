@@ -297,6 +297,14 @@ final class IDG_Final_Guard {
     public static function classify_errors(array $errors): array {
         $codes = [];
         $rules = [
+            'missing_seo_result' => ['/\AFalta salida SEO final; la excepción mantiene revisión manual y no genera metadatos, Reel ni sello SEO\.\z/u'],
+            'recoverable_link_missing' => [
+                '/\AFalta el enlace externo obligatorio hacia la URL del responsable\.\z/u',
+                '/\AEl artículo debe contener exactamente un enlace externo oficial\. Detectados: 0\.\z/u',
+                '/\AEl enlace externo no puede usar la keyword principal como anchor\.\z/u',
+                '/\AP2 exige exactamente un enlace al tag canónico resuelto; detectados: 0\.\z/u',
+                '/\AP2 exige exactamente un anchor interno real en el HTML final; detectados: 0\.\z/u',
+            ],
             'p2_unresolved' => ['/\AP2 bloqueado: no existe un tag canónico real resuelto por IDG_Internal_Links::normalize\(\)\.\z/u'],
             'p2_unauthorized' => [
                 '/\AP2 exige exactamente un enlace al tag canónico resuelto; detectados: \d+\.\z/u',
@@ -563,10 +571,10 @@ final class IDG_Final_Guard {
     private static function extract_featured_snippet(string $content, string $html): string {
         // El original editorial conserva marcas que el HTML puede escapar; se
         // inspecciona primero para que enlaces y negritas sean diagnosticables.
-        if (preg_match('/Caja editorial\s*:?[ \t]*\n+(.+?)(?:\n\s*#{1,3}\s+|\n\s*$)/isu', $content, $m)) {
+        if (preg_match('/(?:\*\*\s*)?Caja editorial\s*:?(?:\s*\*\*)?[ \t]*\n+(.+?)(?:\n\s*#{1,3}\s+|\n\s*$)/isu', $content, $m)) {
             return trim((string) $m[1]);
         }
-        if (preg_match('/Caja editorial\s*:?\s*(.+)$/imu', $content, $m)) {
+        if (preg_match('/(?:\*\*\s*)?Caja editorial\s*:?(?:\s*\*\*)?\s*(.+)$/imu', $content, $m)) {
             return trim((string) $m[1]);
         }
         if (preg_match('/<p\b[^>]*class=(?:"|\')[^"\']*featured-snippet-box[^"\']*(?:"|\')[^>]*>(.*?)<\/p>/isu', $html, $m)) {
@@ -584,13 +592,13 @@ final class IDG_Final_Guard {
     private static function featured_snippet_structure_status(string $content, string $html): array {
         $errors = [];
         $normalized = str_replace(["\r\n", "\r"], "\n", $content);
-        $label_pattern = '/^\s*(?:\*\*)?\s*Caja editorial\s*:?(?:\s*\*\*)?(?:\s+.*)?$/imu';
+        $label_pattern = '/^\s*(?:\*\*\s*)?Caja editorial\s*:?(?:\s*\*\*)?(?:\s+.*)?$/imu';
         $label_count = (int) preg_match_all($label_pattern, $normalized, $labels, PREG_OFFSET_CAPTURE);
         if ($label_count !== 1) {
             $errors[] = 'ARTÍCULO FINAL debe contener una única caja editorial. Detectadas: ' . $label_count . '.';
         } elseif (preg_match($label_pattern, $normalized, $label, PREG_OFFSET_CAPTURE)) {
             $line = trim((string) ($label[0][0] ?? ''));
-            $inline = preg_replace('/^\s*(?:\*\*)?\s*Caja editorial\s*:?(?:\s*\*\*)?\s*/iu', '', $line);
+            $inline = preg_replace('/^\s*(?:\*\*\s*)?Caja editorial\s*:?(?:\s*\*\*)?\s*/iu', '', $line);
             if (trim((string) $inline) === '') {
                 $start = (int) $label[0][1] + strlen((string) $label[0][0]);
                 $tail = substr($normalized, $start);
@@ -751,7 +759,7 @@ final class IDG_Final_Guard {
         if (!preg_match('/^##\s+.+$/mu', $normalized, $h2, PREG_OFFSET_CAPTURE)) {
             return ['ok' => true, 'message' => ''];
         }
-        if (!preg_match('/^\s*(?:\*\*)?\s*Caja editorial\s*:?\s*(?:\*\*)?\s*$/imu', $normalized, $box, PREG_OFFSET_CAPTURE)) {
+        if (!preg_match('/^\s*(?:\*\*\s*)?Caja editorial\s*:?(?:\s*\*\*)?\s*$/imu', $normalized, $box, PREG_OFFSET_CAPTURE)) {
             return ['ok' => true, 'message' => ''];
         }
         $after_h2 = $h2[0][1] + strlen($h2[0][0]);

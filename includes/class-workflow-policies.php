@@ -170,8 +170,14 @@ final class IDG_Workflow_Policies {
         if ($step === self::ACTION_SEO && trim((string) ($workflow['editorial_result'] ?? '')) === '') {
             return 'needs_editorial';
         }
-        if ($step === self::ACTION_DRAFT && trim((string) ($workflow['seo_result'] ?? '')) === '') {
+        if ($step === self::ACTION_DRAFT && !self::is_force_action($action) && trim((string) ($workflow['seo_result'] ?? '')) === '') {
             return 'needs_seo';
+        }
+        if ($step === self::ACTION_DRAFT && self::is_force_action($action)
+            && trim((string) ($workflow['seo_result'] ?? '')) === ''
+            && trim((string) ($workflow['editorial_result'] ?? '')) === ''
+            && trim((string) ($workflow['base_article'] ?? '')) === '') {
+            return 'needs_article';
         }
         if ($step === self::ACTION_DRAFT
             && (string) ($workflow['workflow_origin'] ?? '') === 'recurring_update'

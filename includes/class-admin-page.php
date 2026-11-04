@@ -1876,6 +1876,10 @@ final class IDG_Workflow_Admin_Controller {
                     $editorial_available = trim((string) ($workflow['editorial_result'] ?? '')) !== '';
                     $editorial_done = !empty($workflow['editorial_validation']['ok']);
                     $seo_available = trim((string) ($workflow['seo_result'] ?? '')) !== '';
+                    $force_source_available = $seo_available || $editorial_available || $base_available;
+                    // Conserva explícita la elegibilidad histórica SEO; la ruta
+                    // RC1.7.8.4 añade editorial/base solo para draft_force.
+                    $seo_force_eligible = $seo_available && self::should_show_force_draft($workflow);
                     $seo_done = !empty($workflow['seo_validation']['ok']);
                     $draft_done = $is_recurring_workflow ? !empty($workflow['recurring_event_content_updated']) : !empty($workflow['draft_post_id']);
                     ?>
@@ -1889,7 +1893,7 @@ final class IDG_Workflow_Admin_Controller {
                             <button type="submit" name="step" value="recurring_event_content" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> data-confirm="¿Aplicar la Versión 3 · Revisión SEO final a la publicación ID <?php echo esc_attr((string) ($workflow['recurring_target_post_id'] ?? '')); ?>? Se reemplazarán título, contenido y extracto; se conservarán slug, campos estructurados, estado, autor, taxonomías e imagen." title="<?php echo esc_attr($seo_done ? 'Aplicar la Versión 3 validada a la publicación existente' : 'Primero ejecuta Revisión SEO'); ?>"><?php echo $draft_done ? 'Versión 3 aplicada a la publicación' : 'Aplicar Versión 3 a la publicación ID ' . esc_html((string) ($workflow['recurring_target_post_id'] ?? '')); ?></button>
                         <?php else : ?>
                             <button type="submit" name="step" value="draft" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> title="<?php echo esc_attr($seo_done ? 'Crear o repetir entrada pendiente en WordPress' : 'Primero ejecuta Revisión SEO'); ?>">Crear entrada en WordPress</button>
-                            <?php if ($seo_available && self::should_show_force_draft($workflow)) : ?>
+                            <?php if (($force_source_available && self::should_show_force_draft($workflow)) || $seo_force_eligible) : ?>
                                 <?php
                                 $force_user_id = get_current_user_id();
                                 $force_hash = IDG_Post_Creator::override_content_hash($workflow);
@@ -1902,8 +1906,8 @@ final class IDG_Workflow_Admin_Controller {
                                     <input type="hidden" name="idg_force_content_hash" value="<?php echo esc_attr($force_hash); ?>">
                                     <input type="hidden" name="idg_force_nonce" value="<?php echo esc_attr(wp_create_nonce($force_action)); ?>">
                                 </div>
-                                <button type="submit" name="step" value="draft_force" class="button idg-button-warning" data-confirm="La validación seguirá rechazada. ¿Crear únicamente una entrada pending nueva con revisión manual obligatoria?" title="Crear pending con excepción editorial confirmada">Crear pending con excepción editorial</button>
-                            <?php elseif ($seo_available && !$seo_done && !$draft_done) : ?>
+                                <button type="submit" name="step" value="draft_force" class="button idg-button-warning" data-confirm="La validación seguirá rechazada. ¿Crear únicamente una entrada pending nueva con revisión manual obligatoria?" title="Crear pending con excepción editorial confirmada">Ignorar validación y crear entrada</button>
+                            <?php elseif ($force_source_available && !$seo_done && !$draft_done) : ?>
                                 <div class="notice notice-warning inline"><p><strong>Revisión SEO pendiente de corrección:</strong> <?php echo esc_html((string) ($workflow['seo_validation_summary'] ?? 'La salida existe, pero el preflight no está aprobado y no admite excepción editorial.')); ?></p></div>
                             <?php endif; ?>
                         <?php endif; ?>
