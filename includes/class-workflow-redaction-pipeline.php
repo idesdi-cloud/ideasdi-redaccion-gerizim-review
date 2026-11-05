@@ -49,6 +49,11 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         }
 
         $workflow['base_article'] = $candidate;
+        // RC1.7.8.5: this is the sole authority for newly generated work.
+        // base_article remains a legacy projection for adapters and history.
+        if (class_exists('IDG_Editorial_Document')) {
+            $workflow['editorial_document'] = IDG_Editorial_Document::from_markdown($candidate, $workflow);
+        }
         $workflow['generate_validation'] = $validation;
         $workflow['generate_repair'] = $this->repair_audit($repair);
         $workflow['usage_generate'] = $result['usage'] ?? [];
@@ -66,8 +71,13 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
     }
 
     private function run_editorial(string $workflow_id, array $workflow, IDG_OpenAI_Client $client): void {
-        $source = (string) ($workflow['base_article'] ?? '');
+        $document_mode = class_exists('IDG_Editorial_Document') && IDG_Editorial_Document::exists($workflow);
+        $source = $document_mode ? IDG_Editorial_Document::markdown($workflow['editorial_document']) : (string) ($workflow['base_article'] ?? '');
         $data = IDG_Workflow_Prompt_Data::prepare($workflow, $source, 'editorial');
+        if ($document_mode && empty($data['editorial_document_manifest_ok'])) {
+            $this->save_validation_failure($workflow_id, $workflow, 'editorial', ['ok'=>false, 'errors'=>['Revisión editorial: documento por bloques inválido o desactualizado; no se llamó al modelo.'], 'warnings'=>[], 'summary'=>'- ERROR: Documento editorial inválido o desactualizado.']);
+            return;
+        }
         $result = $client->complete(IDG_Prompt_Library::editorial_prompt($data));
         if (empty($result['success'])) {
             $this->save_model_failure($workflow_id, $workflow, 'editorial', (string) ($result['message'] ?? 'Falló la revisión editorial.'));
@@ -75,6 +85,36 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         }
 
         $raw = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
+        if ($document_mode) {
+            $applied = IDG_Editorial_Document::apply_editorial_response($workflow['editorial_document'], $raw);
+            if (empty($applied['ok'])) {
+                $workflow['editorial_validation'] = ['ok' => false, 'errors' => ['Revisión editorial: respuesta sin bloques explícitos y compatibles; no se sustituyó el documento.'], 'warnings' => [], 'summary' => '- ERROR: Revisión editorial: respuesta sin bloques explícitos y compatibles; no se sustituyó el documento.'];
+                $workflow['editorial_changed'] = false;
+                $workflow['editorial_changed_block_ids'] = [];
+                $this->save_validation_failure($workflow_id, $workflow, 'editorial', $workflow['editorial_validation']);
+                return;
+            }
+            $workflow['editorial_document'] = $applied['document'];
+            $candidate = IDG_Editorial_Document::markdown($applied['document']);
+            $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'editorial');
+            $changed_ids = (array) $applied['changed_ids'];
+            $changed = !empty($changed_ids);
+            $workflow['editorial_output_raw'] = $raw;
+            $workflow['editorial_result'] = $candidate; // legacy projection, never authority.
+            $workflow['editorial_diagnosis'] = $changed ? '- Comparación real por bloques: changed; IDs: ' . implode(', ', $changed_ids) . '.' : '- Comparación real por bloques: unchanged; no se atribuyen correcciones inexistentes.';
+            $workflow['editorial_notes'] = (string) (IDG_Workflow_Output_Parser::parse_editorial($raw)['notes'] ?? '');
+            $workflow['editorial_changed'] = $changed;
+            $workflow['editorial_changed_block_ids'] = $changed_ids;
+            $workflow['editorial_validation'] = $validation;
+            $workflow['editorial_repair'] = ['attempted' => false, 'applied' => false, 'reason' => 'document_mode_no_blind_repair'];
+            $workflow['usage_editorial'] = $result['usage'] ?? [];
+            $workflow['usage_editorial_estimate'] = IDG_Usage_Estimator::record('editorial', (array) ($result['usage'] ?? []), $workflow_id, (string) ($result['model'] ?? ''));
+            if (empty($validation['ok'])) { $this->save_validation_failure($workflow_id, $workflow, 'editorial', $validation); return; }
+            $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'editorial');
+            $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'editorial_completed', 'Documento editorial revisado por bloques; comparación ' . ($changed ? 'changed.' : 'unchanged.'));
+            IDG_Job_Runner::save_workflow($workflow_id, $workflow);
+            return;
+        }
         $sections = IDG_Workflow_Output_Parser::parse_editorial($raw);
         $candidate = IDG_Workflow_Output_Parser::normalize_editorial_box_markdown((string) ($sections['article'] ?? $raw));
         $links = IDG_Workflow_Output_Parser::preserve_approved_article_links($source, $candidate, $workflow);
@@ -120,15 +160,26 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
     }
 
     private function run_seo(string $workflow_id, array $workflow, IDG_OpenAI_Client $client): void {
-        $article = (string) ($workflow['editorial_result'] ?? $workflow['base_article'] ?? '');
+        $document_mode = class_exists('IDG_Editorial_Document') && IDG_Editorial_Document::exists($workflow);
+        $article = $document_mode ? IDG_Editorial_Document::markdown($workflow['editorial_document']) : (string) ($workflow['editorial_result'] ?? $workflow['base_article'] ?? '');
         $data = IDG_Workflow_Prompt_Data::prepare($workflow, $article, 'seo');
+        if ($document_mode && empty($data['editorial_document_manifest_ok'])) {
+            $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false, 'errors'=>['SEO: documento por bloques inválido o desactualizado; no se llamó al modelo.'], 'warnings'=>[], 'summary'=>'- ERROR: Documento editorial inválido o desactualizado.']);
+            return;
+        }
         $result = $client->complete(IDG_Prompt_Library::seo_prompt($data));
         if (empty($result['success'])) {
             $this->save_model_failure($workflow_id, $workflow, 'seo', (string) ($result['message'] ?? 'Falló la revisión SEO.'));
             return;
         }
 
-        $candidate = IDG_Workflow_Output_Parser::normalize_editorial_box_markdown(
+        if ($document_mode) {
+            $applied = IDG_Editorial_Document::apply_seo_response($workflow['editorial_document'], (string) $result['content'], $workflow);
+            if (empty($applied['ok'])) { $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: la respuesta altera la forma de bloques del documento; no se sustituyó la prosa.'],'warnings'=>[],'summary'=>'- ERROR: SEO: la respuesta altera la forma de bloques del documento; no se sustituyó la prosa.']); return; }
+            $workflow['editorial_document'] = $applied['document'];
+            $workflow['seo_result'] = IDG_Editorial_Document::projection($applied['document']);
+        }
+        $candidate = $document_mode ? $workflow['seo_result'] : IDG_Workflow_Output_Parser::normalize_editorial_box_markdown(
             IDG_Workflow_Output_Parser::sanitize((string) $result['content']),
             true
         );
@@ -145,7 +196,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $preflight['errors'] = (array) $validation['errors'];
         }
         $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
-        if (empty($preflight['ok']) && !empty($links['ok'])) {
+        if (!$document_mode && empty($preflight['ok']) && !empty($links['ok'])) {
             $repair = $this->attempt_localized_repair($workflow_id, 'seo', $candidate, $validation, $workflow, $client);
             if (!empty($repair['applied'])) {
                 $candidate = (string) $repair['content'];

@@ -52,6 +52,9 @@ final class IDG_Workflow_Prompt_Data {
             $editorial_angle = 'Usar el hecho base y la investigación como prioridad factual. La categoría delimita el territorio, el lente filtra la mirada y el plan editorial aplicado selecciona únicamente los ejes pertinentes.';
         }
 
+        $manifest = class_exists('IDG_Editorial_Document')
+            ? IDG_Editorial_Document::prompt_manifest($workflow, $article, $phase)
+            : ['ok' => true, 'text' => ''];
         return [
             'canonical_context' => class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::resolve($workflow) : [],
             'canonical_guidance' => class_exists('IDG_Canonical_Context') ? IDG_Canonical_Context::prompt_block($workflow) : '',
@@ -102,6 +105,9 @@ final class IDG_Workflow_Prompt_Data {
             'temporary_material_excerpt' => self::material_excerpt_for_phase($workflow, $phase),
             'temporary_material_mode' => self::material_mode_for_phase($workflow, $phase),
             'article' => $article,
+            'editorial_document_manifest' => (string) ($manifest['text'] ?? ''),
+            'editorial_document_manifest_ok' => !empty($manifest['ok']),
+            'editorial_document_manifest_reason' => (string) ($manifest['reason'] ?? ''),
         ];
     }
 

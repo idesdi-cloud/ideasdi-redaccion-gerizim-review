@@ -184,6 +184,9 @@ final class IDG_Post_Creator {
         if (class_exists('IDG_Assignment_Card')) {
             $workflow = IDG_Assignment_Card::attach($workflow);
         }
+        if (class_exists('IDG_Editorial_Document') && IDG_Editorial_Document::exists($workflow)) {
+            return self::preflight_editorial_document($workflow, $fallback_title);
+        }
         $seo_result = (string) ($workflow['seo_result'] ?? '');
         $source_phase = $seo_result !== '' ? 'seo' : (trim((string) ($workflow['editorial_result'] ?? '')) !== '' ? 'editorial' : 'base');
         $sections = self::extract_sections(self::public_article_source($workflow));
@@ -266,6 +269,29 @@ final class IDG_Post_Creator {
         ];
     }
 
+    /** New documents bypass legacy repair/postprocessing. Historical workflows keep it. */
+    private static function preflight_editorial_document(array $workflow, string $fallback_title): array {
+        $document = $workflow['editorial_document'];
+        $content = IDG_Editorial_Document::markdown($document);
+        $payload = IDG_Editorial_Document::gutenberg($document);
+        $seo = (array) ($document['seo'] ?? []);
+        $sections = self::extract_sections(IDG_Editorial_Document::projection($document));
+        $title = (string) ($payload['title'] ?? self::extract_title($content, (string) ($workflow['keyword'] ?? $fallback_title)));
+        $meta_description = self::clean_meta_description((string) ($seo['meta_description'] ?? ''));
+        $seo_report = trim((string) ($seo['report'] ?? ''));
+        $social_copy = trim((string) ($document['social_copy'] ?? ''));
+        $reel_package = trim((string) ($sections['reel_package'] ?? ''));
+        $feedback_notes = trim((string) ($workflow['feedback_notes'] ?? ''));
+        $html_content = (string) $payload['html']; $post_content = (string) $payload['post_content'];
+        $workflow['postprocessing_audit'] = ['prose_unchanged' => true, 'mode' => 'editorial_document_v1'];
+        $validation = IDG_Final_Guard::validate_before_draft($content, $html_content, $sections, $workflow);
+        $gutenberg = IDG_Final_Guard::validate_gutenberg_blocks($post_content);
+        if (empty($gutenberg['ok'])) { $validation['ok']=false; $validation['errors']=array_merge((array)$validation['errors'],(array)$gutenberg['errors']); }
+        $validation['summary'] = (string) ($validation['summary'] ?? '');
+        $validation['error_codes'] = IDG_Final_Guard::classify_errors((array) ($validation['errors'] ?? []));
+        return ['ok'=>!empty($validation['ok']),'write_allowed'=>!empty($validation['ok']),'errors'=>(array)($validation['errors']??[]),'validation'=>$validation,'workflow'=>$workflow,'prepared'=>compact('sections','content','title','meta_description','seo_report','social_copy','reel_package','feedback_notes','html_content','post_content','validation') + ['document_hash'=>IDG_Editorial_Document::hash($document),'seo_title'=>'%%title%%','postprocessing_audit'=>$workflow['postprocessing_audit'],'processed_seo_result'=>IDG_Editorial_Document::projection($document),'source_phase'=>'seo']];
+    }
+
     public static function override_eligible(array $validation): bool {
         if (!empty($validation['ok']) || empty($validation['errors']) || !class_exists('IDG_Final_Guard')) {
             return false;
@@ -316,6 +342,7 @@ final class IDG_Post_Creator {
             'meta_description' => (string) ($prepared['meta_description'] ?? ''),
             'seo_result' => (string) ($prepared['processed_seo_result'] ?? ''),
             'reel_package' => (string) ($prepared['reel_package'] ?? ''),
+            'document_hash' => (string) ($prepared['document_hash'] ?? ''),
         ];
         return hash('sha256', (string) wp_json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }

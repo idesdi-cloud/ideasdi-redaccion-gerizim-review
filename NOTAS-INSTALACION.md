@@ -1,5 +1,13 @@
 # Instalación · ideasDi Redacción Gerizim
 
+## Candidato RC1.7.8.5 — NO INSTALAR
+
+RC1.7.8.5 es un candidato no liberado ni instalado. Introduce `editorial_document` schema v1 en el array existente del workflow, sin tabla ni migración: los expedientes legacy se leen sin mutación y las proyecciones históricas siguen disponibles. Editorial y SEO reciben un manifiesto actual de IDs y hashes de bloque; si está desfasado, malformado o contiene IDs duplicados, el pipeline no llama al modelo. La transición solo ocurre al ejecutar una etapa de un documento nuevo; no hay ZIP ni operación WordPress autorizada.
+
+La regresión local RC1.7.8.5 también verifica que cada parche conserve exactamente, en orden, URL y anchor visible Markdown: rechaza cambios de anchor/href y enlaces añadidos o eliminados, y permite prosa no relacionada con el par intacto. Es cobertura con mocks; no acredita QA WordPress/Gutenberg vivo, instalación, release ni despliegue.
+
+El siguiente gate es revisión humana del diff, las pruebas locales y QA manual autorizada de Gutenberg/administración. Riesgos abiertos: la integración usa mocks y no acredita la fidelidad factual de la prosa ni una instalación. La nota temporal siguiente se conserva: el 4 de noviembre se observó RC1.7.8.4.1 activo y 239/239 archivos coincidentes; esa coincidencia no prueba causalidad con el incidente.
+
 ## Incidente administrativo RC1.7.8.4.1 — 2026-11-04
 
 Se observó inestabilidad y una UI alterada; el plugin quedó desactivado y el código instalado coincidía con Git. Las advertencias PHP de WP-Optimize no están vinculadas causalmente. El defecto confirmado era trabajo duplicado de preflight durante el render administrativo; no se ha probado que causara la caída. El correctivo usa elegibilidad estructural barata en GET y conserva la validación POST.
@@ -72,6 +80,10 @@ El RELEASE y el DEPLOY son fases separadas.
 RC1.6.3.2 no migra datos ni cambia el formato persistido. La separación es interna: planificación y redacción usan contratos y adaptadores transparentes, mientras publicación, validaciones y workflows continúan con el comportamiento anterior.
 
 ## Validación técnica incluida
+
+### Candidato RC1.7.8.5 (continuación controlada)
+
+No instalar todavía. El documento editorial autoritativo ahora separa el H1 para `post_title`, deja el cuerpo Gutenberg sin H1 y sella el hash documental dentro del payload aprobado. Editorial y SEO aceptan eco idéntico o parches explícitos por ID y SHA-256; SEO rechaza reemplazos completos, mutaciones de URL y cambios en encabezados o caja. El Reel conserva la normalización completa de `IDG_Reel_Contract` y su validez. `tests/rc1785-integration.php` es un mock local (no QA WordPress vivo) de Generate → Editorial → SEO → Pending con Responses en cola y writes en memoria; cubre los fixtures sintéticos 227, 224 y 222, manifiesto de prompt, serialización, sellos, parches y legado. No hubo ZIP, instalación, despliegue ni release.
 
 ```bash
 php tests/workflow-planning-redaction-equivalence.php

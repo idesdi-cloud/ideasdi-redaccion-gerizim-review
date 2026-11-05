@@ -452,6 +452,7 @@ PROMPT;
         $prompt = self::build_context($data) . <<<PROMPT
 
 TAREA: Revisión editorial.
+El documento se conserva por bloques. Si propones cambios, no devuelvas el artículo completo: entrega uno o más parches exactos al final con `PATCH id`, `EXPECTED_SHA256: [hash del texto actual]`, `TEXT: [texto de reemplazo]`, `END PATCH`. Solo usa IDs proporcionados por el contexto y conserva enlaces. Si no cambias prosa, puedes repetir exactamente el artículo.
 Revisa el artículo base sin optimizarlo todavía para SEO técnico.
 Objetivo: comprobar primero si el artículo cumple la tesis y el plan editorial, y después corregir estructura, naturalidad, precisión, ritmo y fuerza desde la voz ideasDi Diseñador Traductor. Revisa decisiones de diseño verificables y traduce sus efectos perceptivos, funcionales o culturales sin inventar hechos. Puedes reemplazar H3, reorganizar bloques o reescribir fragmentos solo cuando exista un problema sustantivo comprobable.
 Usa la ficha documental temporal solo para verificar datos, conservar precisión y evitar que se pierdan hechos relevantes. No vuelvas a copiar el tono de la nota de prensa ni reescribas desde el material temporal completo.
@@ -515,6 +516,7 @@ PROMPT;
         $prompt = self::build_context($data) . <<<PROMPT
 
 TAREA: Revisión SEO final.
+Protocolo obligatorio de documento: el artículo completo solo puede repetirse byte a byte sin cambios. Para cambiar prosa, entrega parches explícitos `PATCH id` / `EXPECTED_SHA256:` / `TEXT:` / `END PATCH`; no cambies H1, H2, H3, caja ni URL/anchor. No hay opciones adicionales de API ni llamadas adicionales.
 Trabaja sobre la versión editorial revisada, no sobre el texto base.
 Objetivo: dejar el artículo listo para crear borrador en WordPress sin endurecer la voz ni volverlo artificial.
 Modo de trabajo obligatorio: conservación editorial y cambios localizados. Preserva sin alterar la tesis editorial ya aprobada, la caja editorial, H1, H2 y la estructura del artículo, además de su pulso y mejores frases. Solo modifica la oración o el fragmento imprescindible para integrar enlaces, keyword o claridad. No agregues párrafos de rescate, no redactes cierres documentales, no introduzcas nueva semántica editorial y no reescribas un bloque completo que ya funciona. Usa la ficha documental temporal únicamente como verificación de precisión, no como base para rehacer el artículo.
@@ -704,6 +706,7 @@ PROMPT;
         $sponsored_restrictions = trim((string) ($data['sponsored_restrictions'] ?? ''));
         $is_sponsored = (mb_stripos((string) $piece_type, 'patrocinado') !== false || mb_stripos((string) $piece_type, 'colaboraci') !== false) ? 'sí' : 'no';
         $article = $data['article'] ?? '';
+        $document_manifest = trim((string) ($data['editorial_document_manifest'] ?? ''));
 
         $document_context = $document_card !== '' ? $document_card : 'No hay ficha documental temporal activa.';
         $assignment_context = $assignment_card !== '' ? $assignment_card : 'No hay ficha de encargo editorial registrada en el contexto.';
@@ -768,6 +771,7 @@ EXTRACTO CONTROLADO DEL MATERIAL TEMPORAL
 
 ARTÍCULO DE ENTRADA
 {$article}
+{$document_manifest}
 PROMPT;
     }
 }
