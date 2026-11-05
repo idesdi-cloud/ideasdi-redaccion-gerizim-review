@@ -43,7 +43,7 @@ printf '\n%s\n' "=== Contrato de versión actual ==="
 TEST_TOTAL=$((TEST_TOTAL + 1))
 : > "$TEST_LOG"
 
-if python3 tests/plugin-version-contract.py 0.4.0-RC1.7.8.5 >"$TEST_LOG" 2>&1; then
+if python3 tests/plugin-version-contract.py 0.4.0-RC1.7.8.5.1 >"$TEST_LOG" 2>&1; then
   echo "PASS: plugin-version-contract.py"
 else
   echo "FAIL: plugin-version-contract.py"
@@ -62,7 +62,8 @@ while IFS= read -r -d '' TEST_FILE; do
     tests/rc170-canonical-prompts-admin.php|\
     tests/rc170-release-regression.php|\
     tests/rc178-targeted-regression.php|\
-    tests/rc1785-integration.php)
+    tests/rc1785-integration.php|\
+    tests/rc17851-honda-regression.php)
       continue
       ;;
   esac
@@ -98,6 +99,17 @@ if php tests/rc1785-integration.php >"$TEST_LOG" 2>&1; then
   echo "PASS: rc1785-integration.php"
 else
   echo "FAIL: rc1785-integration.php"
+  cat "$TEST_LOG"
+  FAILURES=$((FAILURES + 1))
+fi
+
+printf '\n%s\n' "=== Estabilización Honda RC1.7.8.5.1 ==="
+TEST_TOTAL=$((TEST_TOTAL + 1))
+: > "$TEST_LOG"
+if php tests/rc17851-honda-regression.php >"$TEST_LOG" 2>&1; then
+  echo "PASS: rc17851-honda-regression.php"
+else
+  echo "FAIL: rc17851-honda-regression.php"
   cat "$TEST_LOG"
   FAILURES=$((FAILURES + 1))
 fi

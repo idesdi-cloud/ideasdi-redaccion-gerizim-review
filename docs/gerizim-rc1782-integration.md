@@ -1,5 +1,15 @@
 # Integración Gerizim 0.4.0-RC1.7.8.2
 
+## Candidato RC1.7.8.5.1 — estabilización Honda RN0, no liberado ni instalado
+
+Sobre el baseline autorizado `fa4b3ce4488cc4c24459e6f907b726c27af5a34d`, este candidato reconcilia de forma determinista una respuesta editorial completa con el documento por bloques existente: conserva forma, orden, IDs y enlaces Markdown exactos; ante estructura ambigua, URL o anchor alterados conserva el documento previo y registra la respuesta cruda con diagnóstico específico. Los parches siguen siendo alternativa válida. El panel permite continuar SEO desde ese documento seguro, pero exhibe la revisión editorial como rechazada y disponible para revisión manual, no como aprobada.
+
+SEO solo puede reconciliar un artículo completo cuando inserta una única URL responsable canónica faltante dentro de prosa existente, sin modificar P2 ni otros anchors. La prioridad es `canonical_context.responsible_official_url`, luego `responsible_official_url` y finalmente `official_source`. Metadatos, informe, social, Reel y proyecciones siguen en `editorial_document`; H1 continúa siendo únicamente el título WordPress.
+
+La regresión `tests/rc17851-honda-regression.php` usa el texto base inmutable del caso Honda RN0/brief 230 y respuestas expresamente simuladas (no la salida histórica del modelo). Verifica revisión completa y localizada, sin cambios, URL insegura rechazada sin overwrite, navegación SEO desde base segura, P2 conservado, metadata/Reel, Gutenberg y un único `pending` mediante mock. También verifica el circuito excepcional sin SEO: nonce, permiso y hash actual del documento; una confirmación obsoleta no escribe y el único `pending` permitido conserva la marca de revisión manual. Se añade una vez a `scripts/test.sh`. Ejecución local final: `./scripts/test.sh` terminó `VALIDACION_GERIZIM_OK`, incluidos contrato de versión, regresión Honda, regresión histórica protegida y manifiesto SHA-256. QA WordPress real, ZIP, release, instalación y aceptación humana siguen pendientes.
+
+Documentos actualizados: este registro y `NOTAS-INSTALACION.md`, pues cambian contrato, versión, pruebas y candidatura. No se actualizan manifiestos RC1.7.8.5 históricos, informes de release ni handoff: no hubo release, artefacto, producción ni cambio de contrato Radar.
+
 Fecha de modificación: 2026-11-03. Baseline aislado: `6599ef23a5bff85f7c62159335cef6b7e5dc7ccc`. Esta intervención no afirma herencia del workspace anterior ni un estado formal de revisión. No hubo red, IA real, WordPress real, ZIP, commit, tag, push, release ni despliegue.
 
 ## Comportamiento integrado

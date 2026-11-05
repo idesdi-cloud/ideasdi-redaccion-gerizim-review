@@ -1875,6 +1875,8 @@ final class IDG_Workflow_Admin_Controller {
                     $base_done = !empty($workflow['generate_validation']['ok']);
                     $editorial_available = trim((string) ($workflow['editorial_result'] ?? '')) !== '';
                     $editorial_done = !empty($workflow['editorial_validation']['ok']);
+                    $editorial_safe_base = !$editorial_done && !empty($workflow['editorial_requires_manual_review'])
+                        && class_exists('IDG_Editorial_Document') && IDG_Editorial_Document::exists($workflow);
                     $seo_available = trim((string) ($workflow['seo_result'] ?? '')) !== '';
                     $force_source_available = $seo_available || $editorial_available || $base_available;
                     // La elegibilidad visual es estructural y no ejecuta preflight ni Gutenberg.
@@ -1888,7 +1890,7 @@ final class IDG_Workflow_Admin_Controller {
                         <?php $generate_done = $base_done && ((string) ($workflow['last_action'] ?? '') === 'generate' || !empty($workflow['generated_from_brief'])); ?>
                         <button type="submit" id="idg_generate_button" name="step" value="generate" class="button button-primary <?php echo $generate_done ? 'idg-step-done' : ''; ?>" title="Generar artículo base desde el brief editorial">Generar artículo base</button>
                         <button type="submit" name="step" value="editorial" class="button button-primary <?php echo $editorial_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$base_available); ?> title="<?php echo esc_attr($base_available ? 'Ejecutar o repetir Revisión editorial' : 'Primero ejecuta Generar artículo base'); ?>">Revisión editorial</button>
-                        <button type="submit" name="step" value="seo" class="button button-primary <?php echo $seo_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$editorial_done); ?> title="<?php echo esc_attr($editorial_done ? 'Ejecutar o repetir Revisión SEO' : ($editorial_available ? 'La salida editorial requiere corrección antes de SEO' : 'Primero ejecuta Revisión editorial')); ?>">Revisión SEO</button>
+                        <button type="submit" name="step" value="seo" class="button button-primary <?php echo $seo_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$editorial_done && !$editorial_safe_base); ?> title="<?php echo esc_attr($editorial_done ? 'Ejecutar o repetir Revisión SEO' : ($editorial_safe_base ? 'Documento base válido disponible; la revisión editorial rechazada queda marcada para revisión manual' : ($editorial_available ? 'La salida editorial requiere corrección antes de SEO' : 'Primero ejecuta Revisión editorial'))); ?>">Revisión SEO</button>
                         <?php if ($is_recurring_workflow) : ?>
                             <?php if ($seo_done && !$draft_done) : ?><div class="notice notice-warning inline idg-recurring-content-pending"><p><strong>Versión 3 lista, todavía no aplicada:</strong> abrir la publicación ahora mostrará el contenido anterior. Usa el botón siguiente para reemplazarlo.</p></div><?php endif; ?>
                             <button type="submit" name="step" value="recurring_event_content" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> data-confirm="¿Aplicar la Versión 3 · Revisión SEO final a la publicación ID <?php echo esc_attr((string) ($workflow['recurring_target_post_id'] ?? '')); ?>? Se reemplazarán título, contenido y extracto; se conservarán slug, campos estructurados, estado, autor, taxonomías e imagen." title="<?php echo esc_attr($seo_done ? 'Aplicar la Versión 3 validada a la publicación existente' : 'Primero ejecuta Revisión SEO'); ?>"><?php echo $draft_done ? 'Versión 3 aplicada a la publicación' : 'Aplicar Versión 3 a la publicación ID ' . esc_html((string) ($workflow['recurring_target_post_id'] ?? '')); ?></button>
@@ -1995,10 +1997,13 @@ final class IDG_Workflow_Admin_Controller {
             || (string) ($workflow['workflow_origin'] ?? '') === 'recurring_update') {
             return false;
         }
-        $has_source = trim((string) ($workflow['seo_result'] ?? '')) !== ''
-            || trim((string) ($workflow['editorial_result'] ?? '')) !== ''
-            || trim((string) ($workflow['base_article'] ?? '')) !== '';
-        return $has_source && empty($workflow['seo_validation']['ok']);
+        // No se ofrece una excepción sólo porque la generación haya terminado:
+        // requiere una revisión editorial realmente rechazada y documentada.
+        return !empty($workflow['editorial_requires_manual_review'])
+            && empty($workflow['editorial_validation']['ok'])
+            && empty($workflow['seo_validation']['ok'])
+            && (trim((string) ($workflow['editorial_result'] ?? '')) !== ''
+                || (class_exists('IDG_Editorial_Document') && IDG_Editorial_Document::exists($workflow)));
     }
 
     private static function render_sponsored_fields(array $workflow): void {
@@ -2279,6 +2284,14 @@ final class IDG_Workflow_Admin_Controller {
         echo '<p><strong>Estado:</strong> ' . esc_html($status) . '</p>';
         if (!empty($workflow['last_action'])) {
             echo '<p><strong>Última acción:</strong> ' . esc_html((string) $workflow['last_action']) . '</p>';
+        }
+        if (class_exists('IDG_Editorial_Document') && IDG_Editorial_Document::exists($workflow)) {
+            $editorial_ok = !empty($workflow['editorial_validation']['ok']);
+            $safe_base = !$editorial_ok && !empty($workflow['editorial_requires_manual_review']);
+            echo '<p><strong>Documento editorial:</strong> disponible · <strong>Revisión editorial:</strong> ' . esc_html($editorial_ok ? 'aprobada' : ($safe_base ? 'rechazada; base disponible para SEO y revisión manual' : 'pendiente')) . '</p>';
+        }
+        if (!empty($workflow['seo_validation']['ok'])) {
+            echo '<p><strong>Preflight SEO:</strong> aprobado; payload Gutenberg disponible.</p>';
         }
         self::render_openai_usage_status();
         $draft_edit_link = self::is_recurring_workflow($workflow)

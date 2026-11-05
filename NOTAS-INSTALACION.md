@@ -1,6 +1,12 @@
 # Instalación · ideasDi Redacción Gerizim
 
-## Candidato RC1.7.8.5 — NO INSTALAR
+## Candidato RC1.7.8.5.1 — NO INSTALAR
+
+RC1.7.8.5.1 es un candidato no liberado ni instalado. Estabiliza la conciliación de una respuesta editorial completa con `editorial_document`: solo aplica cuando forma, bloques e identidad de enlaces son inequívocas; si no, conserva el documento válido, la respuesta cruda y un diagnóstico específico. La navegación muestra ese documento base como disponible para SEO, sin declarar aprobada la revisión editorial rechazada. SEO puede insertar una única URL corporativa responsable faltante en prosa existente, con prioridad canónica y sin alterar P2, anchors autorizados ni encabezados.
+
+La cobertura local Honda RN0 usa fixture base inmutable y respuestas simuladas, no la respuesta original no registrada. Comprueba editorial completo/localizado/sin cambios, rechazo de URL insegura, navegación de base segura, metadata, Reel, Gutenberg y un `pending` en mock. La excepción es un circuito distinto, solo para `pending` nuevo: exige nonce, permiso, confirmación y hash del documento autoritativo actual; una confirmación obsoleta se rechaza y la entrada queda marcada para revisión manual sin inventar entregables SEO. Ejecución local final: `./scripts/test.sh` terminó `VALIDACION_GERIZIM_OK` (incluye `php tests/rc17851-honda-regression.php`, contrato de versión y manifiesto SHA-256). No prueba WordPress vivo, ZIP, instalación, despliegue, release ni aceptación humana.
+
+## Candidato RC1.7.8.5 — histórico inmediato; NO INSTALAR
 
 RC1.7.8.5 es un candidato no liberado ni instalado. Introduce `editorial_document` schema v1 en el array existente del workflow, sin tabla ni migración: los expedientes legacy se leen sin mutación y las proyecciones históricas siguen disponibles. Editorial y SEO reciben un manifiesto actual de IDs y hashes de bloque; si está desfasado, malformado o contiene IDs duplicados, el pipeline no llama al modelo. La transición solo ocurre al ejecutar una etapa de un documento nuevo; no hay ZIP ni operación WordPress autorizada.
 

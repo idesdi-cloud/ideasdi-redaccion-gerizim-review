@@ -21,10 +21,11 @@ $before = [
 
 function rc17841_ok(bool $condition, string $label): void { if (!$condition) { fwrite(STDERR, "FAIL {$label}\n"); exit(1); } echo "OK {$label}\n"; }
 rc17841_ok(!$decide($base), 'render vacío no muestra excepción');
-rc17841_ok($decide($base + ['base_article' => 'Artículo base']), 'render base-only muestra acción diagnóstica');
-rc17841_ok($decide($base + ['editorial_result' => 'Salida editorial']), 'render editorial-only muestra acción diagnóstica');
+rc17841_ok(!$decide($base + ['base_article' => 'Artículo base']), 'render base-only no muestra excepción tras mera generación');
+rc17841_ok(!$decide($base + ['editorial_result' => 'Salida editorial']), 'render editorial-only no muestra excepción sin rechazo editorial explícito');
+rc17841_ok($decide($base + ['editorial_result' => 'Base segura', 'editorial_requires_manual_review' => true, 'editorial_validation' => ['ok' => false]]), 'render editorial rechazado muestra la excepción separada');
 rc17841_ok(!$decide($base + ['article_source' => 'desconocido']), 'fuente inválida no habilita acción');
-rc17841_ok($decide($base + ['seo_result' => 'SEO', 'seo_validation' => ['ok' => false]]), 'SEO inválido mantiene acción diagnóstica');
+rc17841_ok(!$decide($base + ['seo_result' => 'SEO', 'seo_validation' => ['ok' => false]]), 'SEO inválido sin rechazo editorial no muestra excepción');
 rc17841_ok(!$decide($base + ['seo_result' => 'SEO', 'seo_validation' => ['ok' => true]]), 'SEO validado no muestra excepción');
 rc17841_ok(!$decide($base + ['base_article' => 'Artículo', 'draft_post_id' => 12]), 'workflow con draft existente queda cerrado');
 rc17841_ok(!$decide($base + ['base_article' => 'Artículo', 'workflow_origin' => 'recurring_update', 'recurring_target_post_id' => 12]), 'workflow recurrente queda cerrado');

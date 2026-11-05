@@ -63,6 +63,10 @@ final class IDG_Editorial_Document {
             $document['review'] = ['state' => 'editorial_reviewed', 'validation' => [], 'changed_ids' => []];
             return ['ok' => true, 'document' => self::seal($document), 'changed_ids' => [], 'reason' => 'unchanged_echo'];
         }
+        if ($article !== '') {
+            $reconciled = self::reconcile_complete_article($document, $article, 'editorial', []);
+            if (!empty($reconciled['ok'])) return $reconciled;
+        }
         return self::apply_patches($document, $response, 'editorial');
     }
 
@@ -70,7 +74,11 @@ final class IDG_Editorial_Document {
         $sections = self::seo_sections(self::without_patches($response));
         $article = trim((string) ($sections['article'] ?? ''));
         $changed = [];
-        if ($article !== '' && !hash_equals(self::markdown($document), $article)) return ['ok' => false, 'document' => $document, 'reason' => 'article_replacement_requires_patches'];
+        if ($article !== '' && !hash_equals(self::markdown($document), $article)) {
+            $reconciled = self::reconcile_complete_article($document, $article, 'seo', $workflow);
+            if (empty($reconciled['ok'])) return $reconciled;
+            $document = $reconciled['document']; $changed = $reconciled['changed_ids'];
+        }
         if (preg_match('/^PATCH\s+/m', $response)) {
             $patches = self::apply_patches($document, $response, 'seo');
             if (!$patches['ok']) return $patches;
@@ -153,7 +161,8 @@ final class IDG_Editorial_Document {
     private static function block_text(array $b): string { return (string) ($b['text'] ?? implode('|', (array) ($b['items'] ?? []))); }
     private static function same_shape(array $a, array $b): bool { if (count((array) ($a['blocks'] ?? [])) !== count((array) ($b['blocks'] ?? []))) return false; foreach ($a['blocks'] as $i => $x) { $y = $b['blocks'][$i] ?? []; if (($x['type'] ?? '') !== ($y['type'] ?? '') || ($x['level'] ?? 0) !== ($y['level'] ?? 0)) return false; } return true; }
     private static function preserve_ids(array $doc, array $previous): array { if (self::same_shape($previous, $doc)) foreach ($doc['blocks'] as $i => $b) $doc['blocks'][$i]['id'] = $previous['blocks'][$i]['id']; return $doc; }
-    private static function authorized_links(array $w): array { $links = []; foreach ((array) ($w['internal_links_structured'] ?? []) as $l) if (!empty($l['url'])) $links[] = ['url' => esc_url_raw((string) $l['url']), 'anchor' => sanitize_text_field((string) ($l['anchor'] ?? '')), 'kind' => 'internal']; $url = esc_url_raw((string) ($w['official_source'] ?? $w['responsible_official_url'] ?? '')); if ($url !== '') $links[] = ['url' => $url, 'anchor' => '', 'kind' => 'official']; return $links; }
+    private static function authorized_links(array $w): array { $links = []; foreach ((array) ($w['internal_links_structured'] ?? []) as $l) if (!empty($l['url'])) $links[] = ['url' => esc_url_raw((string) $l['url']), 'anchor' => sanitize_text_field((string) ($l['anchor'] ?? '')), 'kind' => 'internal']; $url = self::responsible_url($w); if ($url !== '') $links[] = ['url' => $url, 'anchor' => '', 'kind' => 'official']; return $links; }
+    private static function responsible_url(array $workflow): string { $canonical = (array) ($workflow['canonical_context'] ?? []); foreach ([$workflow['responsible_official_url'] ?? '', $canonical['responsible_official_url'] ?? ''] as $url) { $url = esc_url_raw(trim((string) $url)); if ($url !== '') return $url; } return ''; }
     private static function seo_sections(string $raw): array { $s = ['article' => '', 'meta_description' => '', 'seo_report' => '', 'social_copy' => '', 'reel_package' => '', 'feedback_notes' => '']; $map = ['ART[ÍI]CULO FINAL' => 'article', 'META DESCRIPTION' => 'meta_description', 'INFORME SEO INTERNO' => 'seo_report', 'COPY PARA REDES' => 'social_copy', 'PAQUETE REEL' => 'reel_package', 'RETROALIMENTACI[ÓO]N GERIZIM' => 'feedback_notes']; $matches=[]; foreach ($map as $p=>$k) if (preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*'.$p.'\s*(?:\*\*)?\s*:?\s*$/imu',$raw,$m,PREG_OFFSET_CAPTURE)) $matches[]=['key'=>$k,'start'=>$m[0][1],'body'=>$m[0][1]+strlen($m[0][0])]; usort($matches, fn($a,$b)=>$a['start']<=>$b['start']); foreach($matches as $i=>$m) $s[$m['key']]=trim(substr($raw,$m['body'],($matches[$i+1]['start']??strlen($raw))-$m['body'])); return $s; }
     private static function reel_text(array $reel): string { return (string) ($reel['normalized'] ?? ''); }
     private static function wp_block(string $name, array $attrs, string $inner): array { return ['blockName'=>$name,'attrs'=>$attrs,'innerBlocks'=>[],'innerHTML'=>$inner,'innerContent'=>[$inner]]; }
@@ -175,6 +184,44 @@ final class IDG_Editorial_Document {
         }
         $document['review']=['state'=>$phase.'_reviewed','validation'=>[],'changed_ids'=>$changed];
         return ['ok'=>true,'document'=>self::seal($document),'changed_ids'=>$changed,'reason'=>'patches'];
+    }
+    /** Reconciles a readable complete article only when its block identity is unambiguous. */
+    private static function reconcile_complete_article(array $document, string $article, string $phase, array $workflow): array {
+        $article = trim(str_replace(["\r\n", "\r"], "\n", $article));
+        $parsed = self::from_markdown($article, [], $document);
+        if (!self::same_shape($document, $parsed)) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'ambiguous_article_shape'];
+        // Reconcile content blocks, never reset authoritative document metadata.
+        $candidate = $document;
+        $candidate['blocks'] = $parsed['blocks'];
+        foreach (array_merge((array) $document['blocks'], (array) $candidate['blocks']) as $block) if (self::has_ambiguous_link_markup(self::block_text((array) $block))) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'ambiguous_link_markup'];
+        $old_links = self::links(self::markdown($document)); $new_links = self::links(self::markdown($candidate));
+        if ($phase === 'editorial' && $old_links !== $new_links) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'href_mutation'];
+        if ($phase === 'seo' && !self::only_missing_responsible_link_added($document, $candidate, $workflow, $old_links, $new_links)) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'unsafe_seo_article_replacement'];
+        $changed = [];
+        foreach ((array) $document['blocks'] as $i => $old) {
+            $new = (array) ($candidate['blocks'][$i] ?? []);
+            if (self::block_text($old) !== self::block_text($new)) $changed[] = (string) $old['id'];
+        }
+        if ($phase === 'seo' && !$changed) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'no_seo_article_change'];
+        $candidate['review'] = ['state'=>$phase.'_reviewed', 'validation'=>[], 'changed_ids'=>$changed];
+        return ['ok'=>true, 'document'=>self::seal($candidate), 'changed_ids'=>$changed, 'reason'=>'complete_article_reconciled'];
+    }
+    private static function only_missing_responsible_link_added(array $old, array $new, array $workflow, array $old_links, array $new_links): bool {
+        $url = self::responsible_url($workflow);
+        if ($url === '' || array_filter($old_links, static fn(array $link): bool => $link['url'] === $url) || count($new_links) !== count($old_links) + 1) return false;
+        $added = array_values(array_filter($new_links, static fn(array $link): bool => $link['url'] === $url));
+        if (count($added) !== 1) return false;
+        $without_added = $new_links; foreach ($without_added as $i => $link) if ($link === $added[0]) { unset($without_added[$i]); break; }
+        if (array_values($without_added) !== $old_links) return false;
+        $changed = 0;
+        foreach ((array) $old['blocks'] as $i => $before) {
+            $after = (array) ($new['blocks'][$i] ?? []); $before_text = self::block_text($before); $after_text = self::block_text($after);
+            if ($before_text === $after_text) continue;
+            if (($before['type'] ?? '') !== 'paragraph' || ++$changed > 1) return false;
+            $link = '[' . $added[0]['anchor'] . '](' . $url . ')';
+            if (substr_count($after_text, $link) !== 1 || str_replace($link, $added[0]['anchor'], $after_text) !== $before_text) return false;
+        }
+        return $changed === 1;
     }
     /** Exact ordered fingerprints for the only inline Markdown link form we serialize. */
     private static function links(string $text): array { preg_match_all('/\[([^\]\r\n]+)\]\((https?:\/\/[^\s)]+)\)/u',$text,$m,PREG_SET_ORDER); return array_map(static fn(array $link): array => ['anchor'=>$link[1], 'url'=>$link[2]], $m); }

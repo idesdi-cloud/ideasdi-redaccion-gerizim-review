@@ -88,10 +88,24 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         if ($document_mode) {
             $applied = IDG_Editorial_Document::apply_editorial_response($workflow['editorial_document'], $raw);
             if (empty($applied['ok'])) {
-                $workflow['editorial_validation'] = ['ok' => false, 'errors' => ['Revisión editorial: respuesta sin bloques explícitos y compatibles; no se sustituyó el documento.'], 'warnings' => [], 'summary' => '- ERROR: Revisión editorial: respuesta sin bloques explícitos y compatibles; no se sustituyó el documento.'];
+                $reason = sanitize_text_field((string) ($applied['reason'] ?? 'respuesta_incompatible'));
+                $warning = 'ADVERTENCIA: respuesta editorial no aplicable (' . $reason . '); se conserva el documento base válido para SEO y revisión manual.';
+                $workflow['editorial_output_raw'] = $raw;
+                $workflow['editorial_result'] = $source; // Safe legacy projection; never an approval of the raw response.
+                $workflow['editorial_diagnosis'] = '- ' . $warning;
+                $workflow['editorial_notes'] = (string) (IDG_Workflow_Output_Parser::parse_editorial($raw)['notes'] ?? '');
+                $workflow['editorial_validation'] = ['ok' => false, 'errors' => [$warning], 'warnings' => [$warning], 'summary' => '- ' . $warning];
                 $workflow['editorial_changed'] = false;
                 $workflow['editorial_changed_block_ids'] = [];
-                $this->save_validation_failure($workflow_id, $workflow, 'editorial', $workflow['editorial_validation']);
+                $workflow['editorial_approved'] = false;
+                $workflow['editorial_applied'] = false;
+                $workflow['editorial_requires_manual_review'] = true;
+                $workflow['editorial_repair'] = ['attempted' => false, 'applied' => false, 'reason' => 'document_mode_fail_closed'];
+                $workflow = IDG_Workflow_Policies::mark_completed($workflow, 'editorial_safe_base_available');
+                $workflow['last_error'] = $warning;
+                $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'editorial_unapplied', $warning);
+                IDG_Job_Runner::save_workflow($workflow_id, $workflow);
+                IDG_Logger::log('editorial_unapplied', $warning, ['workflow_id' => $workflow_id, 'reason' => $reason]);
                 return;
             }
             $workflow['editorial_document'] = $applied['document'];
@@ -106,6 +120,9 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $workflow['editorial_changed'] = $changed;
             $workflow['editorial_changed_block_ids'] = $changed_ids;
             $workflow['editorial_validation'] = $validation;
+            $workflow['editorial_approved'] = !empty($validation['ok']);
+            $workflow['editorial_applied'] = !empty($validation['ok']);
+            $workflow['editorial_requires_manual_review'] = empty($validation['ok']);
             $workflow['editorial_repair'] = ['attempted' => false, 'applied' => false, 'reason' => 'document_mode_no_blind_repair'];
             $workflow['usage_editorial'] = $result['usage'] ?? [];
             $workflow['usage_editorial_estimate'] = IDG_Usage_Estimator::record('editorial', (array) ($result['usage'] ?? []), $workflow_id, (string) ($result['model'] ?? ''));

@@ -122,8 +122,12 @@ final class IDG_Post_Creator {
             'workflow_id' => $workflow['workflow_id'] ?? '',
             'validation_ok' => !empty($validation['ok']),
             'validation_overridden' => !empty($validation['overridden']),
-            'manual_review_required' => !empty($validation['overridden']),
+            'manual_review_required' => !empty($validation['overridden']) || (!empty($workflow['editorial_requires_manual_review']) && empty($workflow['editorial_validation']['ok'])),
         ]));
+        if (!empty($workflow['editorial_requires_manual_review']) && empty($workflow['editorial_validation']['ok'])) {
+            update_post_meta($post_id, '_idg_manual_review_required', '1');
+            update_post_meta($post_id, '_idg_editorial_review_status', 'rejected_safe_base_used');
+        }
         if (!empty($validation['overridden'])) {
             $override_record = [
                 'overridden' => true,
@@ -288,8 +292,37 @@ final class IDG_Post_Creator {
         $gutenberg = IDG_Final_Guard::validate_gutenberg_blocks($post_content);
         if (empty($gutenberg['ok'])) { $validation['ok']=false; $validation['errors']=array_merge((array)$validation['errors'],(array)$gutenberg['errors']); }
         $validation['summary'] = (string) ($validation['summary'] ?? '');
+        // Document-mode articles require the identified official responsible URL, not a research source.
+        $context = (array) ($workflow['canonical_context'] ?? []);
+        $responsible = trim((string) ($workflow['responsible_official_url'] ?? $context['responsible_official_url'] ?? ''));
+        $event = ($workflow['recurring_target_post_type'] ?? '') === 'evento' || ($workflow['editorial_context'] ?? '') === 'event_calendar';
+        if (!$event && $responsible === '') {
+            $validation['ok'] = false;
+            $validation['errors'][] = 'Falta URL corporativa responsable explícita para el documento editorial.';
+            $validation['summary'] .= "\n- ERROR: Falta URL corporativa responsable explícita para el documento editorial.";
+        }
+        if (trim((string) ($workflow['seo_result'] ?? '')) === '') {
+            $validation['ok'] = false;
+            $validation['errors'][] = 'Falta salida SEO final; la excepción mantiene revisión manual y no genera metadatos, Reel ni sello SEO.';
+            $validation['summary'] .= "\n- ERROR: Falta salida SEO final; la excepción mantiene revisión manual y no genera metadatos, Reel ni sello SEO.";
+        }
         $validation['error_codes'] = IDG_Final_Guard::classify_errors((array) ($validation['errors'] ?? []));
-        return ['ok'=>!empty($validation['ok']),'write_allowed'=>!empty($validation['ok']),'errors'=>(array)($validation['errors']??[]),'validation'=>$validation,'workflow'=>$workflow,'prepared'=>compact('sections','content','title','meta_description','seo_report','social_copy','reel_package','feedback_notes','html_content','post_content','validation') + ['document_hash'=>IDG_Editorial_Document::hash($document),'seo_title'=>'%%title%%','postprocessing_audit'=>$workflow['postprocessing_audit'],'processed_seo_result'=>IDG_Editorial_Document::projection($document),'source_phase'=>'seo']];
+        $write_allowed = !empty($validation['ok']);
+        if (empty($validation['ok'])
+            && !empty($workflow['editorial_requires_manual_review'])
+            && empty($workflow['editorial_validation']['ok'])
+            && !empty($workflow['force_validation_override'])
+            && self::editorial_override_allowed($validation)
+            && self::valid_force_confirmation($workflow)) {
+            $validation['warnings'] = array_merge((array) ($validation['warnings'] ?? []), (array) ($validation['errors'] ?? []));
+            $validation['summary'] .= "\n- AVISO: La validación sigue rechazada; se autorizó únicamente la escritura de un pending nuevo para revisión manual.";
+            $validation['overridden'] = true;
+            $validation['ignored_errors'] = (array) ($validation['errors'] ?? []);
+            $validation['manual_review_required'] = true;
+            $write_allowed = true;
+        }
+        $has_seo_result = trim((string) ($workflow['seo_result'] ?? '')) !== '';
+        return ['ok'=>!empty($validation['ok']),'write_allowed'=>$write_allowed,'errors'=>(array)($validation['errors']??[]),'validation'=>$validation,'workflow'=>$workflow,'prepared'=>compact('sections','content','title','meta_description','seo_report','social_copy','reel_package','feedback_notes','html_content','post_content','validation') + ['document_hash'=>IDG_Editorial_Document::hash($document),'seo_title'=>'%%title%%','postprocessing_audit'=>$workflow['postprocessing_audit'],'processed_seo_result'=>$has_seo_result ? IDG_Editorial_Document::projection($document) : '', 'source_phase'=>$has_seo_result ? 'seo' : 'editorial']];
     }
 
     public static function override_eligible(array $validation): bool {
@@ -326,6 +359,9 @@ final class IDG_Post_Creator {
         ] as $key) {
             $critical[$key] = $workflow[$key] ?? null;
         }
+        $critical['editorial_document_hash'] = class_exists('IDG_Editorial_Document') && IDG_Editorial_Document::exists($workflow)
+            ? IDG_Editorial_Document::hash($workflow['editorial_document'])
+            : '';
         self::sort_hash_value($critical);
         return hash('sha256', (string) wp_json_encode($critical, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
