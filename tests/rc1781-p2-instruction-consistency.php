@@ -136,9 +136,9 @@ $admin_source = file_get_contents(ABSPATH . 'includes/class-admin-page.php');
 $method_start = strpos($admin_source, 'private static function should_show_force_draft');
 $method_end = strpos($admin_source, 'private static function render_sponsored_fields', $method_start);
 $admin_method = substr($admin_source, $method_start, $method_end - $method_start);
-$check(str_contains($admin_method, "\$workflow['force_validation_override'] = false;"), 'admin disables force before preflight');
-$check(str_contains($admin_method, 'IDG_Post_Creator::preflight_public($workflow)'), 'admin uses current real preflight');
-$check(str_contains($admin_method, 'IDG_Post_Creator::override_eligible'), 'admin delegates eligibility policy');
+$check(!str_contains($admin_method, "\$workflow['force_validation_override'] = false;"), 'admin GET does not set force override');
+$check(!str_contains($admin_method, 'IDG_Post_Creator::preflight_public($workflow)'), 'admin GET avoids publication preflight');
+$check(!str_contains($admin_method, 'IDG_Post_Creator::override_eligible'), 'admin GET defers final eligibility to POST');
 $check(!str_contains($admin_method, 'last_error') && !str_contains($admin_method, "['history']"), 'admin never infers override from error/history');
 
 if ($failures) {

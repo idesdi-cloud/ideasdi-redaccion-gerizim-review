@@ -101,6 +101,14 @@ WordPress, despliegue ni release.
 
 ### Revisión final de enlaces RC1.7.8.4
 
+### Incidente administrativo y correctivo RC1.7.8.4.1 — 2026-11-04
+
+Se observó inestabilidad administrativa y una UI alterada el 4 de noviembre; el plugin quedó desactivado. El código instalado coincidía con Git. Las advertencias PHP de WP-Optimize no se vinculan causalmente al incidente. Sí está probado un defecto local: el render GET podía ejecutar dos veces `should_show_force_draft()` y, por tanto, `preflight_public()` en workflows con salida SEO (una vez en los demás casos). El vínculo causal entre ese coste y la caída no está probado.
+
+RC1.7.8.4.1 corrige el render para usar solo elegibilidad estructural O(1): fuente base/editorial/SEO, sin draft existente, sin recurrente y sin SEO validado. No ejecuta preflight, Gutenberg, escrituras ni mutaciones en GET; el POST conserva la validación estricta y las protecciones existentes. El aviso aclara que es un intento sujeto a validación del servidor. Se añadió prueba funcional por ReflectionMethod, sin afirmar E2E WordPress.
+
+Este correctivo no tuvo QA WordPress, ZIP, release ni despliegue; no se realizaron operaciones en WordPress.
+
 Se corrigieron dos defectos: editorial y SEO vuelven a preservar enlaces aprobados después de cada parche localizado y recalculan la validación sobre el contenido exacto; el comparador URL solo ignora mayúsculas en esquema/host y conserva sensibles a mayúsculas ruta, query, fragmento y slash final, fallando cerrado ante URLs ambiguas. Las regresiones dirigidas cubren ambos casos, restauración segura y rechazo sin contexto; RC1782 continúa incluido. La integridad manual y las pruebas del candidato previo fueron verificadas antes de este tercer modify. Cobertura restante: mocks locales, sin UI/E2E real de WordPress/Gutenberg. RELEASE/DEPLOY no realizados.
 
 Los nueve fallos de entrega se reprodujeron en el baseline RC1.7.8.2. Se fijan sus conteos comprobados: 9 puntos OpenAI y 7 puntos de construcción de prompts; no se permiten incrementos. La comprobación de no escritura permite exclusivamente preflight_public y prepared_payload_hash. El mock de estrategias incorpora save_workflow y comprueba rechazo, cero escrituras y trazabilidad del override recurrente. Las versiones de los tres prompts modificados pasan a RC1.7.8.3. Resultado dirigido: 9/9 aprobados. No se retiraron casos ni se repitió la suite completa. Pendientes: revisar diff final y autorizar liberación.

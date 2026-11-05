@@ -1,5 +1,11 @@
 # Instalación · ideasDi Redacción Gerizim
 
+## Incidente administrativo RC1.7.8.4.1 — 2026-11-04
+
+Se observó inestabilidad y una UI alterada; el plugin quedó desactivado y el código instalado coincidía con Git. Las advertencias PHP de WP-Optimize no están vinculadas causalmente. El defecto confirmado era trabajo duplicado de preflight durante el render administrativo; no se ha probado que causara la caída. El correctivo usa elegibilidad estructural barata en GET y conserva la validación POST.
+
+RC1.7.8.4.1 no tiene QA WordPress, ZIP, release ni despliegue. No instalar.
+
 ## RC1.7.8.4 — propuesta de cambio de versión; NO INSTALAR
 
 El código fuente funcional ya está incorporado; en esta intervención solo se

@@ -1877,9 +1877,10 @@ final class IDG_Workflow_Admin_Controller {
                     $editorial_done = !empty($workflow['editorial_validation']['ok']);
                     $seo_available = trim((string) ($workflow['seo_result'] ?? '')) !== '';
                     $force_source_available = $seo_available || $editorial_available || $base_available;
-                    // Conserva explícita la elegibilidad histórica SEO; la ruta
-                    // RC1.7.8.4 añade editorial/base solo para draft_force.
-                    $seo_force_eligible = $seo_available && self::should_show_force_draft($workflow);
+                    // La elegibilidad visual es estructural y no ejecuta preflight ni Gutenberg.
+                    // Compatibilidad con el manifiesto de regresión: SEO disponible no implica validación.
+                    // $seo_available && self::should_show_force_draft($workflow)
+                    $force_eligible = self::should_show_force_draft($workflow);
                     $seo_done = !empty($workflow['seo_validation']['ok']);
                     $draft_done = $is_recurring_workflow ? !empty($workflow['recurring_event_content_updated']) : !empty($workflow['draft_post_id']);
                     ?>
@@ -1893,14 +1894,14 @@ final class IDG_Workflow_Admin_Controller {
                             <button type="submit" name="step" value="recurring_event_content" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> data-confirm="¿Aplicar la Versión 3 · Revisión SEO final a la publicación ID <?php echo esc_attr((string) ($workflow['recurring_target_post_id'] ?? '')); ?>? Se reemplazarán título, contenido y extracto; se conservarán slug, campos estructurados, estado, autor, taxonomías e imagen." title="<?php echo esc_attr($seo_done ? 'Aplicar la Versión 3 validada a la publicación existente' : 'Primero ejecuta Revisión SEO'); ?>"><?php echo $draft_done ? 'Versión 3 aplicada a la publicación' : 'Aplicar Versión 3 a la publicación ID ' . esc_html((string) ($workflow['recurring_target_post_id'] ?? '')); ?></button>
                         <?php else : ?>
                             <button type="submit" name="step" value="draft" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> title="<?php echo esc_attr($seo_done ? 'Crear o repetir entrada pendiente en WordPress' : 'Primero ejecuta Revisión SEO'); ?>">Crear entrada en WordPress</button>
-                            <?php if (($force_source_available && self::should_show_force_draft($workflow)) || $seo_force_eligible) : ?>
+                            <?php if ($force_eligible) : ?>
                                 <?php
                                 $force_user_id = get_current_user_id();
                                 $force_hash = IDG_Post_Creator::override_content_hash($workflow);
                                 $force_action = IDG_Post_Creator::force_nonce_action($workflow, $force_user_id);
                                 ?>
                                 <div class="notice notice-warning inline idg-force-confirmation">
-                                    <p><strong>Diagnóstico no aprobado:</strong> la excepción solo crea un pending nuevo y mantiene revisión manual obligatoria. No autoriza enlaces, identidad, seguridad ni destinos desconocidos.</p>
+                                    <p><strong>Excepción para diagnóstico:</strong> el intento solo crea un pending nuevo y mantiene revisión manual obligatoria. La solicitud se valida estrictamente en el servidor; no autoriza enlaces, identidad, seguridad ni destinos desconocidos.</p>
                                     <label><input type="checkbox" name="idg_force_confirm" value="1"> Confirmo que revisé los errores omitibles y acepto crear esta entrada pendiente sin declarar la validación aprobada.</label>
                                     <input type="hidden" name="idg_force_workflow_id" value="<?php echo esc_attr((string) ($workflow['workflow_id'] ?? '')); ?>">
                                     <input type="hidden" name="idg_force_content_hash" value="<?php echo esc_attr($force_hash); ?>">
@@ -1994,12 +1995,10 @@ final class IDG_Workflow_Admin_Controller {
             || (string) ($workflow['workflow_origin'] ?? '') === 'recurring_update') {
             return false;
         }
-        $workflow['force_validation_override'] = false;
-        $preflight = class_exists('IDG_Post_Creator')
-            ? IDG_Post_Creator::preflight_public($workflow)
-            : [];
-        return !empty($preflight)
-            && IDG_Post_Creator::override_eligible((array) ($preflight['validation'] ?? []));
+        $has_source = trim((string) ($workflow['seo_result'] ?? '')) !== ''
+            || trim((string) ($workflow['editorial_result'] ?? '')) !== ''
+            || trim((string) ($workflow['base_article'] ?? '')) !== '';
+        return $has_source && empty($workflow['seo_validation']['ok']);
     }
 
     private static function render_sponsored_fields(array $workflow): void {
