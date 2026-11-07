@@ -64,7 +64,8 @@ while IFS= read -r -d '' TEST_FILE; do
     tests/rc178-targeted-regression.php|\
     tests/rc1785-integration.php|\
     tests/rc17851-honda-regression.php|\
-    tests/rc17852-brief231-integration.php)
+    tests/rc17852-brief231-integration.php|\
+    tests/rc17853-brief247-synthetic.php)
       continue
       ;;
   esac
@@ -122,6 +123,17 @@ if php tests/rc17852-brief231-integration.php >"$TEST_LOG" 2>&1; then
   echo "PASS: rc17852-brief231-integration.php"
 else
   echo "FAIL: rc17852-brief231-integration.php"
+  cat "$TEST_LOG"
+  FAILURES=$((FAILURES + 1))
+fi
+
+printf '\n%s\n' "=== Variantes sintéticas brief 247 RC1.7.8.5.3 ==="
+TEST_TOTAL=$((TEST_TOTAL + 1))
+: > "$TEST_LOG"
+if php tests/rc17853-brief247-synthetic.php >"$TEST_LOG" 2>&1; then
+  echo "PASS: rc17853-brief247-synthetic.php"
+else
+  echo "FAIL: rc17853-brief247-synthetic.php"
   cat "$TEST_LOG"
   FAILURES=$((FAILURES + 1))
 fi

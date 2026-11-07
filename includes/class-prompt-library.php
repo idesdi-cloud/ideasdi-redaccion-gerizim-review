@@ -513,10 +513,23 @@ PROMPT;
     }
 
     public static function seo_prompt(array $data): string {
-        $prompt = self::build_context($data) . <<<PROMPT
+        $document_mode = !empty($data['editorial_document_manifest']);
+        $document_delivery = $document_mode
+            ? "MODO DOCUMENTO: el editorial_document persistido es autoritativo. No devuelvas ARTÍCULO FINAL completo. Entrega los campos SEO y, solo si es indispensable, PATCHes con ID y hash actuales. Una propuesta de prosa es opcional y nunca sustituye el documento por sí misma.\n\n"
+            : '';
+        $document_protocol = $document_mode
+            ? 'Protocolo de documento: no reemitas el artículo completo ni insertes enlaces en una propuesta de prosa. Conserva sus bloques protegidos; los enlaces canónicos pendientes se completan sobre el documento persistido. Usa solo PATCH ID/hash para cambios indispensables.'
+            : 'Protocolo obligatorio de documento: conserva H1, H2, H3, caja y todos los enlaces existentes exactamente. Si falta la URL responsable autorizada, puedes integrar una sola vez ese enlace corporativo en prosa existente, sin crear hechos ni cambiar anchors previos; el artículo completo se reconcilia de forma determinista. Para cualquier otro cambio usa parches explícitos `PATCH id` / `EXPECTED_SHA256:` / `TEXT:` / `END PATCH`. No hay opciones adicionales de API ni llamadas adicionales.';
+        $article_scope = $document_mode
+            ? 'Reglas de formato para el documento editorial canónico (no reemitir ARTÍCULO FINAL):'
+            : 'Reglas de formato para WordPress dentro de ARTÍCULO FINAL:';
+        $article_delivery = $document_mode
+            ? "PATCHES DE MODIFICACIÓN (opcional)\n[Solo PATCH id / EXPECTED_SHA256 / TEXT / END PATCH para un cambio indispensable; omite esta sección si no hay parche seguro.]"
+            : "ARTÍCULO FINAL\n[Incluye únicamente el contenido público del artículo. No incluyas meta description, informe SEO, copy ni paquete reel dentro de esta sección.]";
+        $prompt = self::build_context($data) . "\n" . $document_delivery . <<<PROMPT
 
 TAREA: Revisión SEO final.
-Protocolo obligatorio de documento: conserva H1, H2, H3, caja y todos los enlaces existentes exactamente. Si falta la URL responsable autorizada, puedes integrar una sola vez ese enlace corporativo en prosa existente, sin crear hechos ni cambiar anchors previos; el artículo completo se reconcilia de forma determinista. Para cualquier otro cambio usa parches explícitos `PATCH id` / `EXPECTED_SHA256:` / `TEXT:` / `END PATCH`. No hay opciones adicionales de API ni llamadas adicionales.
+{$document_protocol}
 Trabaja sobre la versión editorial revisada, no sobre el texto base.
 Objetivo: dejar el artículo listo para crear borrador en WordPress sin endurecer la voz ni volverlo artificial.
 Modo de trabajo obligatorio: conservación editorial y cambios localizados. Preserva sin alterar la tesis editorial ya aprobada, la caja editorial, H1, H2 y la estructura del artículo, además de su pulso y mejores frases. Solo modifica la oración o el fragmento imprescindible para integrar enlaces, keyword o claridad. No agregues párrafos de rescate, no redactes cierres documentales, no introduzcas nueva semántica editorial y no reescribas un bloque completo que ya funciona. Usa la ficha documental temporal únicamente como verificación de precisión, no como base para rehacer el artículo.
@@ -526,8 +539,7 @@ Debes entregar exactamente en este orden y con estos rótulos en líneas indepen
 
 Regla de calidad: la Revisión SEO no debe bajar el nivel de redacción. Conserva la lente, los conceptos disciplinares aprobados, el H1, H2, introducción, cierres y frases con fuerza editorial salvo que rompan una regla clara. No introduzcas vocabulario genérico de otra disciplina. La optimización debe sentirse invisible.
 
-ARTÍCULO FINAL
-[Incluye únicamente el contenido público del artículo. No incluyas meta description, informe SEO, copy ni paquete reel dentro de esta sección.]
+{$article_delivery}
 
 META DESCRIPTION
 [Una sola línea de 106 a 150 caracteres; objetivo recomendado 120 a 145. Incluye la keyword principal o una variante suficientemente reconocible y un ángulo concreto, sin relleno ni extractos largos.]
@@ -565,7 +577,7 @@ Reglas específicas para Calendario de eventos / Agenda:
 - En calendar_event, si los datos suministran una URL real de archivo CPT o taxonomía propia, puedes integrarla contextualmente una sola vez. Si no se suministra, no fabriques una URL ni apliques el contrato de tags de article. Evita “calendario de eventos de ideasDi” y otras fórmulas autorreferenciales.
 - El último párrafo debe cerrar: “Para consultar la programación y la información actualizada de [Nombre del evento], visita la [página oficial del evento](URL oficial).” No dupliques esa URL antes si coincide con la URL del responsable.
 
-Reglas de formato para WordPress dentro de ARTÍCULO FINAL:
+{$article_scope}
 - Usa # solo para el H1.
 - Usa ## solo una vez para el subtítulo H2 principal.
 - Usa ### para todos los subtítulos de desarrollo H3.
@@ -581,10 +593,10 @@ Reglas de formato para WordPress dentro de ARTÍCULO FINAL:
 - Para la URL interna resuelta, crea tú el anchor contextual dentro del párrafo; no copies nombres de tags ni títulos de entradas como anchor literal. Nunca uses la keyword principal como anchor interno.
 - Si el enlace interno es una página de tag, no uses como anchor el nombre literal del tag. Usa una frase contextual, natural y distinta, por ejemplo una idea del párrafo donde el enlace aporte continuidad.
 - Evita conectores de recomendación genérica como “Si te interesa”, “Si el recorrido te interesa”, “también conviene mirar” cuando suenen a sugerencia externa; integra el enlace como parte del argumento.
-- Si hay enlace obligatorio de patrocinado, intégralo una vez dentro de ARTÍCULO FINAL con formato Markdown [anchor natural](URL). No lo repitas y no lo fuerces si rompe la lectura; en ese caso indícalo claramente en RETROALIMENTACIÓN GERIZIM.
-- No metas el informe SEO, el copy ni el paquete reel dentro del artículo final.
+- Si hay enlace obligatorio de patrocinado, intégralo una vez en la prosa editorial autorizada con formato Markdown [anchor natural](URL). No lo repitas y no lo fuerces si rompe la lectura; en ese caso indícalo claramente en RETROALIMENTACIÓN GERIZIM.
+- No metas el informe SEO, el copy ni el paquete reel dentro del artículo público.
 - No incluyas instrucciones internas, dudas del modelo ni frases en inglés de trabajo como “Need provide”, “Let’s produce”, “article base”, “missing box” o similares.
-- Dentro de ARTÍCULO FINAL usa enlaces Markdown, nunca etiquetas HTML <a>.
+- Para los enlaces del artículo usa Markdown, nunca etiquetas HTML <a>.
 - No cierres el artículo explicando qué fuentes sostienen la pieza, qué documentación se consultó ni cómo se hizo la investigación. No uses “las fuentes consultadas” dentro del contenido público.
 - Evita metalenguaje público como “densidad editorial”, “interés editorial”, “alcance editorial” o “marco documental”, además de muletillas abstractas como “en ese sentido”, “a la vez”, “desde ahí” o “más allá de” cuando no nombren una relación concreta.
 - Conserva variedad de ritmo: no normalices todos los párrafos al patrón de frase breve interpretativa, explicación y minicierre.
