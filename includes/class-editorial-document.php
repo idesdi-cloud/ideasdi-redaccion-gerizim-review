@@ -71,18 +71,50 @@ final class IDG_Editorial_Document {
     }
 
     public static function apply_seo_response(array $document, string $response, array $workflow): array {
+        $original = $document;
         $sections = self::seo_sections(self::without_patches($response));
+        // "Received" describes presence, not acceptance by Final Guard.
+        $received_components = [];
+        foreach (['meta_description', 'seo_report', 'social_copy', 'reel_package', 'feedback_notes'] as $component) {
+            if (trim((string) ($sections[$component] ?? '')) !== '') $received_components[] = $component;
+        }
+        $has_components = !empty($received_components);
+        $patch = ['received' => (bool) preg_match('/^PATCH\s+/m', $response), 'applied' => false, 'reason' => 'not_proposed'];
         $article = trim((string) ($sections['article'] ?? ''));
-        $changed = [];
+        $changed = []; $prose = ['received' => $article !== '', 'applied' => false, 'reason' => 'not_proposed'];
         if ($article !== '' && !hash_equals(self::markdown($document), $article)) {
             $reconciled = self::reconcile_complete_article($document, $article, 'seo', $workflow);
-            if (empty($reconciled['ok'])) return $reconciled;
-            $document = $reconciled['document']; $changed = $reconciled['changed_ids'];
+            if (!empty($reconciled['ok'])) {
+                $document = $reconciled['document']; $changed = $reconciled['changed_ids'];
+                $prose = ['received' => true, 'applied' => true, 'reason' => (string) ($reconciled['reason'] ?? 'complete_article_reconciled')];
+            } else {
+                // SEO components are independent from an unsafe historic full-article echo.
+                // The persisted document remains authoritative and is never overwritten here.
+                $prose = ['received' => true, 'applied' => false, 'reason' => (string) ($reconciled['reason'] ?? 'unsafe_seo_article_replacement')];
+            }
+        } elseif ($article !== '') {
+            $prose = ['received' => true, 'applied' => false, 'reason' => 'unchanged_echo'];
         }
-        if (preg_match('/^PATCH\s+/m', $response)) {
+        if ($patch['received']) {
             $patches = self::apply_patches($document, $response, 'seo', $workflow);
-            if (!$patches['ok']) return $patches;
-            $document = $patches['document']; $changed = $patches['changed_ids'];
+            $patch['applied'] = !empty($patches['ok']);
+            $patch['reason'] = (string) ($patches['reason'] ?? 'invalid_patch');
+            if ($patch['applied']) {
+                $document = $patches['document'];
+                $changed = array_values(array_unique(array_merge($changed, (array) ($patches['changed_ids'] ?? []))));
+                $prose = ['received' => true, 'applied' => true, 'reason' => 'patches'];
+            } elseif (!$prose['received']) {
+                $prose = ['received' => true, 'applied' => false, 'reason' => $patch['reason']];
+            }
+        }
+        // A malicious or stale proposal with no independently usable SEO
+        // component remains a hard failure. Partial delivery is accepted only
+        // when there is actual independent data to preserve.
+        if (!$has_components && (!empty($patch['received']) && empty($patch['applied'])
+                || !empty($prose['received']) && empty($prose['applied']))) {
+            $reason = !empty($patch['received']) && empty($patch['applied']) ? $patch['reason'] : $prose['reason'];
+            return ['ok' => false, 'document' => $original, 'changed_ids' => [], 'reason' => (string) $reason,
+                'prose' => $prose, 'patch' => $patch, 'received_components' => $received_components];
         }
         $document['seo'] = array_merge((array) ($document['seo'] ?? []), [
             'title' => '%%title%%', 'keyword' => trim((string) ($workflow['keyword'] ?? '')),
@@ -95,7 +127,15 @@ final class IDG_Editorial_Document {
         $document['reel'] = ['normalized' => (string) ($reel['normalized'] ?? ''), 'valid' => !empty($reel['valid'])];
         $document['links'] = self::authorized_links($workflow);
         $document['review'] = ['state' => 'seo_reviewed', 'validation' => []];
-        return ['ok' => true, 'document' => self::seal($document), 'changed_ids' => $changed, 'reason' => ''];
+        return ['ok' => true, 'document' => self::seal($document), 'changed_ids' => $changed, 'reason' => '', 'prose' => $prose, 'patch' => $patch, 'received_components' => $received_components, 'reel_validated' => !empty($reel['valid'])];
+    }
+
+    /** Applies only a separately validated Reel; it never re-enters article reconciliation. */
+    public static function apply_reel_package(array $document, string $reel_package): array {
+        $reel = class_exists('IDG_Reel_Contract') ? IDG_Reel_Contract::inspect($reel_package) : ['valid' => false, 'normalized' => ''];
+        if (empty($reel['valid'])) return ['ok' => false, 'document' => $document, 'reason' => 'invalid_reel_package'];
+        $document['reel'] = ['normalized' => (string) ($reel['normalized'] ?? ''), 'valid' => true];
+        return ['ok' => true, 'document' => self::seal($document), 'reason' => 'reel_only'];
     }
 
     /** Completes only missing, already-authorized links by wrapping existing prose. */

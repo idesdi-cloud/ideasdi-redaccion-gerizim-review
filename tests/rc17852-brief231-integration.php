@@ -40,10 +40,28 @@ rc17852_ok(str_contains((string)($done['seo_result']??''),'Mi Shang Prada Rong Z
 $first=(array)($workflow['editorial_document']['blocks'][0]??[]); $stale='PATCH '.($first['id']??'missing')."\nEXPECTED_SHA256: ".str_repeat('0',64)."\nTEXT:\ntexto\nEND PATCH";
 $duplicate=str_replace('piezas de arte de Prada','[Prada](https://www.prada.com/ww/en.html) y [marca](https://www.prada.com/ww/en.html)',$raw);
 $stale_result=IDG_Editorial_Document::apply_seo_response($workflow['editorial_document'],$stale,$workflow); $duplicate_result=IDG_Editorial_Document::apply_seo_response($workflow['editorial_document'],$duplicate,$workflow);
-rc17852_ok(empty($stale_result['ok']) && empty($duplicate_result['ok']), 'stale block and duplicate canonical URL are rejected');
+rc17852_ok(empty($stale_result['ok']) && !empty($duplicate_result['ok']) && empty($duplicate_result['prose']['applied']) && IDG_Editorial_Document::markdown($duplicate_result['document']) === IDG_Editorial_Document::markdown($workflow['editorial_document']), 'stale patch is rejected; duplicate canonical proposal preserves independent components without replacing prose');
 $tampered=$done; $tampered['seo_preflight_post_content'].='mutated'; rc17852_ok(empty(IDG_Post_Creator::create_pending_post($tampered)['success']) && count($GLOBALS['rc1782_posts'])===$before_posts, 'mutated Gutenberg after preflight cannot write');
 IDG_Job_Runner::execute_draft_stage($workflow['workflow_id'],$done); $pending=IDG_Job_Runner::get_workflow($workflow['workflow_id']); $post=$GLOBALS['rc1782_posts'][(int)($pending['draft_post_id']??0)]??[];
 rc17852_ok(count($GLOBALS['rc1782_posts'])===$before_posts+1 && ($post['post_status']??'')==='pending' && ($post['post_content']??'')===$html, 'exactly one simulated pending post and zero live writes');
 $bad=IDG_Editorial_Document::apply_seo_response($workflow['editorial_document'],str_replace('piezas de arte de Prada','piezas de arte de [Prada](https://evil.example/)',$raw),$workflow);
-rc17852_ok(empty($bad['ok']) && ($bad['document']??null)===$workflow['editorial_document'], 'unexpected URL, stale full article and mutated Gutenberg source fail closed');
+rc17852_ok(!empty($bad['ok']) && empty($bad['prose']['applied']) && IDG_Editorial_Document::markdown($bad['document']) === IDG_Editorial_Document::markdown($workflow['editorial_document']), 'unexpected URL does not replace the article while independent SEO components remain available');
+$blocked_workflow = $workflow;
+$blocked_workflow['workflow_id'] = 'idg-rc17853-rejected-patch';
+unset($blocked_workflow['seo_result'], $blocked_workflow['seo_preflight_payload_hash'],
+      $blocked_workflow['seo_preflight_post_content'], $blocked_workflow['seo_preflight_approved_at']);
+IDG_Job_Runner::save_workflow($blocked_workflow['workflow_id'], $blocked_workflow);
+$GLOBALS['rc1782_http_queue'][] = rc1782_response($stale . "
+
+" . $raw);
+$GLOBALS['rc1782_http_queue'][] = rc1782_response(rc17852_repair());
+$pipeline->execute($blocked_workflow['workflow_id'], IDG_Workflow_Policies::ACTION_SEO, $blocked_workflow, $client);
+$blocked = IDG_Job_Runner::get_workflow($blocked_workflow['workflow_id']);
+rc17852_ok(!empty($blocked['seo_requires_intervention']) && empty($blocked['seo_preflight_payload_hash']),
+    'PATCH rechazado conserva entregables pero no obtiene sello SEO');
+rc17852_ok(($blocked['seo_response_diagnostics']['patch_proposal']['reason'] ?? '') === 'old_hash_mismatch'
+    && ($blocked['seo_response_diagnostics']['final_preflight'] ?? '') === 'requires_intervention'
+    && !empty($blocked['editorial_document']['seo']['meta_description']),
+    'pipeline conserva metadatos y diagnóstico del PATCH rechazado sin seo_completed');
+
 echo "RC17852_BRIEF231_OK\n";

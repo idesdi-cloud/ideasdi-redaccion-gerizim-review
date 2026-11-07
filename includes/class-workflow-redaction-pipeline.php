@@ -189,28 +189,54 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $this->save_model_failure($workflow_id, $workflow, 'seo', (string) ($result['message'] ?? 'Falló la revisión SEO.'));
             return;
         }
+        // Keep the model evidence before any validation path can fail. It is
+        // internal-only, normalized for storage and bounded to avoid turning a
+        // workflow option into an unbounded transcript.
+        $workflow['seo_model_response'] = $this->bounded_model_response((string) ($result['content'] ?? ''));
 
+        $patch_errors = [];
         if ($document_mode) {
             $applied = IDG_Editorial_Document::apply_seo_response($workflow['editorial_document'], (string) $result['content'], $workflow);
-            if (empty($applied['ok'])) { $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: la respuesta altera la forma de bloques del documento; no se sustituyó la prosa.'],'warnings'=>[],'summary'=>'- ERROR: SEO: la respuesta altera la forma de bloques del documento; no se sustituyó la prosa.']); return; }
+            $workflow['seo_response_diagnostics'] = [
+                'response_received' => true,
+                'article_proposal' => (array) ($applied['prose'] ?? []),
+                'patch_proposal' => (array) ($applied['patch'] ?? []),
+                // Compatibilidad con diagnósticos anteriores del mismo candidato.
+                'prose_applied' => !empty($applied['prose']['applied']),
+                'prose_reason' => (string) ($applied['prose']['reason'] ?? 'not_proposed'),
+                'received_components' => array_values((array) ($applied['received_components'] ?? [])),
+                'validated_components' => [],
+                'reel_validated' => !empty($applied['reel_validated']),
+                'final_preflight' => 'not_run',
+            ];
+            if (empty($applied['ok'])) { $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: no fue posible interpretar los componentes de la respuesta; se conserva el documento previo.'],'warnings'=>[],'summary'=>'- ERROR: Componentes SEO no interpretables.']); return; }
             $workflow['editorial_document'] = $applied['document'];
+            // A rejected explicit PATCH is a mandatory manual-review condition.
+            // Independent SEO fields are retained, but seo_completed stays blocked.
+            if (!empty($applied['patch']['received']) && empty($applied['patch']['applied'])) {
+                $patch_reason = preg_replace('/[^a-z0-9_]/', '', (string) ($applied['patch']['reason'] ?? 'invalid_patch'));
+                $patch_errors[] = 'SEO: PATCH explícito rechazado (' . $patch_reason . '); revisión manual obligatoria.';
+            }
             $completed = IDG_Editorial_Document::complete_missing_authorized_links($workflow['editorial_document'], $workflow);
-            if (empty($completed['ok'])) { $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: no fue posible completar inequívocamente los enlaces autorizados; se conserva el documento previo.'],'warnings'=>[],'summary'=>'- ERROR: Enlaces autorizados no reconciliables.']); return; }
+            if (empty($completed['ok'])) {
+                $workflow['seo_response_diagnostics']['authorized_links'] = (string) ($completed['reason'] ?? 'unresolved');
+                $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: no fue posible completar inequívocamente los enlaces autorizados; se conserva el documento previo.'],'warnings'=>[],'summary'=>'- ERROR: Enlaces autorizados no reconciliables.']); return;
+            }
             $workflow['editorial_document'] = $completed['document'];
-            $workflow['seo_result'] = IDG_Editorial_Document::projection($applied['document']);
             $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
         }
         $candidate = $document_mode ? $workflow['seo_result'] : IDG_Workflow_Output_Parser::normalize_editorial_box_markdown(
             IDG_Workflow_Output_Parser::sanitize((string) $result['content']),
             true
         );
-        $links = IDG_Workflow_Output_Parser::preserve_approved_article_links($article, $candidate, $workflow, true);
+        $links = $document_mode
+            ? ['content' => $candidate, 'ok' => true, 'errors' => [], 'restored' => []]
+            : IDG_Workflow_Output_Parser::preserve_approved_article_links($article, $candidate, $workflow, true);
         $candidate = (string) $links['content'];
-        $workflow['seo_model_response'] = $candidate;
         $workflow['seo_result'] = $candidate;
         $preflight = IDG_Post_Creator::preflight_public($workflow);
         $validation = (array) ($preflight['validation'] ?? []);
-        $validation = $this->with_link_preservation_errors($validation, (array) ($links['errors'] ?? []));
+        $validation = $this->with_link_preservation_errors($validation, array_merge((array) ($links['errors'] ?? []), $patch_errors));
         if (empty($validation['ok'])) {
             $preflight['ok'] = false;
             $preflight['validation'] = $validation;
@@ -222,7 +248,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             if (!empty($repair['applied'])) {
                 $candidate = (string) $repair['content'];
                 if ($document_mode) {
-                    $repaired = IDG_Editorial_Document::apply_seo_response($workflow['editorial_document'], $candidate, $workflow);
+                    $repaired = IDG_Editorial_Document::apply_reel_package($workflow['editorial_document'], $this->section_body($candidate, 'PAQUETE REEL'));
                     if (empty($repaired['ok'])) { $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: reparación Reel no aplicable; se conserva el documento previo.'],'warnings'=>[],'summary'=>'- ERROR: Reparación Reel no aplicable.']); return; }
                     $workflow['editorial_document'] = $repaired['document'];
                     $candidate = IDG_Editorial_Document::projection($workflow['editorial_document']);
@@ -233,7 +259,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 $workflow['seo_result'] = $candidate;
                 $preflight = IDG_Post_Creator::preflight_public($workflow);
                 $validation = (array) ($preflight['validation'] ?? []);
-                $validation = $this->with_link_preservation_errors($validation, (array) ($links['errors'] ?? []));
+                $validation = $this->with_link_preservation_errors($validation, array_merge((array) ($links['errors'] ?? []), $patch_errors));
                 if (empty($validation['ok'])) {
                     $preflight['ok'] = false;
                     $preflight['validation'] = $validation;
@@ -254,7 +280,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         // ni alterar artículo, Reel ni Gutenberg.
         $preflight = IDG_Post_Creator::preflight_public($workflow);
         $validation = (array) ($preflight['validation'] ?? []);
-        $validation = $this->with_link_preservation_errors($validation, (array) ($links['errors'] ?? []));
+        $validation = $this->with_link_preservation_errors($validation, array_merge((array) ($links['errors'] ?? []), $patch_errors));
         if (empty($validation['ok'])) {
             $preflight['ok'] = false;
             $preflight['validation'] = $validation;
@@ -263,6 +289,12 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $prepared = (array) ($preflight['prepared'] ?? []);
         $reel = class_exists('IDG_Reel_Contract') ? IDG_Reel_Contract::inspect((string) ($prepared['reel_package'] ?? '')) : ['valid' => false, 'issues' => ['Reel Contract no disponible.']];
         $workflow['seo_validation'] = $validation;
+        if ($document_mode) {
+            $workflow['seo_response_diagnostics']['final_preflight'] = !empty($preflight['ok']) ? 'approved' : 'requires_intervention';
+            if (!empty($preflight['ok'])) {
+                $workflow['seo_response_diagnostics']['validated_components'] = $workflow['seo_response_diagnostics']['received_components'];
+            }
+        }
         $workflow['seo_validation_summary'] = (string) ($validation['summary'] ?? '');
         $workflow['seo_article_validation'] = [
             'ok' => true,
@@ -315,6 +347,11 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $audit['applied'] = $audit['content'] !== $content;
         $audit['reason'] = $audit['applied'] ? 'applied' : 'no_change';
         return $audit;
+    }
+
+    private function bounded_model_response(string $response): string {
+        $response = IDG_Workflow_Output_Parser::sanitize($response);
+        return mb_strlen($response) > 60000 ? mb_substr($response, 0, 60000) . "\n[respuesta truncada para almacenamiento interno]" : $response;
     }
 
     private function with_link_preservation_errors(array $validation, array $errors): array {
