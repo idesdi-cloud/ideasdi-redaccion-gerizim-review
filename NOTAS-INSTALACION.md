@@ -1,5 +1,20 @@
 # Instalación · ideasDi Redacción Gerizim
 
+## RC1.7.8.5.3 — PREPARACIÓN, NO INSTALAR
+
+Código integrado mediante PR #2, merge
+`97c39b432d9666b2d281b63d7314e19edd76c80e`.
+
+Preparación aislada de versión y manifiesto propio.
+No existe todavía ZIP aprobado, instalación ni aceptación
+funcional WordPress para RC1.7.8.5.3.
+
+Antes de cualquier instalación se requiere un release
+validado, verificar el plugin realmente activo, conservar
+un respaldo íntegro y ejecutar las comprobaciones manuales
+de administración, Gutenberg, enlaces, Reel y borradores.
+No asumir que la última versión fuente es la instalada.
+
 ## Candidato RC1.7.8.5.1 — NO INSTALAR
 
 RC1.7.8.5.1 es un candidato no liberado ni instalado. Estabiliza la conciliación de una respuesta editorial completa con `editorial_document`: solo aplica cuando forma, bloques e identidad de enlaces son inequívocas; si no, conserva el documento válido, la respuesta cruda y un diagnóstico específico. La navegación muestra ese documento base como disponible para SEO, sin declarar aprobada la revisión editorial rechazada. SEO puede insertar una única URL corporativa responsable faltante en prosa existente, con prioridad canónica y sin alterar P2, anchors autorizados ni encabezados.

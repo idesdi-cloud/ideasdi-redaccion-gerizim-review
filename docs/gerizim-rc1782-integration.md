@@ -1,14 +1,29 @@
 # Integración Gerizim 0.4.0-RC1.7.8.2
 
+## Preparación de RC1.7.8.5.3 — 2026-11-07
+
+El correctivo descrito a continuación se incorporó mediante
+PR #2, commit fuente `8135bf8bd18524c984eee46da5f861fbedd6ca6c`
+y merge `97c39b432d9666b2d281b63d7314e19edd76c80e`.
+
+La versión RC1.7.8.5.3 se prepara en rama local aislada.
+El manifiesto de esta versión incorpora los archivos
+históricamente protegidos y la nueva prueba y documentación
+de release. Los manifiestos anteriores permanecen intactos.
+
+La suite completa y la identidad final del candidato
+deben aprobarse antes de construir un ZIP. Sin despliegue
+ni aceptación humana WordPress.
+
 ## Candidato RC1.7.8.5.3 — desacople seguro de componentes SEO, no liberado
 
-Baseline autorizado de este workspace: `5bd0085360dea2c5baf6341eaeed4aa167f5b285`. No cambia la versión del plugin, manifiestos SHA-256, contrato Radar, ZIP, commit, tag, instalación, WordPress ni servicios externos.
+Baseline del candidato original: `5bd0085360dea2c5baf6341eaeed4aa167f5b285`. En aquella intervención no cambiaron la versión del plugin, los manifiestos históricos, el contrato Radar ni WordPress. La posterior incorporación Git y preparación del release se registran en la sección superior.
 
 En modo `editorial_document`, el documento persistido continúa como única autoridad. `apply_seo_response()` extrae y conserva independientemente meta description, informe, copy, Reel y retroalimentación aunque una propuesta histórica de `ARTÍCULO FINAL`, un cambio ligero, un párrafo añadido, un reorder o una URL no autorizada resulte incompatible. Esa prosa no se escribe: el diagnóstico interno registra respuesta recibida, si la prosa fue aplicada, la razón concreta, componentes utilizables y el resultado real del preflight. La respuesta original se registra temprano, sanitizada y acotada, solo para trazabilidad interna; el aprovechamiento parcial nunca equivale a aprobación.
 
 Los enlaces canónicos se completan sobre el documento conservado, no sobre la propuesta de prosa. La URL responsable sigue limitada a `canonical_context.responsible_official_url` y `responsible_official_url`; una fuente documental no puede sustituirla. La reparación única del Reel opera directamente sobre `IDG_Reel_Contract` y su paquete Reel, sin volver a reconciliar artículo ni modificar overlays o VO válidas. La proyección y el sello continúan dependiendo del preflight Gutenberg aprobado; ante error se preservan entregables y razones sin habilitar escritura.
 
-El prompt SEO en modo documento solicita campos SEO y parches indispensables, sin exigir artículo completo; legacy conserva su formato anterior. `tests/rc17853-brief247-synthetic.php` documenta expresamente que Brief247 es sintético y no hay respuesta real 247: cubre ausencia de `ARTÍCULO FINAL`, cambio ligero, párrafo añadido, reorder, URL no autorizada, metadatos/Reel válidos y la resolución simulada responsable `https://deepmind.google/` + P2 `https://ideasdi.com/tag/render/`, sin sustituirla por `https://deepmind.google/models/gemini-omni/`. También se preservan las integraciones 231, 230 y regresiones existentes 227/224/222 mediante mocks. Evidencia local del 7-11-2026: las pruebas de sintaxis, brief 231, variantes sintéticas 247, Honda, integraciones e históricas pasaron; la suite general solo señaló seis diferencias esperadas respecto del manifiesto protegido RC1.7.8.5.2. El correctivo local distingue propuesta de artículo y PATCH, conserva componentes SEO recibidos, y bloquea seo_completed ante PATCH rechazado. Tras el correctivo, las pruebas focalizadas y la suite ejecutaron sin fallos funcionales; solo permanece la diferencia esperada frente al manifiesto anterior. Revisión final e incorporación canónica pendientes; no existe liberación, commit, ZIP ni prueba productiva real del brief 247. El manifiesto heredado no se modifica.
+El prompt SEO en modo documento solicita campos SEO y parches indispensables, sin exigir artículo completo; legacy conserva su formato anterior. `tests/rc17853-brief247-synthetic.php` documenta expresamente que Brief247 es sintético y no hay respuesta real 247: cubre ausencia de `ARTÍCULO FINAL`, cambio ligero, párrafo añadido, reorder, URL no autorizada, metadatos/Reel válidos y la resolución simulada responsable `https://deepmind.google/` + P2 `https://ideasdi.com/tag/render/`, sin sustituirla por `https://deepmind.google/models/gemini-omni/`. También se preservan las integraciones 231, 230 y regresiones existentes 227/224/222 mediante mocks. Evidencia local del 7-11-2026: las pruebas de sintaxis, brief 231, variantes sintéticas 247, Honda, integraciones e históricas pasaron; la suite general solo señaló seis diferencias esperadas respecto del manifiesto protegido RC1.7.8.5.2. El correctivo local distingue propuesta de artículo y PATCH, conserva componentes SEO recibidos, y bloquea seo_completed ante PATCH rechazado. Tras el correctivo, las pruebas focalizadas y la suite ejecutaron sin fallos funcionales; solo permanece la diferencia esperada frente al manifiesto anterior. En aquella validación estaban pendientes la revisión final y la incorporación canónica. La incorporación Git posterior se documenta arriba; siguen pendientes el release, ZIP y la prueba productiva real del brief 247. El manifiesto heredado no se modifica.
 
 ## Candidato RC1.7.8.5.2 — cierre SEO acotado para brief 231
 
