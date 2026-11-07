@@ -1910,7 +1910,7 @@ final class IDG_Workflow_Admin_Controller {
                                     <input type="hidden" name="idg_force_nonce" value="<?php echo esc_attr(wp_create_nonce($force_action)); ?>">
                                 </div>
                                 <button type="submit" name="step" value="draft_force" class="button idg-button-warning" data-confirm="La validación seguirá rechazada. ¿Crear únicamente una entrada pending nueva con revisión manual obligatoria?" title="Crear pending con excepción editorial confirmada">Ignorar validación y crear entrada</button>
-                            <?php elseif ($force_source_available && !$seo_done && !$draft_done) : ?>
+                            <?php elseif ($force_source_available && !empty($workflow['seo_requires_intervention']) && !$seo_done && !$draft_done) : ?>
                                 <div class="notice notice-warning inline"><p><strong>Revisión SEO pendiente de corrección:</strong> <?php echo esc_html((string) ($workflow['seo_validation_summary'] ?? 'La salida existe, pero el preflight no está aprobado y no admite excepción editorial.')); ?></p></div>
                             <?php endif; ?>
                         <?php endif; ?>

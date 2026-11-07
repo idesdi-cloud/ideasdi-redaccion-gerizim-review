@@ -194,7 +194,11 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $applied = IDG_Editorial_Document::apply_seo_response($workflow['editorial_document'], (string) $result['content'], $workflow);
             if (empty($applied['ok'])) { $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: la respuesta altera la forma de bloques del documento; no se sustituyó la prosa.'],'warnings'=>[],'summary'=>'- ERROR: SEO: la respuesta altera la forma de bloques del documento; no se sustituyó la prosa.']); return; }
             $workflow['editorial_document'] = $applied['document'];
+            $completed = IDG_Editorial_Document::complete_missing_authorized_links($workflow['editorial_document'], $workflow);
+            if (empty($completed['ok'])) { $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: no fue posible completar inequívocamente los enlaces autorizados; se conserva el documento previo.'],'warnings'=>[],'summary'=>'- ERROR: Enlaces autorizados no reconciliables.']); return; }
+            $workflow['editorial_document'] = $completed['document'];
             $workflow['seo_result'] = IDG_Editorial_Document::projection($applied['document']);
+            $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
         }
         $candidate = $document_mode ? $workflow['seo_result'] : IDG_Workflow_Output_Parser::normalize_editorial_box_markdown(
             IDG_Workflow_Output_Parser::sanitize((string) $result['content']),
@@ -213,10 +217,16 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $preflight['errors'] = (array) $validation['errors'];
         }
         $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
-        if (!$document_mode && empty($preflight['ok']) && !empty($links['ok'])) {
+        if (empty($preflight['ok']) && !empty($links['ok'])) {
             $repair = $this->attempt_localized_repair($workflow_id, 'seo', $candidate, $validation, $workflow, $client);
             if (!empty($repair['applied'])) {
                 $candidate = (string) $repair['content'];
+                if ($document_mode) {
+                    $repaired = IDG_Editorial_Document::apply_seo_response($workflow['editorial_document'], $candidate, $workflow);
+                    if (empty($repaired['ok'])) { $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: reparación Reel no aplicable; se conserva el documento previo.'],'warnings'=>[],'summary'=>'- ERROR: Reparación Reel no aplicable.']); return; }
+                    $workflow['editorial_document'] = $repaired['document'];
+                    $candidate = IDG_Editorial_Document::projection($workflow['editorial_document']);
+                }
                 $workflow['seo_result'] = $candidate;
                 $links = IDG_Workflow_Output_Parser::preserve_approved_article_links($article, $candidate, $workflow, true);
                 $candidate = (string) $links['content'];

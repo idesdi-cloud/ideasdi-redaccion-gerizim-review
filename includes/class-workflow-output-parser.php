@@ -107,7 +107,8 @@ final class IDG_Workflow_Output_Parser {
     /** @return array<int,array{url:string,anchor:string}> */
     private static function approved_links_in_source(string $source, array $workflow): array {
         $allowed = [];
-        $official = trim((string) ($workflow['responsible_official_url'] ?? $workflow['official_source'] ?? ''));
+        $canonical = is_array($workflow['canonical_context'] ?? null) ? $workflow['canonical_context'] : [];
+        $official = trim((string) ($canonical['responsible_official_url'] ?? $workflow['responsible_official_url'] ?? ''));
         if ($official !== '') $allowed[] = $official;
         if (class_exists('IDG_Internal_Links')) {
             foreach ((array) IDG_Internal_Links::normalize($workflow) as $link) {

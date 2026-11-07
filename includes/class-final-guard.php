@@ -985,9 +985,10 @@ final class IDG_Final_Guard {
             $context = IDG_Canonical_Context::resolve($workflow);
             return esc_url_raw((string) ($context['responsible_official_url'] ?? ''));
         }
-        // Isolated compatibility path: never use the information-source URL.
+        // Isolated compatibility path: never treat documentary `official_source`
+        // as a corporate article identity. Events returned above retain their source.
         $url = trim((string) ($workflow['responsible_official_url'] ?? ''));
-        return esc_url_raw($url !== '' ? $url : (string) ($workflow['official_source'] ?? ''));
+        return esc_url_raw($url);
     }
 
     private static function event_presentation_status(string $html, array $workflow): array {

@@ -1,5 +1,11 @@
 # Integración Gerizim 0.4.0-RC1.7.8.2
 
+## Candidato RC1.7.8.5.2 — cierre SEO acotado para brief 231
+
+Baseline autorizado: `73b1be75af87c6bd14960c92a7e066d9c7edd89d`; cambio `chg-20261106T154252Z-9b21ce3a`. El documento editorial sigue siendo la única fuente de verdad: SEO acepta la respuesta con artículo inicial sin etiqueta `ARTÍCULO FINAL`, conserva sus bloques y metadatos y completa solo enlaces autorizados mediante wraps de prosa existentes. La URL corporativa solo resuelve desde `canonical_context.responsible_official_url` o `responsible_official_url` explícita y válida: `official_source` y `source_information_url` son documentales y nunca fallback corporativo. P2 procede de `IDG_Internal_Links::normalize()`. Si no hay anchor inequívoco o falta resolución, el flujo falla cerrado.
+
+En modo documento se habilita la única reparación localizada del Reel: solo VO 1–5 inválidas, con preflight Gutenberg repetido sobre la representación actual y sello de payload. Un fallo conserva el documento previo. El aviso de corrección SEO aparece únicamente después de un intento SEO fallido; no se creó ZIP, commit, tag, instalación, despliegue ni publicación WordPress. La aceptación integrada `tests/rc17852-brief231-integration.php` usa los dos fixtures fuente con SHA-256 tras `trim()`, el workflow real 231, modelo y WordPress simulados; comprueba los dos wraps autorizados, artículo/box/Gutenberg, P2 3–8, Reel, sello y un solo `pending`. Se actualizaron este registro, versión, pipeline, documento, prompts, guardas y runner; no cambian Radar, Lead, contratos de eventos/concursos ni manifiestos históricos.
+
 ## Candidato RC1.7.8.5.1 — estabilización Honda RN0, no liberado ni instalado
 
 Sobre el baseline autorizado `fa4b3ce4488cc4c24459e6f907b726c27af5a34d`, este candidato reconcilia de forma determinista una respuesta editorial completa con el documento por bloques existente: conserva forma, orden, IDs y enlaces Markdown exactos; ante estructura ambigua, URL o anchor alterados conserva el documento previo y registra la respuesta cruda con diagnóstico específico. Los parches siguen siendo alternativa válida. El panel permite continuar SEO desde ese documento seguro, pero exhibe la revisión editorial como rechazada y disponible para revisión manual, no como aprobada.

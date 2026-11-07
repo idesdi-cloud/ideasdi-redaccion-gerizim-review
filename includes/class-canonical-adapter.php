@@ -113,6 +113,8 @@ final class IDG_Canonical_Adapter {
                 $context[$field] = $provided[$field];
             }
         }
+        // `official_source` documents a fact; it is never an implied corporate
+        // identity for an article.  Event handling keeps its own source path.
         $url = $workflow['responsible_official_url'] ?? null;
         return [
             'knowledge_id' => $projection['knowledge_id'],
@@ -124,8 +126,15 @@ final class IDG_Canonical_Adapter {
             'category' => $category,
             'primary_lens' => $primary,
             'secondary_lenses' => $secondary,
-            'responsible_official_url' => self::present($url) ? $url : ($workflow['official_source'] ?? ''),
+            'responsible_official_url' => self::valid_corporate_url($url),
             'piece_context' => $context,
         ];
+    }
+
+    private static function valid_corporate_url($value): string {
+        if (!is_string($value)) return '';
+        $url = trim($value);
+        return filter_var($url, FILTER_VALIDATE_URL) !== false
+            && in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true) ? $url : '';
     }
 }

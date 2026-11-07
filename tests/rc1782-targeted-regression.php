@@ -68,8 +68,8 @@ function home_url($path = '') { return 'https://ideasdi.com/' . ltrim((string) $
 function untrailingslashit($value) { return rtrim((string) $value, '/'); }
 function remove_accents($value) { return strtr((string) $value, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','Á'=>'A','É'=>'E','Í'=>'I','Ó'=>'O','Ú'=>'U','ñ'=>'n','Ñ'=>'N']); }
 function get_term($id, $taxonomy = '') { $term = $GLOBALS['rc1782_terms'][(int) $id] ?? null; return $term instanceof WP_Term && ($taxonomy === '' || $term->taxonomy === $taxonomy) ? $term : null; }
-function get_term_link($term, $taxonomy = '') { $id = $term instanceof WP_Term ? $term->term_id : (int) $term; return match ($id) { 3 => 'https://ideasdi.com/tag/animacion/', 4 => 'https://ideasdi.com/tag/software-3d/', default => new WP_Error('term missing') }; }
-function get_category_link($id) { return (int) $id === 1232 ? 'https://ideasdi.com/category/modelado-3d/' : new WP_Error('category missing'); }
+function get_term_link($term, $taxonomy = '') { $id = $term instanceof WP_Term ? $term->term_id : (int) $term; return $GLOBALS['rc1782_term_urls'][$id] ?? match ($id) { 3 => 'https://ideasdi.com/tag/animacion/', 4 => 'https://ideasdi.com/tag/software-3d/', default => new WP_Error('term missing') }; }
+function get_category_link($id) { return $GLOBALS['rc1782_category_urls'][(int) $id] ?? ((int) $id === 1232 ? 'https://ideasdi.com/category/modelado-3d/' : new WP_Error('category missing')); }
 function wp_create_nonce($action) { return hash('sha256', 'nonce|' . (string) $action); }
 function wp_verify_nonce($nonce, $action) { return hash_equals(wp_create_nonce($action), (string) $nonce); }
 function wp_insert_post($postarr, $wp_error = false) { $id = 900 + count($GLOBALS['rc1782_posts']); $GLOBALS['rc1782_posts'][$id] = $postarr; return $id; }
@@ -95,6 +95,7 @@ final class IDG_Priority_Readings {
     public static function tag_matrix(): array { return [
         ['tag'=>'Animación','tag_slug'=>'animacion','category_slug'=>'modelado-3d','status'=>'Index'],
         ['tag'=>'Software 3D','tag_slug'=>'software-3d','category_slug'=>'modelado-3d','status'=>'Index'],
+        ...($GLOBALS['rc1782_extra_tag_matrix'] ?? []),
     ]; }
     public static function is_noindex_tag_name(string $name, string $category = ''): bool { return false; }
     public static function tag_status(string $name, string $category = ''): string { return 'Index'; }
