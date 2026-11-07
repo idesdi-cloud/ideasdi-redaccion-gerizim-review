@@ -1,5 +1,31 @@
 # Estado actual · ideasDi Redacción Gerizim
 
+Actualizado: 2026-11-07 — preparación aislada RC1.7.8.5.3
+
+## Situación vigente RC1.7.8.5.3
+
+PR #2 fusionado en GitHub main. Commit fuente:
+`8135bf8bd18524c984eee46da5f861fbedd6ca6c`.
+Commit de integración:
+`97c39b432d9666b2d281b63d7314e19edd76c80e`.
+
+El VPS quedó sincronizado con main y limpio. La versión y el manifiesto se prepararon en una rama de trabajo
+aislada. Los cambios se conservan en el commit que incorpora este
+documento; el ZIP, instalación y aceptación WordPress siguen pendientes.
+
+La implementación conserva el documento editorial, recupera
+componentes SEO independientes, diagnostica PATCH rechazados
+y separa la reparación del Reel. Los briefs 231 y 247 cuentan
+con regresiones locales; el 247 utiliza variantes sintéticas.
+No existe aceptación funcional WordPress de esta versión.
+
+El Change Record original
+`chg-20261107T130152Z-485922bd` permanece en
+NEEDS_ATTENTION. El merge excepcional no cambia ese estado.
+La preparación no equivale a RELEASE ni a DEPLOY.
+
+## Registro histórico anterior
+
 Actualizado: 2026-10-27 (postmerge RC1.7.8, previo a ZIP oficial)
 
 ## Estado canónico observado e incorporación RC1.7.8
