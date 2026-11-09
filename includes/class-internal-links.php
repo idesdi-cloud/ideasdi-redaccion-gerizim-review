@@ -153,7 +153,7 @@ final class IDG_Internal_Links {
         $category_name = $category instanceof WP_Term ? (string) $category->name : '';
         $category_url = self::category_url($category_id, $category_name);
         if (!$category instanceof WP_Term) {
-            return self::unresolved_article_library('', '');
+            return self::unresolved_article_library('', '', 'categoría WordPress no válida para la matriz editorial');
         }
         $lenses = self::explicit_workflow_lenses($workflow);
         $terms = [];
@@ -176,17 +176,20 @@ final class IDG_Internal_Links {
         $tag_url = '';
         $tag_name = '';
         $selected_lens = '';
+        $tag_status = '';
         foreach ($lenses as $lens) {
             foreach ($terms as $term) {
-                // Reuse adapter aliases/folding; unknown tags never acquire a lens.
-                $term_context = IDG_Canonical_Adapter::resolve(['primary_lens' => (string) $term->name]);
-                if ($term_context['primary_lens'] !== $lens) continue;
+                // El nombre visible de WordPress puede cambiar. La identidad
+                // editorial permanece anclada al slug exacto de la matriz y a
+                // su categoría; nunca se acepta una coincidencia aproximada.
+                if (self::matrix_lens_for_term($term, $category) !== $lens) continue;
                 if (class_exists('IDG_Priority_Readings') && IDG_Priority_Readings::is_noindex_tag_name((string) $term->name, $category_name)) continue;
                 $url = self::tag_url($term, $category_name);
                 if ($url === '') continue;
                 $tag_name = (string) $term->name;
                 $tag_url = $url;
                 $selected_lens = $lens;
+                $tag_status = (string) (self::matrix_row_for_term($term, $category)['status'] ?? '');
                 $primary = self::sanitize_link_row([
                     'url' => $tag_url,
                     'type' => 'tag_principal',
@@ -205,6 +208,7 @@ final class IDG_Internal_Links {
                 if ($url === '') continue;
                 $tag_name = (string) $term->name;
                 $tag_url = $url;
+                $tag_status = (string) (self::matrix_row_for_term($term, $category)['status'] ?? '');
                 $primary = self::sanitize_link_row([
                     'url' => $tag_url,
                     'type' => 'tag_fallback_seleccionado',
@@ -219,11 +223,12 @@ final class IDG_Internal_Links {
 
         return [
             'editorial_resolution_status' => $primary ? 'resolved' : 'unresolved',
+            'resolution_reason' => $primary ? 'tag WordPress elegible resuelto por slug exacto y categoría' : (empty($terms) ? 'no hay post_tag seleccionado elegible en la categoría' : 'ningún post_tag seleccionado tiene una URL interna segura'),
             'resolved_lens' => $selected_lens,
             'category_name' => $category_name,
             'category_url' => $category_url,
             'primary_tag' => $tag_name,
-            'primary_tag_status' => $tag_name !== '' && class_exists('IDG_Priority_Readings') ? IDG_Priority_Readings::tag_status($tag_name, $category_name) : '',
+            'primary_tag_status' => $tag_status,
             'tag_url' => $tag_url,
             'primary' => $primary,
         ];
@@ -249,14 +254,18 @@ final class IDG_Internal_Links {
         $link = isset($library['primary']) && is_array($library['primary']) ? $library['primary'] : [];
         $lines[] = '- Enlace interno calculado: ' . self::display((string) ($link['url'] ?? '')) . (!empty($link['context']) ? ' · ' . (string) $link['context'] : '');
         $lines[] = '- Resolución editorial: ' . $library['editorial_resolution_status'];
+        if (!empty($library['resolution_reason'])) {
+            $lines[] = '- Diagnóstico técnico: ' . self::display((string) $library['resolution_reason']);
+        }
         $lines[] = '- Regla: lente canónica primaria, después secundarias en orden y, si ninguna resuelve, primer post_tag explícitamente seleccionado y elegible; solo tags reales, indexables, de la categoría WordPress validada y con URL HTTP(S) real.';
         $lines[] = '- Sin lente canónica ni post_tag seleccionado elegible con URL real: unresolved y revisión editorial; la categoría es contexto y nunca fallback P2.';
         return implode("\n", $lines);
     }
 
-    private static function unresolved_article_library(string $category_name, string $category_url): array {
+    private static function unresolved_article_library(string $category_name, string $category_url, string $reason = 'no existe un tag canónico elegible'): array {
         return [
             'editorial_resolution_status' => 'unresolved',
+            'resolution_reason' => $reason,
             'resolved_lens' => '',
             'category_name' => $category_name,
             'category_url' => $category_url,
@@ -309,18 +318,31 @@ final class IDG_Internal_Links {
     }
 
     private static function eligible_matrix_term(WP_Term $term, WP_Term $category): bool {
+        return self::matrix_row_for_term($term, $category) !== [];
+    }
+
+    /** Matriz: slug exacto + categoría exacta; el nombre visible WP no es identidad. */
+    private static function matrix_row_for_term(WP_Term $term, WP_Term $category): array {
         if (!class_exists('IDG_Priority_Readings')) {
-            return false;
+            return [];
         }
         foreach (IDG_Priority_Readings::tag_matrix() as $row) {
-            if ((string) ($row['tag'] ?? '') === (string) $term->name
-                && (string) ($row['tag_slug'] ?? '') === (string) $term->slug
+            if ((string) ($row['tag_slug'] ?? '') === (string) $term->slug
                 && (string) ($row['category_slug'] ?? '') === (string) $category->slug
                 && in_array((string) ($row['status'] ?? ''), ['Index', 'Index / Transversal'], true)) {
-                return true;
+                return $row;
             }
         }
-        return false;
+        return [];
+    }
+
+    private static function matrix_lens_for_term(WP_Term $term, WP_Term $category): string {
+        $row = self::matrix_row_for_term($term, $category);
+        if (empty($row)) {
+            return '';
+        }
+        $resolved = IDG_Canonical_Adapter::resolve(['primary_lens' => (string) ($row['tag'] ?? '')]);
+        return (string) ($resolved['primary_lens'] ?? '');
     }
 
     private static function is_event_workflow(array $workflow): bool {
@@ -405,7 +427,13 @@ final class IDG_Internal_Links {
 
     private static function tag_url(WP_Term $tag, string $category_name = ''): string {
         $tag_link = get_term_link($tag, 'post_tag');
-        return (!is_wp_error($tag_link) && is_string($tag_link)) ? self::http_url($tag_link) : '';
+        $url = (!is_wp_error($tag_link) && is_string($tag_link)) ? self::http_url($tag_link) : '';
+        if ($url === '') {
+            return '';
+        }
+        $site_host = self::root_host((string) self::parse_url_part(function_exists('home_url') ? (string) home_url('/') : '', PHP_URL_HOST));
+        $url_host = self::root_host((string) self::parse_url_part($url, PHP_URL_HOST));
+        return $site_host !== '' && $url_host !== '' && hash_equals($site_host, $url_host) ? $url : '';
     }
 
     private static function http_url(string $url): string {

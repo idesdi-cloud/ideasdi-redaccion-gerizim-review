@@ -1997,13 +1997,9 @@ final class IDG_Workflow_Admin_Controller {
             || (string) ($workflow['workflow_origin'] ?? '') === 'recurring_update') {
             return false;
         }
-        // No se ofrece una excepción sólo porque la generación haya terminado:
-        // requiere una revisión editorial realmente rechazada y documentada.
-        return !empty($workflow['editorial_requires_manual_review'])
-            && empty($workflow['editorial_validation']['ok'])
-            && empty($workflow['seo_validation']['ok'])
-            && (trim((string) ($workflow['editorial_result'] ?? '')) !== ''
-                || (class_exists('IDG_Editorial_Document') && IDG_Editorial_Document::exists($workflow)));
+        // No ejecuta preflight: reutiliza la última validación real guardada.
+        // El servidor siempre recalcula el preflight antes de cualquier escritura.
+        return class_exists('IDG_Post_Creator') && IDG_Post_Creator::override_workflow_eligible($workflow);
     }
 
     private static function render_sponsored_fields(array $workflow): void {
