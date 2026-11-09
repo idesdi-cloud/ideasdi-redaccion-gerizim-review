@@ -32,7 +32,7 @@ final class IDG_Post_Creator {
             self::release_new_pending_creation($creation_lock);
             return [
                 'success' => false,
-                'message' => 'Validación real bloqueó la creación de la entrada: ' . implode(' · ', (array) ($prepared['errors'] ?? [])),
+                'message' => 'Validación real bloqueó la creación de la entrada: ' . self::diagnostic_errors((array) ($prepared['errors'] ?? [])),
                 'validation_summary' => (string) ($prepared['validation']['summary'] ?? ''),
             ];
         }
@@ -309,8 +309,6 @@ final class IDG_Post_Creator {
         $validation['error_codes'] = IDG_Final_Guard::classify_errors((array) ($validation['errors'] ?? []));
         $write_allowed = !empty($validation['ok']);
         if (empty($validation['ok'])
-            && !empty($workflow['editorial_requires_manual_review'])
-            && empty($workflow['editorial_validation']['ok'])
             && !empty($workflow['force_validation_override'])
             && self::editorial_override_allowed($validation)
             && self::valid_force_confirmation($workflow)) {
@@ -346,6 +344,54 @@ final class IDG_Post_Creator {
 
     private static function editorial_override_allowed(array $validation): bool {
         return self::override_eligible($validation);
+    }
+
+    /** UI-only eligibility uses the latest persisted real validation; write eligibility is always recalculated. */
+    public static function override_workflow_eligible(array $workflow): bool {
+        if (!self::force_target_is_new_pending($workflow) || self::public_article_source($workflow) === '') {
+            return false;
+        }
+        // No basta con que una etapa tenga un error recuperable: una segunda
+        // etapa con fallo crítico o diagnóstico incompleto bloquea el botón.
+        $recoverable_failure_seen = false;
+        foreach (['seo_validation', 'editorial_validation'] as $field) {
+            if (!array_key_exists($field, $workflow)) {
+                continue;
+            }
+            if (!is_array($workflow[$field]) || !array_key_exists('ok', $workflow[$field])) {
+                return false;
+            }
+            $validation = $workflow[$field];
+            if (!empty($validation['ok'])) {
+                if (!empty($validation['errors']) || !empty($validation['error_codes'])) {
+                    return false;
+                }
+                continue;
+            }
+            // Los códigos editoriales de etapa solo se normalizan para la UI;
+            // el servidor siempre recalcula el Final Guard real antes de escribir.
+            if ($field === 'editorial_validation' && isset($validation['error_codes']) && is_array($validation['error_codes'])) {
+                $validation['error_codes'] = array_map(static fn($code): string => $code === 'phase_editorial_structure' ? 'editorial_structure' : (string) $code, $validation['error_codes']);
+            }
+            if (!self::override_eligible($validation)) {
+                return false;
+            }
+            $recoverable_failure_seen = true;
+        }
+        return $recoverable_failure_seen;
+    }
+
+    private static function diagnostic_errors(array $errors): string {
+        $clean = [];
+        foreach (array_slice($errors, 0, 3) as $error) {
+            $message = preg_replace('/\s+/u', ' ', wp_strip_all_tags((string) $error));
+            $message = trim((string) $message);
+            if ($message !== '') {
+                $clean[] = mb_substr($message, 0, 240);
+            }
+        }
+        $suffix = count($errors) > count($clean) ? ' · Diagnóstico acotado; consulta el resumen de validación para el detalle.' : '';
+        return $clean ? implode(' · ', $clean) . $suffix : 'sin detalle técnico disponible.';
     }
 
     public static function override_content_hash(array $workflow): string {
