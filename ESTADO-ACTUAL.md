@@ -1,8 +1,24 @@
 # Estado actual · ideasDi Redacción Gerizim
 
+Actualizado: 2026-11-09 · instalación manual y diagnóstico del brief 249
+
+## Situación operativa al 9 de noviembre de 2026
+
+- **WordPress:** el editor instaló y activó `ideasDi Redacción Gerizim 0.4.0-RC1.7.8.5.3`. Lead confirmó en vivo el plugin activo y 253 archivos instalados. La comparación con el Git local antiguo `051f0881ed0b` detectó 5 cambios y un archivo nuevo, exactamente las 6 rutas esperadas respecto del commit funcional aprobado.
+- **Fuente funcional aprobada e instalada:** GitHub `5fe107634e7377cad35aec8f6b5269edf1e38ad3`, PR #4 (funcional), #5 (manifiesto), #6 (regresión harness). ZIP reproducible, suite `VALIDACION_GERIZIM_OK`, SHA-256 `5b3e6b2b14218d2ba7081c169e2d6977f48e55d53e1d9322af09b3c8bf8d4e44`. La igualdad de hashes 253/253 en WordPress **no ha sido demostrada**, y no se declara aceptación funcional completa.
+- **Incidente de producción abierto:** brief Radar **249**, workflow `idg_0ef5a9f8-fd93-4307-bc53-f668245d4694`. Generar y Revisión editorial correctos; SEO falló al reconciliar enlaces autorizados, sin preflight final, sin V3 aprobada, sin entrada WordPress y sin botón de excepción. Lead confirmó `authorized_links.status=incident`, respuesta SEO recibida, 5 componentes presentes pero ninguno validado.
+- **Criterio editorial adoptado:** la categoría define territorio; las etiquetas aportan lentes y campo semántico, independientemente de `Index/No Index`; los enlaces deben conectar argumentos pertinentes con URLs reales de ideasDi. Las selecciones finales del editor en Gerizim prevalecen sobre las sugerencias heredadas de Radar; no imponer literalidad de etiquetas ni enlazar solo porque una URL sea indexable.
+- **Causa comprobada:** `complete_missing_authorized_links` falla y corta `run_seo` antes de guardar una validación estructurada que pueda evaluar el botón `Ignorar validación y crear entrada`. **Subtipo exacto de reconciliación no expuesto**: no presentar la falta de la palabra Render como causa confirmada.
+- **Plan breve de solución:** P0 recuperar el flujo preservando componentes SEO, diagnóstico y `pending` seguro si elegible; P1 alinear taxonomías reales, roles semánticos y selección de destinos; P2 anticipar enlace contextual a generación/plan y conservarlo en SEO. Evitar reintentos SEO sin cambios. Aún **sin autorización de cambios funcionales, Codex, RELEASE o DEPLOY**.
+- **Continuidad detallada:** [`docs/gerizim-brief249-taxonomias-y-recuperacion-20261109.md`](docs/gerizim-brief249-taxonomias-y-recuperacion-20261109.md). Documento de diagnóstico, límites, verificaciones y siguiente implementación propuesta; no es código ni despliegue.
+- **Git local del VPS:** `/opt/gerizim-ideasdi` permanece limpio en `051f0881ed0b`, sin fetch del nuevo remoto; `upstream_relation=ALIGNED` es solo tracking local. La actualización documental de GitHub posterior al ZIP tampoco está instalada en WordPress.
+- **Change Record histórico:** `chg-20261109T201020Z-0a83ef17` sigue `NEEDS_ATTENTION` / HOLD. No se modifica ni se considera liberado por los PR excepcionales.
+
+## Registro histórico (información anterior; no interpretar como estado actual)
+
 Actualizado: 2026-11-07 — preparación aislada RC1.7.8.5.3
 
-## Situación vigente RC1.7.8.5.3
+## Situación registrada entonces · RC1.7.8.5.3
 
 PR #2 fusionado en GitHub main. Commit fuente:
 `8135bf8bd18524c984eee46da5f861fbedd6ca6c`.
