@@ -4,6 +4,20 @@ declare(strict_types=1);
 /* Sanitized local replay of brief 249; it never invokes a network model. */
 require __DIR__ . '/rc1782-targeted-regression.php';
 require_once ABSPATH . 'includes/class-editorial-document.php';
+require_once ABSPATH . 'includes/class-radar-importer.php';
+if (!function_exists('wp_check_invalid_utf8')) {
+    function wp_check_invalid_utf8(string $value): string { return $value; }
+}
+if (!function_exists('get_terms')) {
+    function get_terms(array $args = []): array { return []; }
+}
+if (!function_exists('get_transient')) {
+    function get_transient(string $key) { return false; }
+}
+if (!function_exists('delete_transient')) {
+    function delete_transient(string $key): bool { return true; }
+}
+require_once ABSPATH . 'includes/class-admin-page.php';
 
 function rc17855_ok(bool $condition, string $label): void {
     if (!$condition) {
@@ -32,6 +46,50 @@ $workflow['tag_names'] = ['Software 3D', 'Render'];
 $workflow['radar_lente_sugerida'] = 'Animación';
 $workflow['responsible_official_url'] = 'https://example.test/estudio/';
 $workflow['canonical_context'] = ['responsible_official_url' => $workflow['responsible_official_url']];
+/* Phase 1 identity mapping: Radar's responsible URL is identity; fuente_oficial remains documentary. */
+$radar_payload = [
+    'sistema' => 'radar-editorial-ideasdi', 'destino' => 'gerizim-wp', 'brief' => [
+        'id' => 249, 'keyword_principal' => 'prueba', 'categoria_wp' => 'Diseño digital y 3D',
+        'tipo_pieza' => 'Actualidad', 'responsable' => 'Estudio de prueba',
+        'responsable_url' => 'https://example.test/responsable/', 'fuente_oficial' => 'https://research.test/fuente/',
+    ],
+    'contenido_editorial' => ['hecho_base' => 'Hecho.', 'angulo_editorial' => 'Ángulo.'],
+];
+$identity_import = IDG_Radar_Importer::import_from_json_string(json_encode($radar_payload), []);
+rc17855_ok(!empty($identity_import['success'])
+    , 'Radar acepta el brief mínimo de identidad');
+rc17855_ok(($identity_import['workflow']['responsible_official_url'] ?? '') === 'https://example.test/responsable/', 'Radar copia la URL responsable al campo canónico');
+rc17855_ok(($identity_import['workflow']['source_information_url'] ?? '') === 'https://research.test/fuente/', 'Radar conserva separada la fuente documental');
+$malformed_payload = $radar_payload;
+$malformed_payload['brief']['responsable_url'] = 'javascript:alert(1)';
+$malformed_import = IDG_Radar_Importer::import_from_json_string(json_encode($malformed_payload), []);
+rc17855_ok(empty($malformed_import['success']) && ($malformed_import['reason'] ?? '') === 'responsible_url_invalid', 'una URL responsable no HTTP(S) se rechaza antes de escribir');
+$conflict_import = IDG_Radar_Importer::import_from_json_string(json_encode($radar_payload), ['responsible_official_url' => 'https://other.test/responsable/']);
+rc17855_ok(empty($conflict_import['success']) && ($conflict_import['reason'] ?? '') === 'responsible_url_conflict', 'una URL responsable explícita en conflicto se rechaza sin sobrescribir');
+$clear_workflow = ['responsible_official_url' => 'https://example.test/old/', 'official_source' => 'https://example.test/old/', 'radar_reimport_allowed' => true];
+$clear_payload = $radar_payload;
+$clear_payload['brief']['responsable_url'] = '';
+$clear_import = IDG_Radar_Importer::import_from_json_string(json_encode($clear_payload), $clear_workflow);
+rc17855_ok(!empty($clear_import['success']) && ($clear_import['workflow']['responsible_official_url'] ?? 'x') === '' && ($clear_import['workflow']['official_source'] ?? 'x') === '', 'responsable_url vacío limpia identidad y fuente sincronizadamente');
+$missing_payload = $radar_payload;
+unset($missing_payload['brief']['responsable_url']);
+$missing_import = IDG_Radar_Importer::import_from_json_string(json_encode($missing_payload), $clear_workflow);
+rc17855_ok(!empty($missing_import['success']) && ($missing_import['workflow']['responsible_official_url'] ?? '') === $clear_workflow['responsible_official_url'], 'responsable_url ausente conserva identidad existente sin inferir fuente');
+$update_import = IDG_Radar_Importer::import_from_json_string(json_encode($radar_payload), []);
+rc17855_ok(!empty($update_import['success']) && ($update_import['workflow']['official_source'] ?? '') === ($update_import['workflow']['responsible_official_url'] ?? ''), 'actualización válida sincroniza ambos campos');
+$_GET['message'] = 'responsible_url_invalid';
+$render_notice = new ReflectionMethod('IDG_Workflow_Admin_Controller', 'render_notice');
+$render_notice->setAccessible(true);
+ob_start();
+$render_notice->invoke(null, []);
+$invalid_notice = (string) ob_get_clean();
+rc17855_ok(str_contains($invalid_notice, 'notice-error') && str_contains($invalid_notice, 'URL HTTP(S) válida') && str_contains($invalid_notice, 'No se guardaron cambios'), 'la UI muestra el aviso seguro de URL responsable inválida');
+$_GET['message'] = 'responsible_url_conflict';
+ob_start();
+$render_notice->invoke(null, []);
+$conflict_notice = (string) ob_get_clean();
+rc17855_ok(str_contains($conflict_notice, 'notice-error') && str_contains($conflict_notice, 'difiere de la identidad responsable registrada') && str_contains($conflict_notice, 'No se guardaron cambios'), 'la UI muestra el aviso seguro de conflicto de URL responsable');
+unset($_GET['message']);
 rc17855_ok((IDG_Internal_Links::normalize($workflow)[0]['url'] ?? '') === 'https://ideasdi.com/tag/render/', 'los tags elegidos por editor prevalecen sobre Radar; Software 3D sin matriz no se asume indexable');
 
 $article = "# Visualización digital para una prueba\n\n[El estudio responsable](https://example.test/estudio/) presentó una demostración de visualización digital.\n\nCaja editorial\n" . rc1782_box('Prueba', 40) . "\n\n## Decisiones de imagen\nEl equipo comparó iluminación, materiales y encuadre antes de publicar la demostración.";

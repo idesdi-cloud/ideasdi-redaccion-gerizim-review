@@ -106,7 +106,29 @@ final class IDG_Radar_Importer {
         $data = $current_workflow;
         $data['keyword'] = self::clean_text((string) ($brief['keyword_principal'] ?? ''));
         $data['entity'] = self::clean_text((string) ($brief['responsable'] ?? ''));
-        $data['official_source'] = self::clean_url((string) ($brief['responsable_url'] ?? ''));
+        $has_responsible_url = array_key_exists('responsable_url', $brief);
+        $raw_responsible_url = $has_responsible_url ? trim((string) $brief['responsable_url']) : '';
+        if ($has_responsible_url && $raw_responsible_url !== '' && !self::is_http_url($raw_responsible_url)) {
+            return self::error('No se importó el brief: responsable_url debe ser una URL HTTP(S) válida.', 'responsible_url_invalid');
+        }
+        if ($has_responsible_url && $raw_responsible_url !== '') {
+            $responsible_url = self::clean_url($raw_responsible_url);
+            $existing_responsible = self::clean_url((string) ($current_workflow['responsible_official_url'] ?? ''));
+            if (self::is_http_url($existing_responsible) && $existing_responsible !== $responsible_url) {
+                return self::error('No se importó el brief: responsable_url entra en conflicto con la URL corporativa responsable explícita existente.', 'responsible_url_conflict');
+            }
+            $data['official_source'] = $responsible_url;
+            if ((string) ($current_workflow['workflow_origin'] ?? '') !== 'recurring_update'
+                && (string) ($current_workflow['recurring_target_post_type'] ?? '') !== 'evento') {
+                $data['responsible_official_url'] = $responsible_url;
+            }
+        } elseif ($has_responsible_url) {
+            $data['official_source'] = '';
+            if ((string) ($current_workflow['workflow_origin'] ?? '') !== 'recurring_update'
+                && (string) ($current_workflow['recurring_target_post_type'] ?? '') !== 'evento') {
+                $data['responsible_official_url'] = '';
+            }
+        }
         $data['source_information_url'] = self::clean_url((string) ($brief['fuente_oficial'] ?? ''));
         $data['piece_type'] = self::normalize_piece_type((string) ($brief['tipo_pieza'] ?? ''));
         if ((int) ($category_result['id'] ?? 0) > 0) {
@@ -378,6 +400,10 @@ final class IDG_Radar_Importer {
     private static function clean_text(string $value): string { return class_exists('IDG_Sanitizer') ? IDG_Sanitizer::text($value) : sanitize_text_field($value); }
     private static function clean_textarea(string $value): string { return class_exists('IDG_Sanitizer') ? IDG_Sanitizer::textarea($value) : sanitize_textarea_field($value); }
     private static function clean_url(string $value): string { return class_exists('IDG_Sanitizer') ? IDG_Sanitizer::url($value) : esc_url_raw($value); }
+    private static function is_http_url(string $value): bool {
+        return filter_var($value, FILTER_VALIDATE_URL) !== false
+            && in_array(strtolower((string) parse_url($value, PHP_URL_SCHEME)), ['http', 'https'], true);
+    }
     private static function error(string $message, string $reason = ''): array {
         return ['success' => false, 'message' => $message, 'warnings' => [], 'reason' => $reason];
     }

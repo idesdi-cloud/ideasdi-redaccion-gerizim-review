@@ -319,6 +319,21 @@ final class IDG_Workflow_Admin_Controller {
             'sponsored_visible_label' => !empty($_POST['sponsored_visible_label']) ? '1' : '0',
             'sponsored_restrictions' => isset($_POST['sponsored_restrictions']) ? IDG_Sanitizer::textarea((string) $_POST['sponsored_restrictions']) : ($workflow['sponsored_restrictions'] ?? ''),
         ]);
+        if (!$is_recurring_workflow && isset($_POST['official_source'])) {
+            $raw_responsible_url = trim((string) wp_unslash($_POST['official_source']));
+            if ($raw_responsible_url !== '' && !self::is_http_url($raw_responsible_url)) {
+                wp_safe_redirect(admin_url('admin.php?page=ideasdi-gerizim&workflow_id=' . rawurlencode($workflow_id) . '&message=responsible_url_invalid'));
+                exit;
+            }
+            $responsible_url = $raw_responsible_url === '' ? '' : IDG_Sanitizer::url($raw_responsible_url);
+            $existing_responsible = (string) ($workflow['responsible_official_url'] ?? '');
+            if ($responsible_url !== '' && self::is_http_url($existing_responsible) && $existing_responsible !== $responsible_url) {
+                wp_safe_redirect(admin_url('admin.php?page=ideasdi-gerizim&workflow_id=' . rawurlencode($workflow_id) . '&message=responsible_url_conflict'));
+                exit;
+            }
+            $data['official_source'] = $responsible_url;
+            $data['responsible_official_url'] = $responsible_url;
+        }
         // Una selección enviada desde el editor sustituye las lentes heredadas
         // de Radar para el trabajo editorial, sin borrar su procedencia.
         if (!$is_recurring_workflow && array_key_exists('tag_ids', $_POST)) {
@@ -427,6 +442,11 @@ final class IDG_Workflow_Admin_Controller {
 
         wp_safe_redirect(admin_url('admin.php?page=ideasdi-gerizim&workflow_id=' . rawurlencode($workflow_id) . '&message=' . $message));
         exit;
+    }
+
+    private static function is_http_url(string $value): bool {
+        return filter_var($value, FILTER_VALIDATE_URL) !== false
+            && in_array(strtolower((string) parse_url($value, PHP_URL_SCHEME)), ['http', 'https'], true);
     }
 
 
@@ -2225,6 +2245,10 @@ final class IDG_Workflow_Admin_Controller {
                 echo '<div class="notice notice-warning"><p>Primero ejecuta Revisión SEO para generar la Versión 3 final.</p></div>';
             } elseif ($message === 'needs_recurring_target') {
                 echo '<div class="notice notice-error"><p>El workflow perdió la publicación de destino. Vuelve a prepararlo desde Actualizaciones recurrentes.</p></div>';
+            } elseif ($message === 'responsible_url_invalid') {
+                echo '<div class="notice notice-error"><p>La URL responsable debe ser una URL HTTP(S) válida. No se guardaron cambios.</p></div>';
+            } elseif ($message === 'responsible_url_conflict') {
+                echo '<div class="notice notice-error"><p>La URL responsable difiere de la identidad responsable registrada. No se guardaron cambios.</p></div>';
             } elseif ($message === 'recurring_workflow_ready') {
                 echo '<div class="notice notice-success"><p>Encargo preparado desde Actualizaciones recurrentes. Revisa la ficha y comienza con Generar artículo base.</p></div>';
             } elseif ($message === 'processed_force') {
