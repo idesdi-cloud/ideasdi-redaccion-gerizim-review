@@ -2381,6 +2381,14 @@ final class IDG_Workflow_Admin_Controller {
             <div class="idg-card idg-result-full">
                 <h2>Versión 3 · Revisión SEO final</h2>
                 <textarea readonly rows="20" class="large-text code"><?php echo esc_textarea((string) ($workflow['seo_result'] ?? '')); ?></textarea>
+                <?php $authorized_links_detail = (array) ($workflow['seo_response_diagnostics']['authorized_links_detail'] ?? []); ?>
+                <?php if (($authorized_links_detail['status'] ?? '') === 'unreconciled') : ?>
+                    <h3>Diagnóstico editorial de enlaces autorizados</h3>
+                    <p class="description"><?php echo esc_html((string) ($authorized_links_detail['editor_message'] ?? 'Revisa el texto y los enlaces autorizados.')); ?></p>
+                    <?php if (!empty($authorized_links_detail['reason'])) : ?>
+                        <p class="description"><strong>Motivo técnico:</strong> <?php echo esc_html((string) $authorized_links_detail['reason']); ?></p>
+                    <?php endif; ?>
+                <?php endif; ?>
                 <?php if (!empty($workflow['seo_validation_summary'])) : ?>
                     <h3>Diagnóstico de validación SEO y escritura</h3>
                     <textarea readonly rows="8" class="large-text code"><?php echo esc_textarea((string) $workflow['seo_validation_summary']); ?></textarea>

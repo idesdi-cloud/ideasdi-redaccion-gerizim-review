@@ -195,6 +195,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $workflow['seo_model_response'] = $this->bounded_model_response((string) ($result['content'] ?? ''));
 
         $patch_errors = [];
+        $link_reconciliation_failed = false;
         if ($document_mode) {
             $applied = IDG_Editorial_Document::apply_seo_response($workflow['editorial_document'], (string) $result['content'], $workflow);
             $workflow['seo_response_diagnostics'] = [
@@ -219,11 +220,27 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             }
             $completed = IDG_Editorial_Document::complete_missing_authorized_links($workflow['editorial_document'], $workflow);
             if (empty($completed['ok'])) {
-                $workflow['seo_response_diagnostics']['authorized_links'] = (string) ($completed['reason'] ?? 'unresolved');
-                $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: no fue posible completar inequívocamente los enlaces autorizados; se conserva el documento previo.'],'warnings'=>[],'summary'=>'- ERROR: Enlaces autorizados no reconciliables.']); return;
+                $link_reconciliation_failed = true;
+                // No invent an anchor or a destination.  The independently
+                // received SEO components remain in the sealed document, and
+                // the normal server preflight below records the real guard
+                // errors that decide whether a pending-only exception exists.
+                // Lead Bridge reads this legacy field as a non-empty string to
+                // signal an incident. Keep its type stable; richer local UI
+                // data belongs in the separate detail field.
+                $workflow['seo_response_diagnostics']['authorized_links'] = $this->authorized_link_reason((string) ($completed['reason'] ?? 'unresolved'));
+                $workflow['seo_response_diagnostics']['authorized_links_detail'] = [
+                    'status' => 'unreconciled',
+                    'reason' => $workflow['seo_response_diagnostics']['authorized_links'],
+                    'editor_message' => 'No se añadió ningún enlace: falta una frase contextual inequívoca o la reconciliación no es segura. Revisa el texto y los enlaces autorizados.',
+                ];
+                $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
+            } else {
+                $workflow['editorial_document'] = $completed['document'];
+                // An empty legacy value must not simulate a Bridge incident.
+                $workflow['seo_response_diagnostics']['authorized_links'] = '';
+                $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
             }
-            $workflow['editorial_document'] = $completed['document'];
-            $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
         }
         $candidate = $document_mode ? $workflow['seo_result'] : IDG_Workflow_Output_Parser::normalize_editorial_box_markdown(
             IDG_Workflow_Output_Parser::sanitize((string) $result['content']),
@@ -243,7 +260,10 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $preflight['errors'] = (array) $validation['errors'];
         }
         $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
-        if (empty($preflight['ok']) && !empty($links['ok'])) {
+        // A link-reconciliation failure is not a Reel-repair request and must
+        // never trigger a second model call. The editor receives the persisted
+        // real preflight instead.
+        if (empty($preflight['ok']) && !empty($links['ok']) && !$link_reconciliation_failed) {
             $repair = $this->attempt_localized_repair($workflow_id, 'seo', $candidate, $validation, $workflow, $client);
             if (!empty($repair['applied'])) {
                 $candidate = (string) $repair['content'];
@@ -352,6 +372,12 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
     private function bounded_model_response(string $response): string {
         $response = IDG_Workflow_Output_Parser::sanitize($response);
         return mb_strlen($response) > 60000 ? mb_substr($response, 0, 60000) . "\n[respuesta truncada para almacenamiento interno]" : $response;
+    }
+
+    /** Only known reconciliation outcomes are persisted; never retain model text as a reason. */
+    private function authorized_link_reason(string $reason): string {
+        $allowed = ['authorized_links_unresolved', 'duplicate_authorized_link', 'missing_unique_authorized_anchor'];
+        return in_array($reason, $allowed, true) ? $reason : 'unresolved';
     }
 
     private function with_link_preservation_errors(array $validation, array $errors): array {

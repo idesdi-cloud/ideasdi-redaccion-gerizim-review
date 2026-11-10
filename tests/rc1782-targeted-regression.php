@@ -94,7 +94,7 @@ final class IDG_Canonical_Adapter {
 final class IDG_Priority_Readings {
     public static function tag_matrix(): array { return [
         ['tag'=>'Animación','tag_slug'=>'animacion','category_slug'=>'modelado-3d','status'=>'Index'],
-        ['tag'=>'Software 3D','tag_slug'=>'software-3d','category_slug'=>'modelado-3d','status'=>'Index'],
+        ...(!empty($GLOBALS['rc1782_include_software_3d_matrix']) ? [['tag'=>'Software 3D','tag_slug'=>'software-3d','category_slug'=>'modelado-3d','status'=>'Index']] : []),
         ...($GLOBALS['rc1782_extra_tag_matrix'] ?? []),
     ]; }
     public static function is_noindex_tag_name(string $name, string $category = ''): bool { return false; }
@@ -102,6 +102,7 @@ final class IDG_Priority_Readings {
     public static function category_curated_url(string $category): string { return ''; }
     public static function build_suggestion(int $category, array $tags): string { return 'Animación y Software 3D'; }
 }
+$GLOBALS['rc1782_include_software_3d_matrix'] = true;
 final class IDG_Editorial_Rules {
     public static function get(): array { return ['h1_max_chars'=>68,'editorial_box_min_words'=>40,'editorial_box_max_words'=>55,'reel_scenes'=>6,'reel_vo_words'=>14,'reel_overlays_per_scene'=>3,'reel_overlay_max_chars'=>40,'reel_cta'=>'Conoce más de este proyecto en ideasDi.com']; }
     public static function prompt_block(string $scope = ''): string { return '\nReglas editoriales activas locales.'; }
