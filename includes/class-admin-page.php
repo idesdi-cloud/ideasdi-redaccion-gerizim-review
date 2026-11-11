@@ -153,6 +153,11 @@ final class IDG_Workflow_Admin_Controller {
         $workflow = $workflow_id ? IDG_Job_Runner::get_workflow($workflow_id) : [];
         $step = isset($_POST['step']) ? sanitize_key((string) $_POST['step']) : 'save';
 
+        if ($step === 'revalidate_without_ai') {
+            wp_safe_redirect(admin_url('admin.php?page=ideasdi-gerizim&workflow_id=' . rawurlencode($workflow_id) . '&message=revalidation_blocked'));
+            exit;
+        }
+
         if ($step === 'reset') {
             if (!empty($workflow) && IDG_Workflow_Policies::blocks_interactive_mutation($workflow)) {
                 wp_safe_redirect(admin_url('admin.php?page=ideasdi-gerizim&workflow_id=' . rawurlencode($workflow_id) . '&message=reset_blocked'));
