@@ -66,6 +66,10 @@ final class IDG_Editorial_Document {
         if ($article !== '') {
             $reconciled = self::reconcile_complete_article($document, $article, 'editorial', []);
             if (!empty($reconciled['ok'])) return $reconciled;
+            // A complete proposal that cannot be safely reconciled must retain
+            // its specific diagnostic and the original document. PATCH remains
+            // available only when the response actually supplies one.
+            if (!preg_match('/^PATCH\s+/m', $response)) return $reconciled;
         }
         return self::apply_patches($document, $response, 'editorial');
     }
@@ -278,31 +282,94 @@ final class IDG_Editorial_Document {
         if ($phase === 'seo') {
             $old_links = self::links(self::markdown($original)); $new_links = self::links(self::markdown($document));
             if ($old_links !== $new_links && !self::only_authorized_link_additions($original, $document, $workflow, $old_links, $new_links)) return ['ok'=>false,'document'=>$original,'changed_ids'=>[],'reason'=>'href_mutation'];
-        } elseif (self::links(self::markdown($original)) !== self::links(self::markdown($document))) return ['ok'=>false,'document'=>$original,'changed_ids'=>[],'reason'=>'href_mutation'];
+        } elseif (self::link_multiset(self::links(self::markdown($original))) !== self::link_multiset(self::links(self::markdown($document)))) return ['ok'=>false,'document'=>$original,'changed_ids'=>[],'reason'=>'href_mutation'];
         $document['review']=['state'=>$phase.'_reviewed','validation'=>[],'changed_ids'=>$changed];
         return ['ok'=>true,'document'=>self::seal($document),'changed_ids'=>$changed,'reason'=>'patches'];
     }
     /** Reconciles a readable complete article only when its block identity is unambiguous. */
     private static function reconcile_complete_article(array $document, string $article, string $phase, array $workflow): array {
         $article = trim(str_replace(["\r\n", "\r"], "\n", $article));
-        $parsed = self::from_markdown($article, [], $document);
-        if (!self::same_shape($document, $parsed)) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'ambiguous_article_shape'];
+        $parsed = self::from_markdown($article, [], $phase === 'seo' ? $document : null);
+        // Editorial review is allowed to make a real structural edit (rename or
+        // move a section, split/fuse prose, or remove repetition).  The old
+        // same-shape route remains the conservative compatibility path for SEO.
+        if ($phase !== 'editorial' && !self::same_shape($document, $parsed)) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'ambiguous_article_shape'];
+        if ($phase === 'editorial') {
+            $structural = self::reconcile_editorial_structure($document, $parsed);
+            if (empty($structural['ok'])) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>(string) ($structural['reason'] ?? 'ambiguous_article_structure')];
+            $parsed = $structural['document'];
+        }
         // Reconcile content blocks, never reset authoritative document metadata.
         $candidate = $document;
         $candidate['blocks'] = $parsed['blocks'];
         foreach (array_merge((array) $document['blocks'], (array) $candidate['blocks']) as $block) if (self::has_ambiguous_link_markup(self::block_text((array) $block))) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'ambiguous_link_markup'];
         $old_links = self::links(self::markdown($document)); $new_links = self::links(self::markdown($candidate));
-        if ($phase === 'editorial' && $old_links !== $new_links) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'href_mutation'];
+        if ($phase === 'editorial' && self::link_multiset($old_links) !== self::link_multiset($new_links)) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'href_mutation'];
         if ($phase === 'seo' && !self::only_authorized_link_additions($document, $candidate, $workflow, $old_links, $new_links)) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'unsafe_seo_article_replacement'];
         $changed = [];
-        foreach ((array) $document['blocks'] as $i => $old) {
-            $new = (array) ($candidate['blocks'][$i] ?? []);
-            if (self::block_text($old) !== self::block_text($new)) $changed[] = (string) $old['id'];
+        $old_blocks = (array) $document['blocks']; $new_blocks = (array) $candidate['blocks'];
+        $old_by_id = []; foreach ($old_blocks as $position => $old) $old_by_id[(string) ($old['id'] ?? '')] = ['text'=>self::block_text((array) $old), 'position'=>$position];
+        $new_ids = [];
+        foreach ($new_blocks as $position => $new) {
+            $id = (string) ($new['id'] ?? ''); $new_ids[$id] = true;
+            if (!isset($old_by_id[$id]) || $old_by_id[$id]['text'] !== self::block_text((array) $new) || $old_by_id[$id]['position'] !== $position) $changed[] = $id;
         }
+        foreach ($old_blocks as $old) { $id = (string) ($old['id'] ?? ''); if (!isset($new_ids[$id])) $changed[] = $id; }
+        $changed = array_values(array_unique(array_filter($changed, static fn(string $id): bool => $id !== '')));
         if ($phase === 'seo' && !$changed) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'no_seo_article_change'];
         $candidate['review'] = ['state'=>$phase.'_reviewed', 'validation'=>[], 'changed_ids'=>$changed];
         return ['ok'=>true, 'document'=>self::seal($candidate), 'changed_ids'=>$changed, 'reason'=>'complete_article_reconciled'];
     }
+    /**
+     * Structural editorial reconciliation deliberately has a small trust base:
+     * exactly one preserved H1, one byte-identical editorial box, valid block
+     * types, and link fingerprints are checked by the caller.  IDs travel with
+     * an exact block or a uniquely identifiable section body; otherwise a fresh
+     * ID is safer than guessing identity.
+     */
+    private static function reconcile_editorial_structure(array $previous, array $parsed): array {
+        $old = (array) ($previous['blocks'] ?? []); $new = (array) ($parsed['blocks'] ?? []);
+        $old_h1 = array_values(array_filter($old, static fn(array $b): bool => ($b['type'] ?? '') === 'heading' && (int) ($b['level'] ?? 0) === 1));
+        $new_h1 = array_values(array_filter($new, static fn(array $b): bool => ($b['type'] ?? '') === 'heading' && (int) ($b['level'] ?? 0) === 1));
+        $old_box = array_values(array_filter($old, static fn(array $b): bool => ($b['type'] ?? '') === 'editorial_box'));
+        $new_box = array_values(array_filter($new, static fn(array $b): bool => ($b['type'] ?? '') === 'editorial_box'));
+        if (count($old_h1) !== 1 || count($new_h1) !== 1 || self::block_text($old_h1[0]) !== self::block_text($new_h1[0])) return ['ok'=>false, 'reason'=>'protected_h1_changed'];
+        if (count($old_box) !== 1 || count($new_box) !== 1 || self::block_text($old_box[0]) !== self::block_text($new_box[0])) return ['ok'=>false, 'reason'=>'protected_editorial_box_changed'];
+        foreach ($new as $block) if (!in_array((string) ($block['type'] ?? ''), ['heading', 'paragraph', 'editorial_box', 'list'], true)) return ['ok'=>false, 'reason'=>'ambiguous_article_structure'];
+
+        $available = [];
+        foreach ($old as $index => $block) $available[self::block_fingerprint($block)][] = $index;
+        $used = []; $preserved = [];
+        foreach ($new as $index => $block) {
+            $fingerprint = self::block_fingerprint($block);
+            foreach ((array) ($available[$fingerprint] ?? []) as $old_index) if (!isset($used[$old_index])) { $new[$index]['id'] = (string) $old[$old_index]['id']; $used[$old_index] = true; $preserved[$index] = true; break; }
+        }
+        // A renamed/moved H3 keeps its ID only if the first following body block
+        // matches one section uniquely. This is evidence of correspondence, not
+        // a positional assumption.
+        foreach ($new as $index => $block) {
+            if (($block['type'] ?? '') !== 'heading' || (int) ($block['level'] ?? 0) !== 3 || isset($new[$index]['id']) && str_starts_with((string) $new[$index]['id'], 'heading-') === false) continue;
+            $signature = self::following_body_fingerprint($new, $index); if ($signature === '') continue;
+            $matches = [];
+            foreach ($old as $old_index => $old_block) if (($old_block['type'] ?? '') === 'heading' && (int) ($old_block['level'] ?? 0) === 3 && !isset($used[$old_index]) && self::following_body_fingerprint($old, $old_index) === $signature) $matches[] = $old_index;
+            if (count($matches) === 1) { $new[$index]['id'] = (string) $old[$matches[0]]['id']; $used[$matches[0]] = true; $preserved[$index] = true; }
+        }
+        $claimed = [];
+        foreach ($preserved as $index => $_) { $id = (string) ($new[$index]['id'] ?? ''); if ($id !== '') $claimed[$id] = true; }
+        foreach ($new as $index => &$block) {
+            if (isset($preserved[$index])) continue;
+            $id = (string) ($block['id'] ?? '');
+            if ($id !== '' && !isset($claimed[$id])) { $claimed[$id] = true; continue; }
+            $seed = self::block_fingerprint($block) . '|' . $index; $candidate = 'block-' . substr(hash('sha256', $seed), 0, 16); $suffix = 0;
+            while (isset($claimed[$candidate])) $candidate = 'block-' . substr(hash('sha256', $seed . '|' . (++$suffix)), 0, 16);
+            $block['id'] = $candidate; $claimed[$candidate] = true;
+        }
+        unset($block);
+        $parsed['blocks'] = $new;
+        return ['ok'=>true, 'document'=>$parsed];
+    }
+    private static function block_fingerprint(array $block): string { return (string) ($block['type'] ?? '') . '|' . (int) ($block['level'] ?? 0) . '|' . self::block_text($block); }
+    private static function following_body_fingerprint(array $blocks, int $heading_index): string { for ($i = $heading_index + 1; $i < count($blocks); $i++) { $block = (array) $blocks[$i]; if (($block['type'] ?? '') === 'heading') break; if (in_array(($block['type'] ?? ''), ['paragraph', 'list'], true)) return self::block_fingerprint($block); } return ''; }
     /** SEO may add each missing canonical URL once, by wrapping existing paragraph prose only. */
     private static function only_authorized_link_additions(array $old, array $new, array $workflow, array $old_links, array $new_links): bool {
         $allowed = self::authorized_links($workflow);
@@ -331,8 +398,9 @@ final class IDG_Editorial_Document {
         }
         return true;
     }
-    /** Exact ordered fingerprints for the only inline Markdown link form we serialize. */
+    /** Link contracts compare exact anchor/URL occurrences, independent of block order. */
     private static function links(string $text): array { preg_match_all('/\[([^\]\r\n]+)\]\((https?:\/\/[^\s)]+)\)/u',$text,$m,PREG_SET_ORDER); return array_map(static fn(array $link): array => ['anchor'=>$link[1], 'url'=>$link[2]], $m); }
+    private static function link_multiset(array $links): array { $counts = []; foreach ($links as $link) { $key = (string) ($link['anchor'] ?? '') . "\n" . (string) ($link['url'] ?? ''); $counts[$key] = ($counts[$key] ?? 0) + 1; } ksort($counts); return $counts; }
     /** Patches do not accept alternate or malformed link notation that cannot be fingerprinted exactly. */
     private static function has_ambiguous_link_markup(string $text): bool { if (preg_match('/\\\\\[/u', $text)) return true; $remainder=(string) preg_replace('/\[[^\]\r\n]+\]\(https?:\/\/[^\s)]+\)/u','',$text); return (bool) preg_match('/\[[^\]\r\n]*\]\s*\(|\[[^\]\r\n]*\]\s*\[[^\]\r\n]*\]|<https?:\/\/[^>\s]+>/u', $remainder); }
     private static function without_patches(string $response): string { return (string) preg_replace('/^PATCH\s+[A-Za-z0-9_-]+\s*\nEXPECTED_SHA256:\s*[a-f0-9]{64}\s*\nTEXT:\s*.*?\nEND\s+PATCH\s*$/ms', '', str_replace("\r\n", "\n", $response)); }

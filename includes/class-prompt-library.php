@@ -441,7 +441,7 @@ Reglas de estilo:
 - Usa la receta aplicada y el plan editorial como guía; la receta base solo explica de dónde partió la investigación.
 - No uses frases de expediente, cierres sobre fuentes ni fórmulas como “la marca sitúa el proyecto” cuando ideasDi pueda sostener el análisis directamente.
 - No incluyas META DESCRIPTION, INFORME SEO, COPY PARA REDES, PAQUETE REEL ni RETROALIMENTACIÓN. Eso se genera en pasos posteriores.
-- No fuerces enlaces internos en esta etapa. La Revisión SEO se encargará de integrarlos cuando corresponda.
+- Integra en esta etapa los destinos ya resueltos por el plan: una sola aparición natural de cada URL dentro de un argumento existente, sin crear párrafos de rescate ni enlaces en la caja. Si no hay relación demostrable o un destino está unresolved, conserva el vacío y deja el diagnóstico preciso para revisión; no inventes URL ni fuerces contenido irrelevante.
 
 Entrega únicamente el artículo base en Markdown limpio, sin explicaciones adicionales.
 PROMPT;
@@ -452,7 +452,7 @@ PROMPT;
         $prompt = self::build_context($data) . <<<PROMPT
 
 TAREA: Revisión editorial.
-Entrega el ARTÍCULO REVISADO completo en Markdown limpio, seguido del diagnóstico y las notas. El sistema lo reconcilia determinísticamente con los bloques actuales: conserva el mismo orden y tipos de bloque, y conserva exactamente cada enlace autorizado (anchor y URL). Si no puedes entregar una versión completa inequívoca, usa como alternativa uno o más parches exactos `PATCH id`, `EXPECTED_SHA256: [hash del texto actual]`, `TEXT: [texto de reemplazo]`, `END PATCH`. No expongas IDs ni hashes dentro del artículo.
+Entrega el ARTÍCULO REVISADO completo en Markdown limpio, seguido del diagnóstico y las notas. El sistema reconcilia determinísticamente una estructura inequívoca: conserva un único H1 y la caja editorial íntegra, además de cada enlace autorizado (anchor y URL), pero puedes renombrar o mover H3 con su sección, dividir o fusionar párrafos y eliminar repeticiones legítimas. Si la correspondencia o la integridad de enlaces no es inequívoca, conserva el original y usa como alternativa uno o más parches exactos `PATCH id`, `EXPECTED_SHA256: [hash del texto actual]`, `TEXT: [texto de reemplazo]`, `END PATCH`. No expongas IDs ni hashes dentro del artículo.
 Revisa el artículo base sin optimizarlo todavía para SEO técnico.
 Objetivo: comprobar primero si el artículo cumple la tesis y el plan editorial, y después corregir estructura, naturalidad, precisión, ritmo y fuerza desde la voz ideasDi Diseñador Traductor. Revisa decisiones de diseño verificables y traduce sus efectos perceptivos, funcionales o culturales sin inventar hechos. Puedes reemplazar H3, reorganizar bloques o reescribir fragmentos solo cuando exista un problema sustantivo comprobable.
 Usa la ficha documental temporal solo para verificar datos, conservar precisión y evitar que se pierdan hechos relevantes. No vuelvas a copiar el tono de la nota de prensa ni reescribas desde el material temporal completo.
