@@ -13,6 +13,106 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         return in_array($phase, $this->phases(), true);
     }
 
+    /** Revalida un expediente editorial persistido sin modelo, posts ni efectos SEO. */
+    public function revalidate_without_ai(string $workflow_id, array $workflow_argument): array {
+        $workflow = IDG_Job_Runner::get_workflow($workflow_id);
+        $deny = static function (string $message): array {
+            return ['ok' => false, 'message' => $message, 'errors' => [$message]];
+        };
+        if ($workflow === [] || (string) ($workflow['workflow_id'] ?? '') !== $workflow_id
+            || serialize($workflow_argument) !== serialize($workflow)) {
+            return $deny('El expediente persistido no coincide con la solicitud.');
+        }
+        if ((int) ($workflow['user_id'] ?? 0) !== (int) get_current_user_id()
+            || !current_user_can('edit_posts')) {
+            return $deny('El editor actual no es el propietario autorizado.');
+        }
+        if ((string) ($workflow['workflow_origin'] ?? '') !== 'manual'
+            || !in_array((string) ($workflow['status'] ?? ''), ['failed', 'completed'], true)
+            || (string) ($workflow['status'] ?? '') === 'processing'
+            || !empty($workflow['processing'])
+            || !empty($workflow['draft_post_id'])
+            || !empty($workflow['post_id'])
+            || !empty($workflow['target_post_id'])
+            || !empty($workflow['recurring_target_post_id'])
+            || !empty($workflow['recurring_target_post_type'])
+            || (string) ($workflow['workflow_origin'] ?? '') === 'recurring_update') {
+            return $deny('El expediente no es elegible para revalidación local.');
+        }
+        if (!class_exists('IDG_Editorial_Document') || !IDG_Editorial_Document::exists($workflow)) {
+            return $deny('Falta un documento editorial v1 válido.');
+        }
+        $document = (array) $workflow['editorial_document'];
+        $stored_hash = (string) ($document['hash'] ?? '');
+        $check = $document;
+        unset($check['hash'], $check['revision']);
+        $this->sort_revalidation_value($check);
+        $computed_hash = hash('sha256', (string) wp_json_encode($check, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        if ($stored_hash === '' || !hash_equals($stored_hash, $computed_hash)
+            || (string) ($workflow['seo_result'] ?? '') !== IDG_Editorial_Document::projection($document)) {
+            return $deny('El documento editorial o su proyección SEO fueron manipulados.');
+        }
+        $manifest = IDG_Editorial_Document::prompt_manifest($workflow, IDG_Editorial_Document::markdown($document), 'seo');
+        if (empty($manifest['ok'])) return $deny('El manifiesto estructural del documento es inválido.');
+        $diagnostics = (array) ($workflow['seo_response_diagnostics'] ?? []);
+        $patch = (array) ($diagnostics['patch_proposal'] ?? []);
+        if (!empty($patch['received']) && empty($patch['applied'])) {
+            unset($workflow['seo_preflight_payload_hash'], $workflow['seo_preflight_post_content'], $workflow['seo_preflight_approved_at']);
+            $message = 'SEO: PATCH explícito rechazado; revisión manual obligatoria.';
+            $workflow['status'] = 'failed';
+            $workflow['last_error'] = $message;
+            $workflow['seo_validation'] = ['ok' => false, 'errors' => [$message], 'warnings' => [], 'summary' => '- ERROR: ' . $message];
+            $workflow['seo_validation_summary'] = $workflow['seo_validation']['summary'];
+            $workflow['seo_requires_intervention'] = true;
+            $workflow['seo_response_diagnostics']['final_preflight'] = 'requires_intervention';
+            IDG_Job_Runner::save_workflow($workflow_id, $workflow);
+            return $deny($message);
+        }
+        $stamps = [
+            (string) ($workflow['seo_preflight_payload_hash'] ?? ''),
+            (string) ($workflow['seo_preflight_post_content'] ?? ''),
+            (string) ($workflow['seo_preflight_approved_at'] ?? ''),
+        ];
+        $has_stamps = $stamps[0] !== '' || $stamps[1] !== '' || $stamps[2] !== '';
+        if ((string) ($workflow['status'] ?? '') === 'failed' && $has_stamps) {
+            return $deny('El expediente fallido conserva sellos residuales.');
+        }
+        $preflight = IDG_Post_Creator::preflight_public($workflow);
+        $prepared = (array) ($preflight['prepared'] ?? []);
+        $errors = array_merge((array) ($preflight['errors'] ?? []), (array) (($preflight['validation']['errors'] ?? [])));
+        if (empty($preflight['ok']) || empty($preflight['validation']['ok']) || $errors !== []
+            || trim((string) ($prepared['post_content'] ?? '')) === ''
+            || trim((string) IDG_Post_Creator::prepared_payload_hash($preflight)) === '') {
+            return $deny('El preflight público actual no es aprobable.');
+        }
+        $payload_hash = (string) IDG_Post_Creator::prepared_payload_hash($preflight);
+        $post_content = (string) ($prepared['post_content'] ?? '');
+        if ((string) ($workflow['status'] ?? '') === 'completed') {
+            if (!$stamps[0] || !$stamps[1] || !$stamps[2]
+                || !hash_equals($stamps[0], $payload_hash)
+                || !hash_equals($stamps[1], $post_content)) {
+                return $deny('Los sellos de aprobación no coinciden con el preflight actual.');
+            }
+            return ['ok' => true, 'message' => 'Revalidación local ya aprobada.', 'preflight' => $preflight];
+        }
+        $workflow['status'] = 'completed';
+        $workflow['last_error'] = '';
+        $workflow['seo_requires_intervention'] = false;
+        $workflow['seo_validation'] = $preflight['validation'];
+        $workflow['seo_validation_summary'] = (string) ($preflight['validation']['summary'] ?? '');
+        $workflow['seo_response_diagnostics']['final_preflight'] = 'approved';
+        $workflow['seo_preflight_payload_hash'] = $payload_hash;
+        $workflow['seo_preflight_post_content'] = $post_content;
+        $workflow['seo_preflight_approved_at'] = current_time('mysql');
+        IDG_Job_Runner::save_workflow($workflow_id, $workflow);
+        return ['ok' => true, 'message' => 'Revalidación local aprobada.', 'preflight' => $preflight];
+    }
+
+    private function sort_revalidation_value(array &$value): void {
+        ksort($value);
+        foreach ($value as &$item) if (is_array($item)) $this->sort_revalidation_value($item);
+    }
+
     public function execute(string $workflow_id, string $phase, array $workflow, IDG_OpenAI_Client $client): void {
         if ($phase === IDG_Workflow_Policies::ACTION_GENERATE) {
             $this->run_generate($workflow_id, $workflow, $client);
