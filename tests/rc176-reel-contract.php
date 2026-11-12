@@ -97,6 +97,22 @@ rc176_check(
     'CTA está en VO 6'
 );
 
+foreach ([12, 14, 16] as $count) {
+    $candidate = str_replace('VO 1: ' . rc176_words('palabra'), 'VO 1: ' . rc176_words('palabra', $count), $valid);
+    rc176_check(!empty(IDG_Reel_Contract::inspect($candidate)['valid']), 'VO 1 acepta ' . $count . ' palabras');
+}
+foreach ([11, 17] as $count) {
+    $candidate = str_replace('VO 1: ' . rc176_words('palabra'), 'VO 1: ' . rc176_words('palabra', $count), $valid);
+    rc176_check(empty(IDG_Reel_Contract::inspect($candidate)['valid']), 'VO 1 rechaza ' . $count . ' palabras');
+}
+
+$pippin = $valid;
+foreach ([16, 15, 14, 13, 15] as $scene => $count) {
+    $scene_number = $scene + 1;
+    $pippin = str_replace('VO ' . $scene_number . ': ' . rc176_words('palabra'), 'VO ' . $scene_number . ': ' . rc176_words('palabra', $count), $pippin);
+}
+rc176_check(!empty(IDG_Reel_Contract::inspect($pippin)['valid']), 'Pippin acepta conteos 16,15,14,13,15');
+
 for ($scene = 1; $scene <= 6; $scene++) {
     rc176_check(
         ($inspection['overlay_counts'][$scene] ?? 0)
@@ -257,7 +273,7 @@ rc176_check(
 
 $bad_vo = str_replace(
     'VO 5: ' . rc176_words('palabra'),
-    'VO 5: ' . rc176_words('palabra', 13),
+    'VO 5: ' . rc176_words('palabra', 11),
     $valid
 );
 
@@ -270,7 +286,7 @@ rc176_check(
             ' | ',
             $inspection['issues']
         ),
-        'VO 5 debe tener exactamente 14 palabras'
+        'VO 5 debe tener entre 12 y 16 palabras'
     ),
     'detecta conteo VO incorrecto'
 );

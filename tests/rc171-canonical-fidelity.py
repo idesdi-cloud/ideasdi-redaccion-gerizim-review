@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RC1.7.1: literal fidelity checks for the editorial.canonical 1.1.0 projection."""
+"""RC1.7.1: literal fidelity checks for the editorial.canonical 1.1.1 projection."""
 
 import json
 import subprocess
@@ -29,8 +29,9 @@ projection = load_projection()
 
 same(projection['knowledge_id'], 'editorial.canonical', 'knowledge_id')
 same(projection['schema_version'], 1, 'schema_version')
-same(projection['canonical_version'], '1.1.0', 'canonical_version')
-same(projection['canonical_sha256'], '0bc762b7666ffead0c54dbe83ecddc281ed4a9f2e7bdbaaf61406b3e921c9acf', 'canonical_sha256')
+same(projection['canonical_version'], '1.1.1', 'canonical_version')
+same(projection['canonical_sha256'], '0f680194091a6db74fc7362b819a834f763c5175e0e69ca40a0b6fad8554718b', 'canonical_sha256')
+same(projection['derived_formats']['reel']['voiceover']['scenes_1_to_5'], {'words': 14, 'min_words': 12, 'max_words': 16}, 'reel voiceover range')
 
 writing_principles = projection['global']['writing_principles']
 same(list(writing_principles), [

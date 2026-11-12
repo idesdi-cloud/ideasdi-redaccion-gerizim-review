@@ -496,7 +496,8 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         if ($phase === 'seo') {
             $inspection = IDG_Reel_Contract::inspect($this->section_body($content, 'PAQUETE REEL'));
             foreach (range(1, 5) as $scene) {
-                if ((int) ($inspection['vo_counts'][$scene] ?? 0) !== 14) {
+                $count = (int) ($inspection['vo_counts'][$scene] ?? 0);
+                if ($count < 12 || $count > 16) {
                     $allowed[] = 'VO:' . $scene;
                 }
             }

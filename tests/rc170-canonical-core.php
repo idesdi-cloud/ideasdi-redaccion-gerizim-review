@@ -24,8 +24,8 @@ function canonical_path(array $projection, string $path) {
 canonical_same(IDG_Canonical_Adapter::projection(), $projection, 'projection repeat');
 canonical_same(array_keys($projection), ['knowledge_id', 'schema_version', 'canonical_version', 'canonical_sha256', 'global', 'surfaces', 'categories', 'lenses', 'derived_formats', 'resolution'], 'roots');
 $contracts = [
-    'knowledge_id' => 'editorial.canonical', 'schema_version' => 1, 'canonical_version' => '1.1.0',
-    'canonical_sha256' => '0bc762b7666ffead0c54dbe83ecddc281ed4a9f2e7bdbaaf61406b3e921c9acf',
+    'knowledge_id' => 'editorial.canonical', 'schema_version' => 1, 'canonical_version' => '1.1.1',
+    'canonical_sha256' => '0f680194091a6db74fc7362b819a834f763c5175e0e69ca40a0b6fad8554718b',
     'global.identity' => ['thesis' => 'leer el presente a través del diseño', 'voice' => 'Diseñador Traductor', 'depth' => 'profundidad sin densidad'],
     'global.evidence.levels' => ['fact', 'editorial_interpretation', 'limited_inference'],
     'global.evidence.principles' => ['source_verifies_not_narrates' => true, 'evidence_witness' => true, 'observable_evidence_preferred' => true, 'unsupported_claims_forbidden' => true],
@@ -43,7 +43,7 @@ $contracts = [
         'taxonomies' => ['country' => ['type' => 'country'], 'event_category' => ['values' => ['Arquitectura e interiores', 'Diseño digital y 3D', 'Diseño interdisciplinar', 'Moda', 'Movilidad y transporte', 'Semana de diseño']]],
         'editorial_purpose' => ['what', 'when', 'where', 'why_it_matters'],
     ],
-    'derived_formats.reel' => ['scenes' => 6, 'voiceover' => ['scenes_1_to_5' => ['words' => 14], 'scene_6' => ['fixed_cta_required' => true]], 'overlays' => ['per_scene' => 3, 'max_chars' => 40], 'fixed_cta' => 'Conoce más de este proyecto en ideasDi.com'],
+    'derived_formats.reel' => ['scenes' => 6, 'voiceover' => ['scenes_1_to_5' => ['words' => 14, 'min_words' => 12, 'max_words' => 16], 'scene_6' => ['fixed_cta_required' => true]], 'overlays' => ['per_scene' => 3, 'max_chars' => 40], 'fixed_cta' => 'Conoce más de este proyecto en ideasDi.com'],
     'resolution' => [
         'sequence' => ['global', 'surface', 'category', 'primary_lens', 'secondary_lenses', 'piece_context'],
         'piece_context' => ['canonical_policy' => false, 'source' => 'runtime_input', 'allowed_fields' => ['sources', 'verified_facts', 'brief', 'responsible_entity', 'evidence', 'angle', 'article_specific_constraints']],
@@ -114,8 +114,8 @@ $input = [
 $before = $input;
 $result = IDG_Canonical_Adapter::resolve($input);
 canonical_same($result['secondary_lenses'], ['materiality', 'generative_ai', 'lighting', 'sustainability'], 'secondary order/dedupe');
-canonical_same($result['responsible_official_url'], $input['official_source'], 'URL fallback');
-canonical_same(IDG_Canonical_Adapter::resolve(['responsible_official_url' => 'unvalidated', 'official_source' => 'fallback'])['responsible_official_url'], 'unvalidated', 'URL precedence without enforcement');
+canonical_same($result['responsible_official_url'], '', 'URL fallback disabled');
+canonical_same(IDG_Canonical_Adapter::resolve(['responsible_official_url' => 'unvalidated', 'official_source' => 'fallback'])['responsible_official_url'], '', 'invalid URL rejected');
 canonical_same($result['piece_context'], ['brief' => 'canonical brief', 'angle' => 'angle', 'responsible_entity' => 'studio', 'article_specific_constraints' => ['constraint']], 'legacy context / no fabricated evidence');
 canonical_same(IDG_Canonical_Adapter::resolve(['brief_fact' => 'brief'])['piece_context'], ['brief' => 'brief'], 'legacy brief');
 $provided = ['sources' => ['source'], 'verified_facts' => ['fact'], 'brief' => 'brief', 'responsible_entity' => 'entity', 'evidence' => ['witness'], 'angle' => 'angle', 'article_specific_constraints' => ['limit']];

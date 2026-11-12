@@ -93,7 +93,7 @@ Reglas centrales:
 - calendar_event es distinto de article: no aplica el contrato de tags del artículo. Solo puede usarse una vez, contextualmente, una URL real de archivo CPT o taxonomía propia suministrada en los datos; si no existe, no fabriques una URL.
 - En Eventos, Agenda define la función de la pieza; la tipología del evento y su Categoría editorial definen el vocabulario. Una feria, una semana de la moda, una exposición o una conferencia no deben redactarse con los mismos conceptos. La presentación debe ser narrativa y útil, no una ficha ni una reflexión abstracta sobre fechas o ciudad.
 - El paquete reel debe ser estructurado y máquina-legible: 6 escenas en orden, cada una con su VO y exactamente 3 overlays.
-- VO 1 a VO 5 deben tener exactamente 14 palabras. VO 6 debe ser exactamente “Conoce más de este proyecto en ideasDi.com”, sin punto, prefijo ni sufijo.
+- VO 1 a VO 5 tienen objetivo de 14 palabras y son válidos entre 12 y 16 palabras inclusive. VO 6 debe ser exactamente “Conoce más de este proyecto en ideasDi.com”, sin punto, prefijo ni sufijo.
 - En cada escena, escribe primero “VO n:” y después “Overlay n.1:”, “Overlay n.2:” y “Overlay n.3:”. Cada overlay debe tener máximo 40 caracteres. No añadas overlays extra.
 - La salida final debe incluir META DESCRIPTION, INFORME SEO INTERNO, COPY PARA REDES, PAQUETE REEL y RETROALIMENTACIÓN GERIZIM.
 - No usar tono comercial, precios, urgencia ni superlativos de venta.
@@ -555,7 +555,7 @@ COPY PARA REDES
 [Copy breve + hashtags + pie de imagen sugerido.]
 
 PAQUETE REEL
-[VO en 6 bloques y overlays por escena. VO 1 a VO 5 tienen exactamente 14 palabras. VO 6 es exactamente: Conoce más de este proyecto en ideasDi.com, sin punto, prefijo ni sufijo. Entrega 3 overlays por escena, cada uno de máximo 40 caracteres.]
+[VO en 6 bloques y overlays por escena. VO 1 a VO 5 tienen objetivo de 14 palabras y son válidos entre 12 y 16 palabras inclusive. VO 6 es exactamente: Conoce más de este proyecto en ideasDi.com, sin punto, prefijo ni sufijo. Entrega 3 overlays por escena, cada uno de máximo 40 caracteres.]
 
 RETROALIMENTACIÓN GERIZIM
 [3 a 5 bullets breves con las correcciones realizadas o comentarios útiles para mejorar el flujo.]
@@ -604,7 +604,7 @@ Reglas específicas para Calendario de eventos / Agenda:
 Reglas obligatorias del PAQUETE REEL:
 - Entrega exactamente 6 escenas y respeta el orden de VO 1 a VO 6.
 - Cada escena debe seguir este formato exacto: VO n:, Overlay n.1:, Overlay n.2:, Overlay n.3:.
-- VO 1, VO 2, VO 3, VO 4 y VO 5 deben tener exactamente 14 palabras cada uno.
+- VO 1, VO 2, VO 3, VO 4 y VO 5 tienen objetivo de 14 palabras y deben quedar entre 12 y 16 palabras inclusive.
 - VO 6 debe ser exactamente: Conoce más de este proyecto en ideasDi.com (sin punto, prefijo ni sufijo).
 - Cada escena debe contener exactamente 3 overlays y cada overlay debe tener máximo 40 caracteres.
 - No añadas escenas, VO, overlays ni líneas explicativas fuera de esta estructura.

@@ -148,6 +148,10 @@ function rc1782_reel(bool $bad = false): string {
         $vo[0] = 'ActionForge concentra animación, capas y exportación web para pruebas rápidas de personajes y movimiento.';
         $vo[1] = 'La línea temporal permite seguir poses, pausar cambios y revisar el timing con claridad.';
         $vo[3] = 'FBX y GLB llevan el trabajo a Unreal, Unity, Godot y Blender sin cerrarlo.';
+    } else {
+        $vo[0] = 'ActionForge concentra animación, capas y exportación web para pruebas rápidas';
+        $vo[1] .= ' con revisión editorial adicional fuera del rango';
+        $vo[3] = 'FBX y GLB llevan el trabajo hacia Unreal, Unity';
     }
     $lines = [];
     foreach ($vo as $index => $text) {
@@ -285,7 +289,7 @@ $action_done = get_option('ActionForge217', []);
 rc1782_ok(count($GLOBALS['rc1782_http_calls']) === 2 && !empty($action_done['seo_repair']['attempted']) && !empty($action_done['seo_repair']['applied']), 'SEO usa una sola llamada de reparación y no regenera el artículo');
 rc1782_ok(($action_done['status'] ?? '') === 'completed' && ($action_done['last_action'] ?? '') === 'seo' && !empty($action_done['seo_preflight_payload_hash']), 'seo_completed ocurre solo después del preflight aprobado');
 $inspection = $action_done['seo_reel_validation'];
-rc1782_ok(array_slice($inspection['vo_counts'], 0, 5, true) === [1=>14,2=>14,3=>14,4=>14,5=>14], 'VO 1–5 quedan en 14 palabras por conteo real');
+rc1782_ok(count(array_filter(array_slice($inspection['vo_counts'], 0, 5, true), static fn($count): bool => (int) $count < 12 || (int) $count > 16)) === 0, 'VO 1–5 quedan dentro del rango válido por conteo real');
 $bad_inspection = IDG_Reel_Contract::inspect($bad_reel);
 rc1782_ok($inspection['vo'][3] === $bad_inspection['vo'][3] && $inspection['vo'][5] === $bad_inspection['vo'][5] && $inspection['vo'][6] === $bad_inspection['vo'][6] && $inspection['overlays'] === $bad_inspection['overlays'], 'VO 3/5/6 y todos los overlays quedan byte idénticos');
 rc1782_ok(str_contains((string) $action_done['seo_result'], rc1782_article(rc1782_box('ActionForge', 40))), 'la reparación Reel no regenera ni altera el artículo');

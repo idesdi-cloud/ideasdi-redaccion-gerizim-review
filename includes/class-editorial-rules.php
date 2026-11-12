@@ -35,7 +35,7 @@ final class IDG_Editorial_Rules {
             'editorial_box_rules' => 'La caja editorial factual, de 40 a 55 palabras, debe responder qué es, quién es responsable, para quién cuando sea relevante, origen o estado actual cuando sea relevante y rasgos objetivos esenciales. No debe contener enlaces, negritas ni tono promocional; no repite la tesis ni adelanta el análisis. Va después de la introducción, sin requisito de apertura por keyword.',
             'internal_link_rules' => 'El enlace interno debe integrarse dentro de un párrafo de análisis, nunca como línea suelta, botón, “ver más” ni cierre genérico. El anchor debe tener entre 3 y 8 palabras, no usar la keyword principal exacta y ampliar una idea del bloque.',
             'external_link_rules' => 'El enlace externo debe apuntar a la URL del responsable configurado y entrar de forma contextual. No debe enlazar una entidad distinta ni quedar como enlace suelto al final del artículo.',
-            'reel_rules' => 'El paquete reel debe incluir 6 escenas en orden. Cada escena usa VO n seguido de Overlay n.1, n.2 y n.3. VO 1 a VO 5 deben tener exactamente 14 palabras; VO 6 debe ser exactamente «Conoce más de este proyecto en ideasDi.com», sin punto, prefijo ni sufijo; cada overlay admite máximo 40 caracteres.',
+            'reel_rules' => 'El paquete reel debe incluir 6 escenas en orden. Cada escena usa VO n seguido de Overlay n.1, n.2 y n.3. VO 1 a VO 5 tienen objetivo de 14 palabras y son válidos entre 12 y 16 palabras inclusive; VO 6 debe ser exactamente «Conoce más de este proyecto en ideasDi.com», sin punto, prefijo ni sufijo; cada overlay admite máximo 40 caracteres.',
             'forbidden_phrases' => 'Conclusión\nFuente oficial:\nEn este artículo\nLa lectura editorial\nBajada al lifestyle\nSi quieres',
             'category_rules' => '',
             'last_updated_at' => '',
@@ -79,7 +79,7 @@ final class IDG_Editorial_Rules {
         $lines[] = '- Política keyword en H1 (legacy, no bloqueante): no impone coincidencia exacta; la keyword o una variante natural se revisa cerca de la apertura.';
         $lines[] = '- H2 máximo: ' . (int) $r['h2_max_chars'] . ' caracteres.';
         $lines[] = '- Caja editorial: ' . (int) $r['editorial_box_min_words'] . '–' . (int) $r['editorial_box_max_words'] . ' palabras.';
-        $lines[] = '- Reel: ' . (int) $r['reel_scenes'] . ' escenas, ' . (int) $r['reel_overlays_per_scene'] . ' overlays por escena, VO 1–5 de ' . (int) $r['reel_vo_words'] . ' palabras.';
+        $lines[] = '- Reel: ' . (int) $r['reel_scenes'] . ' escenas, ' . (int) $r['reel_overlays_per_scene'] . ' overlays por escena, VO 1–5 objetivo ' . (int) $r['reel_vo_words'] . ' palabras, válido entre 12 y 16.';
         $lines[] = '- CTA fijo reel: ' . (string) $r['reel_cta'];
         foreach (['structure_rules','editorial_box_rules','internal_link_rules','external_link_rules','reel_rules','forbidden_phrases','category_rules'] as $key) {
             $value = trim((string) ($r[$key] ?? ''));

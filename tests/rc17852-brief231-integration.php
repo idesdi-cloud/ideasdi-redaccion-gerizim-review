@@ -3,13 +3,6 @@
 require __DIR__ . '/rc1782-targeted-regression.php';
 require_once ABSPATH . 'includes/class-editorial-document.php';
 function rc17852_ok(bool $ok, string $label): void { if (!$ok) { fwrite(STDERR, "FAIL RC17852: $label\n"); exit(1); } echo "OK RC17852: $label\n"; }
-function rc17852_repair(): string { return json_encode(['patches'=>[
-    ['segment'=>'VO:1','replacement'=>'Prada convierte una casa histórica en Shanghai mediante salas tiempos y atmósferas conectadas cuidadosamente'],
-    ['segment'=>'VO:2','replacement'=>'La colaboración con Wong Kar Wai añade marco visual entre historia cine y hospitalidad'],
-    ['segment'=>'VO:3','replacement'=>'Madera de cerezo latón y bambú afinan los contrastes materiales de la identidad espacial'],
-    ['segment'=>'VO:4','replacement'=>'Obras de arte y antigüedades chinas enlazan memoria arquitectónica con una curaduría contemporánea activa'],
-    ['segment'=>'VO:5','replacement'=>'El programa diario amplía la visita y convierte el comedor en destino para jornada'],
-]]); }
 $raw = trim((string) file_get_contents(__DIR__ . '/fixtures/rc17852-brief231-seo-original.md'));
 $editorial = trim((string) file_get_contents(__DIR__ . '/fixtures/rc17852-brief231-editorial.md'));
 rc17852_ok(hash('sha256', $raw) === '8b0f7bfd864fb198cf1bea17d89124bce3f6d084bd188be598fd791110f01474' && hash('sha256', $editorial) === '708a8f98e009e2bfc6bf6bb9ab85d62100698d03a85e2d2ad76d687df581f2d1', 'two exact source fixtures and hashes are present');
@@ -25,14 +18,14 @@ $workflow['responsible_official_url']='https://www.prada.com/ww/en.html'; $workf
 $workflow['editorial_document']=IDG_Editorial_Document::from_markdown($editorial,$workflow); $workflow['editorial_result']=$editorial; $workflow['base_article']=$editorial; unset($workflow['seo_result']);
 IDG_Job_Runner::save_workflow($workflow['workflow_id'],$workflow);
 $client=new IDG_OpenAI_Client('local-only','local-mock'); $pipeline=new IDG_Workflow_Redaction_Pipeline(); $before_posts=count($GLOBALS['rc1782_posts']); $before_calls=count($GLOBALS['rc1782_http_calls']);
-$GLOBALS['rc1782_http_queue'][]=rc1782_response($raw); $GLOBALS['rc1782_http_queue'][]=rc1782_response(rc17852_repair());
+$GLOBALS['rc1782_http_queue'][]=rc1782_response($raw);
 $pipeline->execute($workflow['workflow_id'],IDG_Workflow_Policies::ACTION_SEO,$workflow,$client); $done=IDG_Job_Runner::get_workflow($workflow['workflow_id']); $article=IDG_Editorial_Document::markdown($done['editorial_document']);
-rc17852_ok(count($GLOBALS['rc1782_http_calls'])===$before_calls+2 && !empty($done['seo_preflight_payload_hash']), 'actual SEO workflow makes one bounded batched Reel repair and seals Gutenberg');
+rc17852_ok(count($GLOBALS['rc1782_http_calls'])===$before_calls+1 && empty($done['seo_repair']['attempted']) && !empty($done['seo_preflight_payload_hash']), 'actual SEO workflow makes one call, no Reel repair, and seals Gutenberg');
 rc17852_ok(substr_count($article,'https://www.prada.com/ww/en.html')===1 && substr_count($article,'https://ideasdi.com/tag/diseno-interior-comercial/')===1 && !str_contains($article,$workflow['official_source']), 'only canonical corporate and P2 URLs are added');
 $plain=preg_replace('/\[([^\]]+)\]\(https?:\/\/[^)]+\)/u','$1',$article); rc17852_ok($plain===$editorial, 'article prose is byte-identical outside the two markdown wraps');
 preg_match('/\[([^\]]+)\]\(https:\/\/ideasdi\.com\/tag\/diseno-interior-comercial\/\)/u',$article,$p2); rc17852_ok(!empty($p2[1]) && count(preg_split('/\s+/u',trim($p2[1])))>=3 && count(preg_split('/\s+/u',trim($p2[1])))<=8, 'P2 anchor is contextual and 3–8 words');
 $reel=(array)$done['editorial_document']['reel']; $inspect=IDG_Reel_Contract::inspect((string)($reel['normalized'] ?? ''));
-rc17852_ok(!empty($inspect['valid']) && array_values(array_slice((array)$inspect['vo_counts'],0,5))===[14,14,14,14,14], 'all five repaired VO lines have exactly fourteen words');
+rc17852_ok(!empty($inspect['valid']) && array_values(array_slice((array)$inspect['vo_counts'],0,5))===[16,16,15,15,16], 'all five original VO lines remain within the valid range');
 preg_match('/PAQUETE REEL\n(.*?)\n\nRETROALIMENTACIÓN/su',$raw,$original_reel); $original_reel=(string)($original_reel[1]??''); $new_reel=(string)($reel['normalized']??'');
 foreach (array_merge(['VO 6: Conoce más de este proyecto en ideasDi.com'], preg_grep('/^Overlay /m',explode("\n",$original_reel)) ?: []) as $line) rc17852_ok(str_contains($new_reel,$line), 'VO6 and original overlay remain byte-identical');
 $html=(string)($done['seo_preflight_post_content']??''); $rendered=(string)(IDG_Editorial_Document::gutenberg($done['editorial_document'])['html']??''); rc17852_ok(substr_count($rendered,'https://www.prada.com/ww/en.html')===1 && substr_count($rendered,'https://ideasdi.com/tag/diseno-interior-comercial/')===1 && !str_contains($rendered,'featured-snippet-box"><a '), 'Gutenberg preserves both links and keeps the editorial box link-free');
@@ -54,7 +47,6 @@ IDG_Job_Runner::save_workflow($blocked_workflow['workflow_id'], $blocked_workflo
 $GLOBALS['rc1782_http_queue'][] = rc1782_response($stale . "
 
 " . $raw);
-$GLOBALS['rc1782_http_queue'][] = rc1782_response(rc17852_repair());
 $pipeline->execute($blocked_workflow['workflow_id'], IDG_Workflow_Policies::ACTION_SEO, $blocked_workflow, $client);
 $blocked = IDG_Job_Runner::get_workflow($blocked_workflow['workflow_id']);
 rc17852_ok(!empty($blocked['seo_requires_intervention']) && empty($blocked['seo_preflight_payload_hash']),

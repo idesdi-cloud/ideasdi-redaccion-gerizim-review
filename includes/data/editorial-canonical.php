@@ -3,8 +3,8 @@
 return [
     'knowledge_id' => 'editorial.canonical',
     'schema_version' => 1,
-    'canonical_version' => '1.1.0',
-    'canonical_sha256' => '0bc762b7666ffead0c54dbe83ecddc281ed4a9f2e7bdbaaf61406b3e921c9acf',
+    'canonical_version' => '1.1.1',
+    'canonical_sha256' => '0f680194091a6db74fc7362b819a834f763c5175e0e69ca40a0b6fad8554718b',
     'global' => [
         'identity' => ['thesis' => 'leer el presente a través del diseño', 'voice' => 'Diseñador Traductor', 'depth' => 'profundidad sin densidad'],
         'evidence' => [
@@ -69,7 +69,7 @@ return [
             'sustainability' => ['focus' => 'Decisiones ambientales sustentadas en evidencia concreta y límites explícitos.', 'axes' => ['materiales', 'fabricación', 'durabilidad', 'reparación', 'ciclo de vida documentado'], 'unsupported_environmental_claims_forbidden' => true],
         ],
     ],
-    'derived_formats' => ['reel' => ['scenes' => 6, 'voiceover' => ['scenes_1_to_5' => ['words' => 14], 'scene_6' => ['fixed_cta_required' => true]], 'overlays' => ['per_scene' => 3, 'max_chars' => 40], 'fixed_cta' => 'Conoce más de este proyecto en ideasDi.com']],
+    'derived_formats' => ['reel' => ['scenes' => 6, 'voiceover' => ['scenes_1_to_5' => ['words' => 14, 'min_words' => 12, 'max_words' => 16], 'scene_6' => ['fixed_cta_required' => true]], 'overlays' => ['per_scene' => 3, 'max_chars' => 40], 'fixed_cta' => 'Conoce más de este proyecto en ideasDi.com']],
     'resolution' => [
         'sequence' => ['global', 'surface', 'category', 'primary_lens', 'secondary_lenses', 'piece_context'],
         'piece_context' => ['canonical_policy' => false, 'source' => 'runtime_input', 'allowed_fields' => ['sources', 'verified_facts', 'brief', 'responsible_entity', 'evidence', 'angle', 'article_specific_constraints']],

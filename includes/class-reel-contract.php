@@ -179,6 +179,8 @@ final class IDG_Reel_Contract {
         // Contrato duro RC1.7.8: ninguna preferencia legacy puede relajarlo.
         $target_scenes = 6;
         $target_words = 14;
+        $min_words = 12;
+        $max_words = 16;
         $overlays_per_scene = 3;
         $overlay_max = 40;
         $cta = 'Conoce más de este proyecto en ideasDi.com';
@@ -327,13 +329,17 @@ final class IDG_Reel_Contract {
 
             $count = (int) ($vo_counts[$i] ?? 0);
 
-            if ($count !== $target_words) {
+            if ($count < $min_words || $count > $max_words) {
                 $issues[] =
                     'VO '
                     . $i
-                    . ' debe tener exactamente '
+                    . ' debe tener entre '
+                    . $min_words
+                    . ' y '
+                    . $max_words
+                    . ' palabras (objetivo '
                     . $target_words
-                    . ' palabras. Detectadas: '
+                    . '). Detectadas: '
                     . $count
                     . '.';
             }
@@ -416,6 +422,8 @@ final class IDG_Reel_Contract {
             'targets' => [
                 'scenes' => $target_scenes,
                 'words' => $target_words,
+                'min_words' => $min_words,
+                'max_words' => $max_words,
                 'overlays_per_scene' => $overlays_per_scene,
                 'overlay_max_chars' => $overlay_max,
                 'total_overlays' =>

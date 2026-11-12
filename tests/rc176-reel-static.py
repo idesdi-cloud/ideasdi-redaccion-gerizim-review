@@ -30,6 +30,10 @@ contract = (
     root / "includes/class-reel-contract.php"
 ).read_text(encoding="utf-8")
 
+pipeline = (
+    root / "includes/class-workflow-redaction-pipeline.php"
+).read_text(encoding="utf-8")
+
 
 def check(value, label):
     if not value:
@@ -116,6 +120,18 @@ check(
 check(
     "cta_in_final_vo" in contract,
     "contrato valida CTA en VO final",
+)
+
+check(
+    "min_words" in contract and "max_words" in contract,
+    "contrato expone rango Reel 12–16",
+)
+
+check(
+    "count < 12 || $count > 16" in pipeline
+    and "VO:n" in prompt
+    and "no devuelvas overlays" in prompt,
+    "reparación focalizada solo autoriza VO fuera de rango",
 )
 
 check(
