@@ -341,6 +341,8 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 $workflow['seo_response_diagnostics']['authorized_links'] = '';
                 $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
             }
+            $workflow['editorial_document'] = IDG_Editorial_Document::reconcile_seo_report_links($workflow['editorial_document'], $workflow);
+            $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
         }
         $candidate = $document_mode ? $workflow['seo_result'] : IDG_Workflow_Output_Parser::normalize_editorial_box_markdown(
             IDG_Workflow_Output_Parser::sanitize((string) $result['content']),
@@ -390,6 +392,12 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
 
         $prepared = (array) ($preflight['prepared'] ?? []);
         $reel = class_exists('IDG_Reel_Contract') ? IDG_Reel_Contract::inspect((string) ($prepared['reel_package'] ?? '')) : ['valid' => false, 'issues' => ['Reel Contract no disponible.']];
+        if ($document_mode) {
+            $workflow['editorial_document'] = IDG_Editorial_Document::normalize_seo_report_validation(
+                $workflow['editorial_document'], !empty($validation['ok']), !empty($reel['valid'])
+            );
+            $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
+        }
         $workflow['seo_result'] = $this->verified_seo_result(
             (string) ($prepared['processed_seo_result'] ?? $candidate),
             $validation,

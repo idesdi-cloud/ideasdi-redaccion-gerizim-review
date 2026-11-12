@@ -287,6 +287,7 @@ final class IDG_Post_Creator {
         $reel_package = trim((string) ($sections['reel_package'] ?? ''));
         $feedback_notes = trim((string) ($workflow['feedback_notes'] ?? ''));
         $html_content = (string) $payload['html']; $post_content = (string) $payload['post_content'];
+        $seo_report = self::repair_seo_report_link_counts($seo_report, $html_content, $workflow);
         $workflow['postprocessing_audit'] = ['prose_unchanged' => true, 'mode' => 'editorial_document_v1'];
         $validation = IDG_Final_Guard::validate_before_draft($content, $html_content, $sections, $workflow);
         $gutenberg = IDG_Final_Guard::validate_gutenberg_blocks($post_content);
@@ -320,7 +321,9 @@ final class IDG_Post_Creator {
             $write_allowed = true;
         }
         $has_seo_result = trim((string) ($workflow['seo_result'] ?? '')) !== '';
-        return ['ok'=>!empty($validation['ok']),'write_allowed'=>$write_allowed,'errors'=>(array)($validation['errors']??[]),'validation'=>$validation,'workflow'=>$workflow,'prepared'=>compact('sections','content','title','meta_description','seo_report','social_copy','reel_package','feedback_notes','html_content','post_content','validation') + ['document_hash'=>IDG_Editorial_Document::hash($document),'seo_title'=>'%%title%%','postprocessing_audit'=>$workflow['postprocessing_audit'],'processed_seo_result'=>$has_seo_result ? IDG_Editorial_Document::projection($document) : '', 'source_phase'=>$has_seo_result ? 'seo' : 'editorial']];
+        $reported_document = $document;
+        $reported_document['seo']['report'] = $seo_report;
+        return ['ok'=>!empty($validation['ok']),'write_allowed'=>$write_allowed,'errors'=>(array)($validation['errors']??[]),'validation'=>$validation,'workflow'=>$workflow,'prepared'=>compact('sections','content','title','meta_description','seo_report','social_copy','reel_package','feedback_notes','html_content','post_content','validation') + ['document_hash'=>IDG_Editorial_Document::hash($document),'seo_title'=>'%%title%%','postprocessing_audit'=>$workflow['postprocessing_audit'],'processed_seo_result'=>$has_seo_result ? IDG_Editorial_Document::projection($reported_document) : '', 'source_phase'=>$has_seo_result ? 'seo' : 'editorial']];
     }
 
     public static function override_eligible(array $validation): bool {
@@ -772,7 +775,7 @@ final class IDG_Post_Creator {
     }
 
 
-    private static function repair_seo_report_link_counts(string $seo_report, string $html, array $workflow): string {
+    public static function repair_seo_report_link_counts(string $seo_report, string $html, array $workflow): string {
         $audit = IDG_Internal_Links::audit_html($html, $workflow);
         $internal_count = (int) ($audit['internal_count'] ?? 0);
         $external_count = 0;

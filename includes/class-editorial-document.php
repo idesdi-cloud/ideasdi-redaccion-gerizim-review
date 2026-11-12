@@ -155,7 +155,19 @@ final class IDG_Editorial_Document {
         $existing = self::links(self::markdown($document));
         foreach ($required as $need) if (count(array_filter($existing, static fn(array $link): bool => $link['url'] === $need['url'])) > 1) return ['ok'=>false, 'document'=>$document, 'reason'=>'duplicate_authorized_link'];
         foreach ($required as $need) {
-            if (array_filter($existing, static fn(array $link): bool => $link['url'] === $need['url'])) continue;
+            $present = array_values(array_filter($existing, static fn(array $link): bool => $link['url'] === $need['url']));
+            if ($present) {
+                // P2 may already be present with the literal tag as its anchor.
+                // Repair only that known, invalid markup by re-wrapping visible
+                // prose; all other existing links remain untouched.
+                if (!empty($need['internal']) && !self::valid_internal_anchor((string) ($present[0]['anchor'] ?? ''), $workflow, (string) $need['url'])) {
+                    $repaired = self::repair_existing_internal_anchor($document, $workflow, $need);
+                    if ($repaired === null) return ['ok'=>false, 'document'=>$document, 'reason'=>'missing_unique_authorized_anchor'];
+                    $document = $repaired;
+                    $existing = self::links(self::markdown($document));
+                }
+                continue;
+            }
             $match = self::contextual_anchor($document, $workflow, $need);
             if ($match === null) return ['ok'=>false, 'document'=>$document, 'reason'=>'missing_unique_authorized_anchor'];
             [$index, $anchor] = $match;
@@ -164,6 +176,29 @@ final class IDG_Editorial_Document {
             $existing[] = ['anchor'=>$anchor, 'url'=>$need['url']];
         }
         return ['ok'=>true, 'document'=>self::seal($document), 'reason'=>'deterministic_authorized_links'];
+    }
+
+    /** Replaces the SEO link-count claim using the exact typed Gutenberg HTML. */
+    public static function reconcile_seo_report_links(array $document, array $workflow): array {
+        if (!class_exists('IDG_Post_Creator')) return $document;
+        $html = (string) (self::gutenberg($document)['html'] ?? '');
+        $report = IDG_Post_Creator::repair_seo_report_link_counts((string) (($document['seo'] ?? [])['report'] ?? ''), $html, $workflow);
+        if ($report === (string) (($document['seo'] ?? [])['report'] ?? '')) return $document;
+        $document['seo']['report'] = $report;
+        return self::seal($document);
+    }
+
+    /** Keeps the sealed document's validation claim derived from final preflight. */
+    public static function normalize_seo_report_validation(array $document, bool $approved, bool $reel_valid): array {
+        $report = trim((string) (($document['seo'] ?? [])['report'] ?? ''));
+        $status = $approved ? 'preflight Gutenberg aprobado' : 'preflight Gutenberg requiere intervención';
+        $reel = $reel_valid ? 'Reel validado' : 'Reel requiere intervención';
+        $line = '- Validaciones verificadas por plugin: ' . $status . '; ' . $reel . '.';
+        $report = (string) preg_replace('/^[ \t]*[-*][ \t]*Validaciones(?:[ \t]+verificadas[ \t]+por[ \t]+plugin)?[ \t]*:.*$/imu', '', $report);
+        $report = (string) preg_replace('/^Declaraciones del modelo \(no equivalen a verificación del plugin\):\s*/imu', '', $report);
+        $report = trim($report);
+        $document['seo']['report'] = trim('Declaraciones del modelo (no equivalen a verificación del plugin):' . "\n" . ($report !== '' ? $report . "\n\n" : '') . $line);
+        return self::seal($document);
     }
 
     public static function markdown(array $document): string {
@@ -248,18 +283,46 @@ final class IDG_Editorial_Document {
                 $matches[] = [$index, $phrase];
             }
         }
-        // The score is stable: a relevant phrase (token hit), then enough
-        // context, then its first occurrence.  A tied best candidate is not safe.
+        // A fixed five-word window avoids manufacturing several equally-long
+        // generated alternatives around the same unequivocal mention.
         if (!$matches) return null;
         usort($matches, static fn(array $a, array $b): int => strlen($b[1]) <=> strlen($a[1]) ?: $a[0] <=> $b[0] ?: strcmp($a[1], $b[1]));
         $best = $matches[0];
         $same = array_filter($matches, static fn(array $m): bool => strlen($m[1]) === strlen($best[1]) && $m[0] === $best[0]);
         return count($same) === 1 && substr_count(self::block_text((array) $document['blocks'][$best[0]]), $best[1]) === 1 ? $best : null;
     }
+    private static function repair_existing_internal_anchor(array $document, array $workflow, array $need): ?array {
+        foreach ((array) ($document['blocks'] ?? []) as $index => $block) {
+            if (($block['type'] ?? '') !== 'paragraph') continue;
+            $text = self::block_text((array) $block);
+            $links = self::links($text);
+            if (count($links) !== 1 || (string) ($links[0]['url'] ?? '') !== (string) $need['url']) continue;
+            $unlinked = preg_replace('/\[([^\]\r\n]+)\]\(' . preg_quote((string) $need['url'], '/') . '\)/u', '$1', $text, 1, $replaced);
+            if ($replaced !== 1 || $unlinked === null) continue;
+            $candidate = $document;
+            $candidate['blocks'][$index]['text'] = $unlinked;
+            $match = self::contextual_anchor($candidate, $workflow, $need);
+            if ($match === null || $match[0] !== $index) continue;
+            $anchor = (string) $match[1];
+            $candidate['blocks'][$index]['text'] = str_replace($anchor, '[' . $anchor . '](' . $need['url'] . ')', $unlinked);
+            return $candidate;
+        }
+        return null;
+    }
+    private static function valid_internal_anchor(string $anchor, array $workflow, string $url): bool {
+        $count = self::anchor_word_count($anchor);
+        if ($count < 3 || $count > 8 || self::plain($anchor) === self::plain((string) ($workflow['keyword'] ?? ''))) return false;
+        return self::plain($anchor) !== self::plain(implode(' ', self::internal_anchor_tokens($workflow, $url)));
+    }
+    private static function anchor_word_count(string $value): int {
+        $value = trim(html_entity_decode(wp_strip_all_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $tokens = preg_split('/\s+/u', $value, -1, PREG_SPLIT_NO_EMPTY);
+        return count($tokens ?: []);
+    }
     private static function internal_anchor_tokens(array $workflow, string $url): array { foreach ((array) IDG_Internal_Links::normalize($workflow) as $link) if ((string) ($link['url'] ?? '') === $url) return self::words((string) ($link['source_name'] ?? $link['label'] ?? '')); return []; }
     private static function words(string $value): array { preg_match_all('/[\\p{L}\\p{N}]{3,}/u', self::plain($value), $m); return array_values(array_unique((array) ($m[0] ?? []))); }
     private static function plain(string $value): string { return trim(mb_strtolower(preg_replace('/[^\\p{L}\\p{N}]+/u', ' ', $value) ?? '')); }
-    private static function phrases(string $text, array $tokens, bool $internal): array { preg_match_all('/[\\p{L}\\p{N}][\\p{L}\\p{N}’\'-]*/u', $text, $m, PREG_OFFSET_CAPTURE); $words = $m[0] ?? []; $out=[]; foreach ($words as $i => $word) { if (!in_array(self::plain($word[0]), $tokens, true)) continue; for ($start=max(0,$i-4); $start<=$i; $start++) { $end=min(count($words)-1,$start+7); if ($end-$start+1 < ($internal ? 3 : 2) || $i>$end) continue; $phrase=substr($text,$words[$start][1],$words[$end][1]+strlen($words[$end][0])-$words[$start][1]); $count=count(self::words($phrase)); if ((!$internal || ($count>=3 && $count<=8)) && $count<=8) $out[]=$phrase; } } return array_values(array_unique($out)); }
+    private static function phrases(string $text, array $tokens, bool $internal): array { preg_match_all('/[\\p{L}\\p{N}][\\p{L}\\p{N}’\'-]*/u', $text, $m, PREG_OFFSET_CAPTURE); $words = $m[0] ?? []; $out=[]; foreach ($words as $i => $word) { if (!in_array(self::plain($word[0]), $tokens, true)) continue; $start=max(0, $i - 2); $end=min(count($words)-1, $start + 4); $start=max(0, $end - 4); $phrase=substr($text,$words[$start][1],$words[$end][1]+strlen($words[$end][0])-$words[$start][1]); $count=count(self::words($phrase)); if ((!$internal || ($count>=3 && $count<=8)) && $count<=8) $out[]=$phrase; } return $out; }
     private static function reel_text(array $reel): string { return (string) ($reel['normalized'] ?? ''); }
     private static function wp_block(string $name, array $attrs, string $inner): array { return ['blockName'=>$name,'attrs'=>$attrs,'innerBlocks'=>[],'innerHTML'=>$inner,'innerContent'=>[$inner]]; }
     private static function inline_html(string $text): string { $safe=esc_html($text); $safe=preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/u', static fn($m)=>'<a href="'.esc_url($m[2]).'">'.$m[1].'</a>', $safe); $safe=preg_replace('/\*\*([^*]+)\*\*/u','<strong>$1</strong>',$safe); return preg_replace('/(?<!\*)\*([^*]+)\*(?!\*)/u','<em>$1</em>',$safe); }
