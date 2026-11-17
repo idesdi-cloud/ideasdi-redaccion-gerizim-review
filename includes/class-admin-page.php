@@ -153,6 +153,21 @@ final class IDG_Workflow_Admin_Controller {
         $workflow = $workflow_id ? IDG_Job_Runner::get_workflow($workflow_id) : [];
         $step = isset($_POST['step']) ? sanitize_key((string) $_POST['step']) : 'save';
 
+        // Server-side guard: disabled HTML controls do not protect against forged POSTs.
+        // Recovery never replays a model call, SEO review, draft creation or recurring update.
+        if ($step === 'recover_stale') {
+            $recovery = $workflow_id !== ''
+                ? IDG_Job_Runner::recover_stale_processing($workflow_id)
+                : ['ok' => false];
+            $message = !empty($recovery['ok']) ? 'stale_recovered' : 'recovery_blocked';
+            wp_safe_redirect(admin_url('admin.php?page=ideasdi-gerizim&workflow_id=' . rawurlencode($workflow_id) . '&message=' . $message));
+            exit;
+        }
+        if (!empty($workflow) && IDG_Workflow_Policies::blocks_interactive_mutation($workflow)) {
+            wp_safe_redirect(admin_url('admin.php?page=ideasdi-gerizim&workflow_id=' . rawurlencode($workflow_id) . '&message=workflow_processing_blocked'));
+            exit;
+        }
+
         if ($step === 'revalidate_without_ai') {
             wp_safe_redirect(admin_url('admin.php?page=ideasdi-gerizim&workflow_id=' . rawurlencode($workflow_id) . '&message=revalidation_blocked'));
             exit;
@@ -2262,6 +2277,12 @@ final class IDG_Workflow_Admin_Controller {
                 echo '<div class="notice notice-success"><p>Nueva redacción lista. El flujo anterior fue limpiado de la pantalla; las entradas ya creadas no se eliminaron.</p></div>';
             } elseif ($message === 'reset_blocked') {
                 echo '<div class="notice notice-warning"><p>Hay una tarea en proceso. Espera a que termine antes de iniciar una nueva redacción.</p></div>';
+            } elseif ($message === 'workflow_processing_blocked') {
+                echo '<div class="notice notice-warning"><p>La tarea sigue en ejecución. No se guardaron cambios ni se reinició el workflow.</p></div>';
+            } elseif ($message === 'stale_recovered') {
+                echo '<div class="notice notice-warning"><p>Se marcó como fallida una tarea antigua, sin repetir llamadas ni escrituras en WordPress. Revisa el artículo y la validación antes de continuar.</p></div>';
+            } elseif ($message === 'recovery_blocked') {
+                echo '<div class="notice notice-warning"><p>Recuperación detenida: la tarea es reciente, no tiene evidencia fiable, está activa en cola o podría haber escrito en WordPress. No se cambió su estado.</p></div>';
             } elseif ($message === 'partial_reset') {
                 echo '<div class="notice notice-success"><p>Reinicio parcial mínimo aplicado. Se conservaron solo Keyword principal, responsable, URL responsable, categoría, etiquetas y Hecho base. La investigación, fichas, artículos, SEO, validación, metadatos y borrador fueron limpiados.</p></div>';
             } elseif ($message === 'partial_reset_snapshot_failed') {
@@ -2382,6 +2403,11 @@ final class IDG_Workflow_Admin_Controller {
             : '¿Aplicar reinicio parcial mínimo? Se conservarán temporalmente los datos base y podrás reemplazarlos importando otro brief del Radar. Se limpiarán investigación, fichas, artículos, SEO, validación, metadatos y entrada creada.';
         echo '<button type="submit" name="step" value="partial_reset" class="button idg-button-reset-partial" data-confirm="' . esc_attr($partial_reset_message) . '"' . $reset_disabled . '>Reinicio parcial</button>';
         echo '<button type="submit" name="step" value="reset" class="button idg-button-reset" data-confirm="¿Iniciar una nueva redacción? Se limpiará el flujo actual de la pantalla, pero no se eliminarán entradas ya creadas."' . $reset_disabled . '>Nueva redacción</button>';
+        if (IDG_Workflow_Policies::blocks_interactive_mutation($workflow)) {
+            $recover_ready = IDG_Workflow_Policies::recoverable_processing($workflow);
+            $recover_disabled = $recover_ready ? '' : ' disabled';
+            echo '<button type="submit" name="step" value="recover_stale" class="button" data-confirm="Solo si la tarea lleva al menos una hora sin terminar. No reintenta ningún paso y no toca WordPress."' . $recover_disabled . '>Recuperar tarea antigua</button>';
+        }
         if (!empty($workflow['workflow_id'])) {
             $report_url = wp_nonce_url(
                 admin_url('admin-post.php?action=idg_download_report&workflow_id=' . rawurlencode((string) $workflow['workflow_id'])),

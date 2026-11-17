@@ -54,13 +54,32 @@ final class IDG_Workflow_Policies {
     private const ALLOWED_TRANSITIONS = [
         '' => [self::STATUS_DRAFT, self::STATUS_PROCESSING, self::STATUS_COMPLETED, self::STATUS_FAILED],
         self::STATUS_DRAFT => [self::STATUS_PROCESSING],
-        self::STATUS_PROCESSING => [self::STATUS_PROCESSING, self::STATUS_COMPLETED, self::STATUS_FAILED],
+        self::STATUS_PROCESSING => [self::STATUS_COMPLETED, self::STATUS_FAILED],
         self::STATUS_COMPLETED => [self::STATUS_PROCESSING],
         self::STATUS_FAILED => [self::STATUS_PROCESSING],
     ];
 
     private const MAX_WORKFLOW_HISTORY = 20;
     private const MAX_AUTOMATIC_RETRIES = 0;
+    // Manual-only recovery; no implicit restart or automatic WordPress writes.
+    public const STALE_RECOVERY_AFTER_SECONDS = 3600;
+
+    public static function recoverable_processing(array $workflow, ?int $now = null): bool {
+        if (($workflow['status'] ?? '') !== self::STATUS_PROCESSING) {
+            return false;
+        }
+        $action = (string) ($workflow['current_action'] ?? '');
+        if (!in_array($action, [self::ACTION_GENERATE, self::ACTION_EDITORIAL, self::ACTION_SEO], true)) {
+            return false; // Draft and recurring actions can have committed WordPress writes.
+        }
+        $token = (string) ($workflow['processing_run_token'] ?? '');
+        $started = $workflow['processing_started_at'] ?? null;
+        if ($token === '' || !is_int($started) || $started < 1) {
+            return false; // Historical workflows have no trustworthy execution evidence.
+        }
+        $now = $now ?? time();
+        return $started <= $now && ($now - $started) >= self::STALE_RECOVERY_AFTER_SECONDS;
+    }
 
     /** @return string[] */
     public static function known_actions(): array {
