@@ -7,7 +7,7 @@ define('IDG_SESSION_KEY_PREFIX', '_idg_test_');
 $root = getenv('GERIZIM_SOURCE') ?: dirname(__DIR__);
 $GLOBALS['opts'] = []; $GLOBALS['calls'] = []; $GLOBALS['logs'] = [];
 $GLOBALS['queue_return'] = 23; $GLOBALS['queue_state'] = [];
-$GLOBALS['mode'] = 'complete'; $GLOBALS['clock'] = time(); $GLOBALS['id_counter'] = 0;
+$GLOBALS['mode'] = 'complete'; $GLOBALS['clock'] = time(); $GLOBALS['id_counter'] = 0; $GLOBALS['queue_requests'] = []; $GLOBALS['queue_keys'] = [];
 function get_option(string $k, mixed $default = false): mixed { return $GLOBALS['opts'][$k] ?? $default; }
 function update_option(string $k, mixed $v, mixed $autoload=false): bool { $GLOBALS['opts'][$k] = $v; return true; }
 function add_option(string $k, mixed $v, string $deprecated='', mixed $autoload=false): bool { if(array_key_exists($k,$GLOBALS['opts']))return false; $GLOBALS['opts'][$k]=$v; return true; }
@@ -18,7 +18,14 @@ function sanitize_key(string $x): string { return strtolower(preg_replace('/[^a-
 function sanitize_text_field(string $x): string { return strip_tags($x); }
 function get_current_user_id(): int { return 1; }
 function update_user_meta(int $user, string $key, mixed $value): bool { return true; }
-function as_enqueue_async_action(string $hook, array $args=[], string $group=''): int|false { return $GLOBALS['queue_return']; }
+function as_enqueue_async_action(string $hook, array $args=[], string $group='', bool $unique=false): int|false {
+    $key = json_encode([$hook, $args, $group]);
+    $GLOBALS['queue_requests'][] = ['key'=>$key, 'unique'=>$unique];
+    if ($unique && isset($GLOBALS['queue_keys'][$key])) return 0;
+    $id=$GLOBALS['queue_return'];
+    if ($id && $id > 0) $GLOBALS['queue_keys'][$key]=$id;
+    return $id;
+}
 function as_get_scheduled_actions(array $q=[], string $ret='OBJECT'): array { return $GLOBALS['queue_state'][$q['status'] ?? ''] ?? []; }
 final class IDG_Logger { public static function log(string $type, string $msg, array $data=[]): void { $GLOBALS['logs'][]=[$type,$msg,$data]; } }
 require "$root/includes/class-workflow-policies.php";
@@ -33,7 +40,7 @@ final class IDG_Workflow_Action_Strategy_Center {
         return true;
     }
 }
-function fresh(): void { $GLOBALS['opts']=[];$GLOBALS['calls']=[];$GLOBALS['logs']=[];$GLOBALS['queue_return']=23;$GLOBALS['queue_state']=[];$GLOBALS['mode']='complete'; }
+function fresh(): void { $GLOBALS['opts']=[];$GLOBALS['calls']=[];$GLOBALS['logs']=[];$GLOBALS['queue_return']=23;$GLOBALS['queue_state']=[];$GLOBALS['mode']='complete'; $GLOBALS['queue_requests']=[]; $GLOBALS['queue_keys']=[]; }
 function seed(string $id='idg_test', array $v=[]): array { $w=array_replace(['workflow_id'=>$id,'status'=>'draft','base_article'=>'safe content','seo_result'=>'safe seo','current_action'=>''],$v); IDG_Job_Runner::save_workflow($id,$w);return $w; }
 function assert_true(bool $test,string $msg):void { if(!$test)throw new RuntimeException($msg); }
 $total=0;$passed=0;$fail=[];
@@ -69,4 +76,16 @@ t('recovery preserves existing creation barrier',function(){old_processing();$ke
 t('duplicate manual recovery has no second effect',function(){old_processing();assert_true(IDG_Job_Runner::recover_stale_processing('idg_test')['ok'],'first recovery failed');$before=IDG_Job_Runner::get_workflow('idg_test');$r=IDG_Job_Runner::recover_stale_processing('idg_test');assert_true(!$r['ok'] && $before===IDG_Job_Runner::get_workflow('idg_test'),'second recovery changed data');});
 t('recovery lock released for explicit manual retry',function(){old_processing();assert_true(IDG_Job_Runner::recover_stale_processing('idg_test')['ok'],'recover failed');IDG_Job_Runner::process_scheduled_action('idg_test','generate');assert_true(IDG_Job_Runner::get_workflow('idg_test')['status']==='completed','manual retry still blocked');});
 t('new processing cannot self-transition twice',function(){seed();IDG_Job_Runner::process_scheduled_action('idg_test','generate');assert_true(!IDG_Workflow_Policies::transition_allowed('processing','processing'),'policy permits duplicate processing');});
+t('Action Scheduler must request atomic unique enqueue', function(){
+    seed();
+    IDG_Job_Runner::schedule('idg_test','generate');
+    assert_true($GLOBALS['queue_requests'][0]['unique'] === true, 'unique=false permits a second queued action');
+});
+t('two queued identical actions cannot both be accepted',function(){
+    seed();
+    assert_true(IDG_Job_Runner::schedule('idg_test','generate')===true, 'first queue rejected');
+    $second=IDG_Job_Runner::schedule('idg_test','generate');
+    assert_true($second===false,'second identical queued action accepted');
+    assert_true(count($GLOBALS['queue_keys'])===1,'duplicate queue stored');
+});
 print "RESULT $passed/$total\n";exit($passed===$total?0:1);

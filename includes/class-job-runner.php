@@ -18,7 +18,7 @@ final class IDG_Job_Runner {
             return false;
         }
         if (function_exists('as_enqueue_async_action')) {
-            $queued_id = as_enqueue_async_action(IDG_ACTION_HOOK, [$workflow_id, $action], 'ideasdi-gerizim');
+            $queued_id = as_enqueue_async_action(IDG_ACTION_HOOK, [$workflow_id, $action], 'ideasdi-gerizim', true);
             return is_numeric($queued_id) && (int) $queued_id > 0;
         }
 
