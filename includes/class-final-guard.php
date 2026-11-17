@@ -864,6 +864,15 @@ final class IDG_Final_Guard {
         return ['ok' => true, 'message' => $message];
     }
 
+    /** Check the named discipline, not an entire plan annotation or focal description. */
+    private static function editorial_lens_visible(string $lens, string $plain): bool {
+        $name = trim((string) preg_split('/[,;:]|\s+con\s+foco\s+en\b/iu', $lens, 2)[0]);
+        $name = trim(mb_strtolower(remove_accents(wp_strip_all_tags($name))));
+        if ($name === '') return true;
+        // Whole discipline label only: "calzado" is not "descalzado".
+        return preg_match('/(?<![\p{L}\p{N}])' . preg_quote($name, '/') . '(?![\p{L}\p{N}])/u', $plain) === 1;
+    }
+
     private static function editorial_quality_status(string $content, string $html, array $workflow): array {
         $errors = [];
         $warnings = [];
@@ -909,8 +918,7 @@ final class IDG_Final_Guard {
         $lens = trim((string) ($workflow['editorial_lens'] ?? ''));
         $is_exception = self::is_event_workflow($workflow) || self::is_contest_workflow($workflow);
         if (!$is_exception && $lens !== '') {
-            $lens_plain = mb_strtolower(remove_accents(wp_strip_all_tags($lens)));
-            if ($lens_plain !== '' && !str_contains($plain, $lens_plain)) {
+            if (!self::editorial_lens_visible($lens, $plain)) {
                 $warnings[] = 'La lente disciplinar “' . $lens . '” no aparece de forma explícita en el artículo. Revisa si la disciplina central quedó visible.';
             }
         }

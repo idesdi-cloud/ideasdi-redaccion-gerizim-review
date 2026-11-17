@@ -290,9 +290,51 @@ final class IDG_Editorial_Document {
         if (!class_exists('IDG_Post_Creator')) return $document;
         $html = (string) (self::gutenberg($document)['html'] ?? '');
         $report = IDG_Post_Creator::repair_seo_report_link_counts((string) (($document['seo'] ?? [])['report'] ?? ''), $html, $workflow);
+        // Model recommendations may be stale after deterministic link repair.
+        // Remove only already-fulfilled link-insertion requests; retain other
+        // editorial suggestions and their original wording.
+        $audit = IDG_Internal_Links::audit_html($html, $workflow);
+        $internal_done = (int) ($audit['internal_count'] ?? 0) === 1 && empty($audit['errors']);
+        $official = self::responsible_url($workflow);
+        $external_done = false;
+        if ($official !== '') foreach ((array) ($audit['anchors'] ?? []) as $link) {
+            if (empty($link['internal']) && IDG_Internal_Links::equivalent_url((string) ($link['url'] ?? ''), $official)) {
+                $external_done = true;
+                break;
+            }
+        }
+        $report = self::remove_fulfilled_link_suggestions($report, $internal_done, $external_done);
         if ($report === (string) (($document['seo'] ?? [])['report'] ?? '')) return $document;
         $document['seo']['report'] = $report;
         return self::seal($document);
+    }
+
+    /** Retain only outstanding model suggestions; no fabricated replacements. */
+    private static function remove_fulfilled_link_suggestions(string $report, bool $internal_done, bool $external_done): string {
+        if (!$internal_done && !$external_done) return $report;
+        $lines = preg_split('/\R/u', $report) ?: [];
+        $result = []; $suggestions = 0; $header_index = null; $in_list = false;
+        foreach ($lines as $line) {
+            if (preg_match('/^\s*-\s*\d+\s+mejoras?\s+sugeridas?\s*:/iu', $line)) {
+                $header_index = count($result); $result[] = $line; $in_list = true; continue;
+            }
+            if ($in_list && preg_match('/^(\s*)\d+[.)]\s*(.+)$/u', $line, $m)) {
+                $text = trim($m[2]);
+                $insert_request = (bool) preg_match('/\b(?:integrar|insertar|a[nñ]adir|colocar|agregar|incorporar)\b/iu', $text);
+                $internal_request = (bool) preg_match('/\benlace\s+interno\b/iu', $text);
+                $external_request = (bool) preg_match('/\benlace\s+externo\b/iu', $text);
+                if ($insert_request && (($internal_done && $internal_request) || ($external_done && $external_request))) continue;
+                $result[] = $m[1] . (++$suggestions) . '. ' . $text;
+                continue;
+            }
+            if ($in_list && trim($line) !== '' && !preg_match('/^\s*\d+[.)]\s/u', $line)) $in_list = false;
+            $result[] = $line;
+        }
+        if ($header_index !== null) {
+            if ($suggestions === 0) unset($result[$header_index]);
+            else $result[$header_index] = '- ' . $suggestions . ' mejora' . ($suggestions !== 1 ? 's' : '') . ' sugerida' . ($suggestions !== 1 ? 's' : '') . ':';
+        }
+        return trim(implode("\n", array_values($result)));
     }
 
     /**
@@ -431,9 +473,15 @@ final class IDG_Editorial_Document {
         // A fixed five-word window avoids manufacturing several equally-long
         // generated alternatives around the same unequivocal mention.
         if (!$matches) return self::contextual_dron_singular_anchor($document, $workflow, $need);
-        usort($matches, static fn(array $a, array $b): int => strlen($b[1]) <=> strlen($a[1]) ?: $a[0] <=> $b[0] ?: strcmp($a[1], $b[1]));
+        // Prefer complete articulated nominal phrases (e.g. "la lectura del
+        // calzado") to looser generic ones ("innovación de calzado"). Then
+        // use article order, not the arbitrary number of characters.
+        $quality = static fn(array $m): int => preg_match('/\b(?:del|de\s+la|de\s+los|de\s+las)\b/iu', $m[1]) ? 0
+            : (preg_match('/\b(?:de|para|con|en)\b/iu', $m[1]) ? 1 : 2);
+        usort($matches, static fn(array $a, array $b): int => $quality($a) <=> $quality($b)
+            ?: $a[0] <=> $b[0] ?: strlen($a[1]) <=> strlen($b[1]) ?: strcmp($a[1], $b[1]));
         $best = $matches[0];
-        $same = array_filter($matches, static fn(array $m): bool => strlen($m[1]) === strlen($best[1]) && $m[0] === $best[0]);
+        $same = array_filter($matches, static fn(array $m): bool => $quality($m) === $quality($best) && $m[0] === $best[0]);
         return count($same) === 1 && substr_count(self::block_text((array) $document['blocks'][$best[0]]), $best[1]) === 1 ? $best : null;
     }
     /**
@@ -533,6 +581,9 @@ final class IDG_Editorial_Document {
         return null;
     }
     private static function valid_internal_anchor(string $anchor, array $workflow, string $url): bool {
+        // An anchor must be a readable phrase. Crossing a clause or sentence
+        // boundary cannot be repaired by satisfying only the word-count quota.
+        if (preg_match('/[,:;.!?\r\n]/u', $anchor)) return false;
         $count = self::anchor_word_count($anchor);
         if ($count < 3 || $count > 8 || self::plain($anchor) === self::plain((string) ($workflow['keyword'] ?? ''))) return false;
         return self::plain($anchor) !== self::plain(implode(' ', self::internal_anchor_tokens($workflow, $url)));
@@ -545,7 +596,39 @@ final class IDG_Editorial_Document {
     private static function internal_anchor_tokens(array $workflow, string $url): array { foreach ((array) IDG_Internal_Links::normalize($workflow) as $link) if ((string) ($link['url'] ?? '') === $url) return self::words((string) ($link['source_name'] ?? $link['label'] ?? '')); return []; }
     private static function words(string $value): array { preg_match_all('/[\\p{L}\\p{N}]{3,}/u', self::plain($value), $m); return array_values(array_unique((array) ($m[0] ?? []))); }
     private static function plain(string $value): string { return trim(mb_strtolower(preg_replace('/[^\\p{L}\\p{N}]+/u', ' ', $value) ?? '')); }
-    private static function phrases(string $text, array $tokens, bool $internal): array { preg_match_all('/[\\p{L}\\p{N}][\\p{L}\\p{N}’\'-]*/u', $text, $m, PREG_OFFSET_CAPTURE); $words = $m[0] ?? []; $out=[]; foreach ($words as $i => $word) { if (!in_array(self::plain($word[0]), $tokens, true)) continue; $start=max(0, $i - 2); $end=min(count($words)-1, $start + 4); $start=max(0, $end - 4); $phrase=substr($text,$words[$start][1],$words[$end][1]+strlen($words[$end][0])-$words[$start][1]); $count=count(self::words($phrase)); if ((!$internal || ($count>=3 && $count<=8)) && $count<=8) $out[]=$phrase; } return $out; }
+    /** Prefer an existing nominal phrase ending at the canonical tag, without punctuation. */
+    private static function phrases(string $text, array $tokens, bool $internal): array {
+        preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}’\'-]*/u', $text, $m, PREG_OFFSET_CAPTURE);
+        $words = $m[0] ?? [];
+        $out = [];
+        foreach ($words as $i => $word) {
+            if (!in_array(self::plain((string) $word[0]), $tokens, true)) continue;
+            $term = (string) $word[0];
+            $end_offset = (int) $word[1] + strlen($term);
+            // A short, complete Spanish noun phrase is more natural than a
+            // five-word sliding window that may swallow a colon or connector.
+            $prefix = substr($text, max(0, (int) $word[1] - 90), $end_offset - max(0, (int) $word[1] - 90));
+            $pattern = '/(?<![\p{L}\p{N}])((?:el|la|los|las|un|una)\s+[\p{L}\p{N}]+(?:\s+[\p{L}\p{N}]+)?\s+(?:del|de(?:\s+(?:la|los|las))?|para|en|con)\s+' . preg_quote($term, '/') . ')$/iu';
+            if ($internal && preg_match($pattern, $prefix, $found)
+                && self::anchor_word_count((string) $found[1]) >= 3
+                && self::anchor_word_count((string) $found[1]) <= 8) {
+                $out[] = (string) $found[1];
+                continue;
+            }
+            // Legacy fallback: keep only a self-contained, punctuation-free
+            // window. Never invent article words or append a clause fragment.
+            $start = max(0, $i - 2);
+            $end = min(count($words) - 1, $start + 4);
+            $start = max(0, $end - 4);
+            $phrase = substr($text, (int) $words[$start][1], (int) $words[$end][1] + strlen((string) $words[$end][0]) - (int) $words[$start][1]);
+            if ($phrase === false || preg_match('/[,:;.!?\r\n]/u', $phrase)) continue;
+            $count = self::anchor_word_count($phrase);
+            if (($internal && ($count < 3 || $count > 8)) || $count > 8) continue;
+            if (preg_match('/^(?:de|del|en|con|sobre|para|por|a|al|y|o)\s/iu', $phrase)) continue;
+            $out[] = $phrase;
+        }
+        return array_values(array_unique($out));
+    }
     private static function reel_text(array $reel): string { return (string) ($reel['normalized'] ?? ''); }
     private static function wp_block(string $name, array $attrs, string $inner): array { return ['blockName'=>$name,'attrs'=>$attrs,'innerBlocks'=>[],'innerHTML'=>$inner,'innerContent'=>[$inner]]; }
     private static function inline_html(string $text): string { $safe=esc_html($text); $safe=preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/u', static fn($m)=>'<a href="'.esc_url($m[2]).'">'.$m[1].'</a>', $safe); $safe=preg_replace('/\*\*([^*]+)\*\*/u','<strong>$1</strong>',$safe); return preg_replace('/(?<!\*)\*([^*]+)\*(?!\*)/u','<em>$1</em>',$safe); }
