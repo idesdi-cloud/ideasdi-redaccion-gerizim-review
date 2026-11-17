@@ -322,6 +322,10 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
 
     private function run_seo(string $workflow_id, array $workflow, IDG_OpenAI_Client $client): void {
         $document_mode = class_exists('IDG_Editorial_Document') && IDG_Editorial_Document::exists($workflow);
+        // Capture a previously approved Reel before asking the model for a new SEO
+        // response. Approval is proven against the exact stored preflight payload;
+        // a mere `reel.valid` flag or an old success message is not evidence.
+        $prior_reel = $document_mode ? $this->approved_reel_snapshot($workflow) : ['ok' => false];
         $article = $document_mode ? IDG_Editorial_Document::markdown($workflow['editorial_document']) : (string) ($workflow['editorial_result'] ?? $workflow['base_article'] ?? '');
         $data = IDG_Workflow_Prompt_Data::prepare($workflow, $article, 'seo');
         if ($document_mode && empty($data['editorial_document_manifest_ok'])) {
@@ -384,6 +388,17 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 // An empty legacy value must not simulate a Bridge incident.
                 $workflow['seo_response_diagnostics']['authorized_links'] = '';
                 $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
+            }
+            // Never let an invalid fresh VO silently evict a previously validated
+            // Reel when both the approved SEO payload and the factual article
+            // remain unchanged. If evidence or context differ, fail closed and
+            // keep the ordinary one-shot localized repair path available.
+            $retained = $this->retain_approved_reel_if_safe($prior_reel, $workflow['editorial_document']);
+            $workflow['seo_response_diagnostics']['reel_retention'] = (string) $retained['reason'];
+            if (!empty($retained['applied'])) {
+                $workflow['editorial_document'] = $retained['document'];
+                $workflow['seo_response_diagnostics']['reel_validated'] = true;
+                $workflow['seo_response_diagnostics']['reel_model_proposal_rejected'] = true;
             }
             $workflow['editorial_document'] = IDG_Editorial_Document::reconcile_seo_report_links($workflow['editorial_document'], $workflow);
             $workflow['editorial_document'] = IDG_Editorial_Document::reconcile_seo_feedback_links($workflow['editorial_document'], $workflow);
@@ -470,7 +485,12 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         if ($document_mode) {
             $workflow['seo_response_diagnostics']['final_preflight'] = !empty($preflight['ok']) ? 'approved' : 'requires_intervention';
             if (!empty($preflight['ok'])) {
-                $workflow['seo_response_diagnostics']['validated_components'] = $workflow['seo_response_diagnostics']['received_components'];
+                $verified_components = (array) $workflow['seo_response_diagnostics']['received_components'];
+                if (!empty($workflow['seo_response_diagnostics']['reel_model_proposal_rejected'])) {
+                    // The final Reel is valid, but it is NOT the model's new Reel.
+                    $verified_components = array_values(array_diff($verified_components, ['reel_package']));
+                }
+                $workflow['seo_response_diagnostics']['validated_components'] = $verified_components;
             }
         }
         $workflow['seo_validation_summary'] = (string) ($validation['summary'] ?? '');
@@ -584,6 +604,79 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $working = $changed;
         }
         return $audit;
+    }
+
+    /**
+     * Read-only proof that the current canonical document already passed SEO
+     * and Reel validation with an identical prepared WordPress payload.
+     * No new model call, option update or post write is performed here.
+     */
+    private function approved_reel_snapshot(array $workflow): array {
+        $deny = static fn(string $reason): array => ['ok' => false, 'reason' => $reason];
+        if (!class_exists('IDG_Editorial_Document') || !IDG_Editorial_Document::exists($workflow)
+            || !class_exists('IDG_Reel_Contract') || !class_exists('IDG_Post_Creator')) {
+            return $deny('missing_contract');
+        }
+        $document = (array) $workflow['editorial_document'];
+        $reel = (string) (($document['reel'] ?? [])['normalized'] ?? '');
+        if ($reel === '' || empty($document['reel']['valid'])
+            || empty(IDG_Reel_Contract::inspect($reel)['valid'])) {
+            return $deny('no_valid_prior_reel');
+        }
+        if (empty($workflow['seo_validation']['ok'])
+            || trim((string) ($workflow['seo_preflight_approved_at'] ?? '')) === '') {
+            return $deny('no_previous_approval');
+        }
+        $old_hash = (string) ($workflow['seo_preflight_payload_hash'] ?? '');
+        $old_content = (string) ($workflow['seo_preflight_post_content'] ?? '');
+        if ($old_hash === '' || $old_content === '') return $deny('missing_approval_seals');
+        $baseline = IDG_Post_Creator::preflight_public($workflow);
+        if (empty($baseline['ok']) || empty($baseline['validation']['ok'])) {
+            return $deny('previous_preflight_no_longer_valid');
+        }
+        $actual_hash = IDG_Post_Creator::prepared_payload_hash($baseline);
+        $actual_content = (string) ($baseline['prepared']['post_content'] ?? '');
+        if ($actual_hash === '' || $actual_content === ''
+            || !hash_equals($old_hash, $actual_hash)
+            || !hash_equals($old_content, $actual_content)) {
+            return $deny('previous_approval_seals_changed');
+        }
+        return ['ok' => true, 'reason' => 'previous_preflight_verified',
+            'reel' => $reel, 'document' => $document];
+    }
+
+    /**
+     * Same article means byte-identical text after unwrapping only Markdown
+     * links; every original link destination must also be preserved in order.
+     * Punctuation, facts, layout and section boundaries are never normalized.
+     */
+    private static function same_reel_article_context(array $before, array $after): bool {
+        $extract = static function (array $document): ?array {
+            $markdown = IDG_Editorial_Document::markdown($document);
+            $pattern = '~\[([^]\r\n]+)\]\((https?://[^)\s\r\n]+)\)~u';
+            $matches = [];
+            if (preg_match_all($pattern, $markdown, $matches) === false) return null;
+            $text = preg_replace($pattern, '$1', $markdown);
+            if (!is_string($text) || $text === '') return null;
+            return ['text' => $text, 'urls' => (array) ($matches[2] ?? [])];
+        };
+        $left = $extract($before);
+        $right = $extract($after);
+        return $left !== null && $right !== null && $left === $right;
+    }
+
+    /** Preserve an earlier approved Reel only for an identical article context. */
+    private function retain_approved_reel_if_safe(array $prior, array $document): array {
+        if (empty($prior['ok'])) return ['applied' => false, 'reason' => (string) ($prior['reason'] ?? 'no_verified_previous_reel')];
+        $proposed = IDG_Reel_Contract::inspect((string) (($document['reel'] ?? [])['normalized'] ?? ''));
+        if (!empty($proposed['valid'])) return ['applied' => false, 'reason' => 'new_reel_valid'];
+        if (!self::same_reel_article_context((array) $prior['document'], $document)) {
+            return ['applied' => false, 'reason' => 'article_or_link_context_changed'];
+        }
+        $updated = IDG_Editorial_Document::apply_reel_package($document, (string) $prior['reel']);
+        if (empty($updated['ok'])) return ['applied' => false, 'reason' => 'previous_reel_revalidation_failed'];
+        return ['applied' => true, 'reason' => 'previous_approved_reel_preserved',
+            'document' => $updated['document']];
     }
 
     private function attempt_localized_repair(string $workflow_id, string $phase, string $content, array $validation, array $workflow, IDG_OpenAI_Client $client): array {
