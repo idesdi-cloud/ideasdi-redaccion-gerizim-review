@@ -648,6 +648,29 @@ PROMPT;
         return self::append_editable($prompt, 'seo');
     }
 
+    /** Compact, bounded repair prompt; no full SEO/article regeneration. */
+    public static function reel_vo_length_repair_prompt(string $reel, array $segments, array $workflow): string {
+        $inspected = IDG_Reel_Contract::inspect($reel);
+        $rows = [];
+        foreach ($segments as $segment) {
+            $scene = (int) substr((string) $segment, 3);
+            $rows[] = $segment . ' (' . (int) ($inspected['vo_counts'][$scene] ?? 0) . ' palabras): ' . (string) ($inspected['vo'][$scene] ?? '');
+        }
+        $keyword = trim((string) ($workflow['keyword'] ?? ''));
+        $entity = trim((string) ($workflow['entity'] ?? ''));
+        return "Repara únicamente la longitud de estas líneas de voz en off de ideasDi.\n"
+            . "Cada texto corregido debe tener de 12 a 16 palabras; apunta a 14. "
+            . "Cuenta secuencias Unicode de letras o números, con guiones internos.\n"
+            . "Conserva la tesis, datos, nombres, números, fechas, negaciones, calificadores y atribuciones; no agregues afirmaciones nuevas.\n"
+            . "No cambies overlays, CTA, enlaces ni ninguna otra línea.\n"
+            . "Keyword protegida: " . $keyword . "; responsable: " . $entity . "\n"
+            . implode("\n", $rows) . "\n"
+            . "Devuelve EXCLUSIVAMENTE JSON válido de la forma "
+            . '{"patches":[{"segment":"VO:1","replacement":"texto corregido sin prefijo VO 1:"}]}'
+            . ". Un objeto por cada segmento listado; ninguno adicional. Si no puedes preservar los hechos, devuelve "
+            . '{"patches":[]}.';
+    }
+
     public static function localized_repair_prompt(array $data, string $phase, string $candidate, array $validation, array $allowed_segments): string {
         $data['article'] = $candidate;
         $errors = implode("\n", array_map(static fn($error): string => '- ' . (string) $error, (array) ($validation['errors'] ?? [])));

@@ -66,10 +66,30 @@ final class IDG_Workflow_Output_Parser {
     private static function normalize_editorial_box_fragment(string $content): string {
         $lines = preg_split('/\n/', str_replace(["\r\n", "\r"], "\n", $content));
         if (!is_array($lines)) return $content;
+        // Only an *unambiguous* editorial-box label may be normalized.
+        // Models often return "### Caja editorial"; leaving that as H3 makes
+        // generation, editorial and SEO all fail despite valid factual prose.
+        // Never reinterpret prose, fenced examples or duplicate labels.
+        $label_indices = [];
+        $fence = '';
+        foreach ($lines as $index => $line) {
+            $trim = trim((string) $line);
+            if (preg_match('/^(`{3,}|~{3,})/u', $trim, $f)) {
+                if ($fence === '') $fence = $f[1][0];
+                elseif ($fence === $f[1][0]) $fence = '';
+                continue;
+            }
+            if ($fence !== '') continue;
+            if (preg_match('/^[ \t]*(?:#{1,6}[ \t]+)?(?:(?:\*\*|__)[ \t]*)?Caja editorial[ \t]*:?[ \t]*(?:\*\*|__)?[ \t]*$/iu', (string) $line)) {
+                $label_indices[] = $index;
+            }
+        }
+        if (count($label_indices) === 1) {
+            $lines[$label_indices[0]] = 'Caja editorial';
+        }
         $in_box = false;
         foreach ($lines as $index => $line) {
-            if (preg_match('/^\s*\*\*\s*Caja editorial\s*:?\s*\*\*[ \t]*$/iu', (string) $line)) {
-                $lines[$index] = 'Caja editorial';
+            if (count($label_indices) === 1 && $index === $label_indices[0]) {
                 $in_box = true;
                 continue;
             }

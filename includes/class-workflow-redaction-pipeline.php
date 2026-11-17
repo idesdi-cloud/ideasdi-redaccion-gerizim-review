@@ -421,6 +421,26 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $preflight['validation'] = $validation;
             $preflight['errors'] = (array) $validation['errors'];
         }
+        // A Reel with otherwise valid structure but one overlong/short VO
+        // gets a compact, targeted repair *before* the generic SEO repair.
+        // Other defects follow the original path, including manual override.
+        $workflow['seo_reel_repair'] = ['attempted' => false, 'applied' => false, 'reason' => 'not_required'];
+        if ($document_mode && empty($preflight['ok']) && empty($patch_errors)
+            && $this->only_reel_length_preflight_errors($validation)) {
+            $reel_before = (string) (($workflow['editorial_document']['reel'] ?? [])['normalized'] ?? '');
+            $segments = IDG_Reel_Contract::vo_length_segments_only($reel_before);
+            if ($segments !== []) {
+                $targeted = $this->attempt_targeted_reel_repair($workflow_id, $candidate, $reel_before, $segments, $workflow, $client);
+                $workflow['seo_reel_repair'] = $targeted['audit'];
+                if (!empty($targeted['applied'])) {
+                    $workflow['editorial_document'] = $targeted['document'];
+                    $candidate = IDG_Editorial_Document::projection($workflow['editorial_document']);
+                    $workflow['seo_result'] = $candidate;
+                    $preflight = IDG_Post_Creator::preflight_public($workflow);
+                    $validation = (array) ($preflight['validation'] ?? []);
+                }
+            }
+        }
         $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
         // An unresolved article link does not prevent independent repair of
         // metadata or Reel. Never treat that repair as resolution of the link.
@@ -679,6 +699,48 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             'document' => $updated['document']];
     }
 
+    /** No new workflow phase or UI restriction; one small model request only on a VO-length failure. */
+    private function only_reel_length_preflight_errors(array $validation): bool {
+        $errors = (array) ($validation['errors'] ?? []);
+        if ($errors === []) return false;
+        foreach ($errors as $error) {
+            if (!preg_match('/^VO [1-5] debe tener entre 12 y 16 palabras \(objetivo 14\)\. Detectadas: \d+\.$/u', (string) $error)) return false;
+        }
+        return true;
+    }
+
+    private function attempt_targeted_reel_repair(string $workflow_id, string $projection, string $reel,
+        array $segments, array $workflow, IDG_OpenAI_Client $client): array {
+        $audit = ['attempted' => true, 'applied' => false, 'reason' => 'targeted_repair_rejected', 'usage' => [], 'model' => ''];
+        $result = $client->complete(IDG_Prompt_Library::reel_vo_length_repair_prompt($reel, $segments, $workflow));
+        $audit['usage'] = (array) ($result['usage'] ?? []);
+        $audit['model'] = (string) ($result['model'] ?? '');
+        IDG_Usage_Estimator::record('seo_reel_vo_repair', $audit['usage'], $workflow_id, $audit['model']);
+        if (empty($result['success'])) {
+            $audit['reason'] = 'model_unavailable';
+            return ['applied' => false, 'audit' => $audit];
+        }
+        $patched = $this->apply_segment_patches($projection, (string) ($result['content'] ?? ''), $segments, $workflow);
+        if (empty($patched['ok'])) {
+            $audit['reason'] = (string) ($patched['reason'] ?? 'patch_invalid');
+            return ['applied' => false, 'audit' => $audit];
+        }
+        $reel_after = $this->section_body((string) $patched['content'], 'PAQUETE REEL');
+        $inspect = IDG_Reel_Contract::inspect($reel_after);
+        if (empty($inspect['valid'])) {
+            $audit['reason'] = 'reel_contract_rejected';
+            return ['applied' => false, 'audit' => $audit];
+        }
+        $document = IDG_Editorial_Document::apply_reel_package((array) $workflow['editorial_document'], $reel_after);
+        if (empty($document['ok'])) {
+            $audit['reason'] = 'canonical_reel_rejected';
+            return ['applied' => false, 'audit' => $audit];
+        }
+        $audit['applied'] = true;
+        $audit['reason'] = 'vo_only_contract_validated';
+        return ['applied' => true, 'audit' => $audit, 'document' => $document['document']];
+    }
+
     private function attempt_localized_repair(string $workflow_id, string $phase, string $content, array $validation, array $workflow, IDG_OpenAI_Client $client): array {
         $allowed = $this->allowed_segments($phase, $content, $validation);
         $audit = ['attempted' => true, 'applied' => false, 'content' => $content, 'usage' => [], 'model' => '', 'reason' => ''];
@@ -876,7 +938,12 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 if (count($matches) !== 1) {
                     return ['ok' => false, 'reason' => 'vo_not_unique'];
                 }
-                $lines[$matches[0]] = 'VO ' . $scene . ': ' . trim($replacement);
+                $before_vo = (string) $lines[$matches[0]];
+                $after_vo = 'VO ' . $scene . ': ' . trim($replacement);
+                if (!self::localized_line_preserves_protected_facts($before_vo, $after_vo, $workflow)) {
+                    return ['ok' => false, 'reason' => 'protected_vo_facts_changed'];
+                }
+                $lines[$matches[0]] = $after_vo;
                 continue;
             }
             return ['ok' => false, 'reason' => 'unknown_segment'];

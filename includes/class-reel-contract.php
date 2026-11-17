@@ -173,6 +173,25 @@ final class IDG_Reel_Contract {
         return trim(implode("\n", $out));
     }
 
+    /**
+     * The fast VO-only repair path is available only when the complete Reel
+     * has exactly VO word-count errors and no other structural/CTA defects.
+     * Any ambiguity leaves the existing general repair and manual exception.
+     * @return array<int,string> Allowed patch segment IDs, e.g. ["VO:1"]
+     */
+    public static function vo_length_segments_only(string $text): array {
+        $inspection = self::inspect($text);
+        if (!empty($inspection['valid'])) return [];
+        $segments = [];
+        foreach ((array) ($inspection['issues'] ?? []) as $issue) {
+            if (!preg_match('/^VO ([1-5]) debe tener entre 12 y 16 palabras \(objetivo 14\)\. Detectadas: \d+\.$/u', (string) $issue, $m)) {
+                return [];
+            }
+            $segments[] = 'VO:' . $m[1];
+        }
+        return array_values(array_unique($segments));
+    }
+
     public static function inspect(string $text): array {
         $normalized = self::normalize($text);
 

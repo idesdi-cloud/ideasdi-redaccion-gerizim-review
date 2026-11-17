@@ -16,6 +16,9 @@ final class IDG_Editorial_Document {
 
     public static function from_markdown(string $markdown, array $workflow, ?array $previous = null): array {
         $markdown = trim(str_replace(["\r\n", "\r"], "\n", $markdown));
+        // Also protect direct canonical imports: structural variants must not
+        // become a regular H3 when a caller bypasses the generation adapter.
+        $markdown = IDG_Workflow_Output_Parser::normalize_editorial_box_markdown($markdown);
         $lines = preg_split('/\n/', $markdown);
         $blocks = []; $paragraph = []; $list = []; $box_next = false; $ordinal = 0;
         $flush_paragraph = static function () use (&$paragraph, &$blocks, &$ordinal): void {
