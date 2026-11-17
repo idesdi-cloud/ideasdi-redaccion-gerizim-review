@@ -98,6 +98,10 @@ final class IDG_Final_Guard {
             $warnings = array_merge($warnings, (array) ($contest_presentation['warnings'] ?? []));
         }
 
+        // Definitive defect only: never allow an anchor to cut the official project/brand name.
+        if (self::link_splits_protected_name($content, $workflow)) {
+            $errors[] = 'Un enlace fragmenta un nombre propio protegido del proyecto o responsable.';
+        }
         $quality = self::editorial_quality_status($content, $html, $workflow);
         $errors = array_merge($errors, (array) ($quality['errors'] ?? []));
         $warnings = array_merge($warnings, (array) ($quality['warnings'] ?? []));
@@ -320,6 +324,7 @@ final class IDG_Final_Guard {
                 '/\AEl enlace externo parece apuntar a una entidad distinta del responsable configurado\.\z/u',
                 '/\AEl anchor del enlace externo usa el responsable configurado, pero la URL no parece corresponder a esa entidad\.\z/u',
             ],
+            'link_name_integrity' => ['/\AUn enlace fragmenta un nombre propio protegido del proyecto o responsable\.\z/u'],
             'identity_integrity' => [
                 '/\ALa entidad responsable no puede actuar como lente disciplinar\.\z/u',
                 '/\AFalta la ficha de encargo editorial registrada\.\z/u',
@@ -681,6 +686,44 @@ final class IDG_Final_Guard {
     }
 
 
+
+    /**
+     * Detect only objectively broken project/responsible names across an anchor boundary.
+     * A style preference is not a hard validation error.
+     */
+    private static function link_splits_protected_name(string $content, array $workflow): bool {
+        $protected = array_values(array_unique(array_filter(array_map(
+            'trim', [(string) ($workflow['keyword'] ?? ''), (string) ($workflow['entity'] ?? '')]
+        ), static fn(string $name): bool => $name !== '')));
+        if (!$protected) return false;
+        preg_match_all('/\[([^\]\r\n]+)\]\((https?:\/\/[^\s)]+)\)/u', $content, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        foreach ($matches as $link) {
+            $markup = (string) $link[0][0];
+            $offset = (int) $link[0][1];
+            $anchor = (string) $link[1][0];
+            // Work within the same paragraph/line; cross-paragraph matches are invalid evidence.
+            $before = substr($content, max(0, $offset - 220), min($offset, 220));
+            $after = substr($content, $offset + strlen($markup), 220);
+            $newline = strrpos($before, "\n");
+            if ($newline !== false) $before = substr($before, $newline + 1);
+            $newline = strpos($after, "\n");
+            if ($newline !== false) $after = substr($after, 0, $newline);
+            $local = $before . $anchor . $after;
+            $anchor_start = strlen($before);
+            $anchor_end = $anchor_start + strlen($anchor);
+            foreach ($protected as $name) {
+                if (strlen($name) < 3) continue;
+                preg_match_all('/' . preg_quote($name, '/') . '/iu', $local, $occurrences, PREG_OFFSET_CAPTURE);
+                foreach ((array) ($occurrences[0] ?? []) as $occurrence) {
+                    $start = (int) $occurrence[1];
+                    $end = $start + strlen((string) $occurrence[0]);
+                    if (($start < $anchor_start && $end > $anchor_start)
+                        || ($start < $anchor_end && $end > $anchor_end)) return true;
+                }
+            }
+        }
+        return false;
+    }
 
     private static function anchor_word_count(string $anchor): int {
         $plain = trim(html_entity_decode(

@@ -495,8 +495,13 @@ final class IDG_Internal_Links {
     }
 
     private static function absolute_audit_url(string $href, string $base_url): string {
+        // Check raw bytes first: trim() strips NUL/control bytes and /u returns false
+        // rather than matching when the input contains malformed UTF-8.
+        if (preg_match('//u', $href) !== 1 || preg_match('/[\x00-\x1F\x7F]/', $href) === 1) {
+            return '';
+        }
         $href = trim(html_entity_decode($href, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-        if ($href === '' || preg_match('/[\x00-\x1F\x7F]/u', $href)) {
+        if ($href === '' || preg_match('//u', $href) !== 1 || preg_match('/[\x00-\x1F\x7F]/', $href) === 1) {
             return '';
         }
         if (str_starts_with($href, '//')) {

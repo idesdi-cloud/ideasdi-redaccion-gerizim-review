@@ -117,21 +117,27 @@ final class IDG_Workflow_Policies {
     }
 
     public static function mark_processing(array $workflow, string $action): array {
-        self::transition_allowed((string) ($workflow['status'] ?? ''), self::STATUS_PROCESSING);
+        if (!self::transition_allowed((string) ($workflow['status'] ?? ''), self::STATUS_PROCESSING)) {
+            return $workflow; // Fail closed: never overwrite an invalid state or its evidence.
+        }
         $workflow['status'] = self::STATUS_PROCESSING;
         $workflow['current_action'] = $action;
         return $workflow;
     }
 
     public static function mark_failed(array $workflow, string $message): array {
-        self::transition_allowed((string) ($workflow['status'] ?? ''), self::STATUS_FAILED);
+        if (!self::transition_allowed((string) ($workflow['status'] ?? ''), self::STATUS_FAILED)) {
+            return $workflow; // Fail closed: never overwrite an invalid state or its evidence.
+        }
         $workflow['status'] = self::STATUS_FAILED;
         $workflow['last_error'] = $message;
         return $workflow;
     }
 
     public static function mark_completed(array $workflow, string $last_action): array {
-        self::transition_allowed((string) ($workflow['status'] ?? ''), self::STATUS_COMPLETED);
+        if (!self::transition_allowed((string) ($workflow['status'] ?? ''), self::STATUS_COMPLETED)) {
+            return $workflow; // Fail closed: never overwrite an invalid state or its evidence.
+        }
         $workflow['status'] = self::STATUS_COMPLETED;
         $workflow['last_action'] = $last_action;
         $workflow['last_error'] = '';

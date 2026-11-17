@@ -29,6 +29,10 @@ final class IDG_Job_Runner {
         if (class_exists('IDG_Assignment_Card')) {
             $workflow = IDG_Assignment_Card::attach($workflow);
         }
+        if (!IDG_Workflow_Policies::transition_allowed((string) ($workflow['status'] ?? ''), IDG_Workflow_Policies::STATUS_PROCESSING)) {
+            IDG_Logger::log('workflow_transition_rejected', 'Estado incompatible con el inicio de una acción.', ['workflow_id' => $workflow_id, 'action' => $action]);
+            return; // Do not execute a strategy or save an invalidly advanced workflow.
+        }
         $workflow = IDG_Workflow_Policies::mark_processing($workflow, $action);
         self::save_workflow($workflow_id, $workflow);
 

@@ -37,15 +37,18 @@ final class IDG_Post_Creator {
             ];
         }
         $workflow = $prepared['workflow'];
-        extract($prepared['prepared'], EXTR_OVERWRITE);
-
         $approved_payload_hash = (string) ($workflow['seo_preflight_payload_hash'] ?? '');
         $approved_post_content = (string) ($workflow['seo_preflight_post_content'] ?? '');
         $payload_hash = self::prepared_payload_hash($prepared);
-        if (empty($validation['overridden']) && ($approved_payload_hash === ''
-            || $approved_post_content === ''
-            || !hash_equals($approved_payload_hash, $payload_hash)
-            || !hash_equals($approved_post_content, (string) $post_content))) {
+        $preflight_validation = (array) ($prepared['validation'] ?? []);
+        $reel_pending = empty($preflight_validation['ok']) && self::reel_only_pending_eligible($workflow, $preflight_validation);
+        $sealed = $reel_pending
+            ? self::valid_reel_pending_seal($workflow, (array) ($prepared['prepared'] ?? []), $payload_hash)
+            : ($approved_payload_hash !== '' && $approved_post_content !== ''
+                && hash_equals($approved_payload_hash, $payload_hash)
+                && hash_equals($approved_post_content, (string) ($prepared['prepared']['post_content'] ?? '')));
+        extract($prepared['prepared'], EXTR_OVERWRITE);
+        if (empty($preflight_validation['overridden']) && !$sealed) {
             self::release_new_pending_creation($creation_lock);
             return [
                 'success' => false,
@@ -100,6 +103,12 @@ final class IDG_Post_Creator {
         update_post_meta($post_id, '_idg_seo_report', wp_kses_post($seo_report));
         update_post_meta($post_id, '_idg_social_copy', wp_kses_post($social_copy));
         update_post_meta($post_id, '_idg_reel_package', wp_kses_post($reel_package));
+        if ($reel_pending) {
+            // This is intentionally not an approval: the independent Reel
+            // component remains repairable and visible to the editor.
+            update_post_meta($post_id, '_idg_reel_review_status', 'requires_repair');
+            update_post_meta($post_id, '_idg_manual_review_required', '1');
+        }
         update_post_meta($post_id, '_idg_feedback_notes', wp_kses_post($feedback_notes));
         update_post_meta($post_id, '_idg_source_phase', sanitize_text_field((string) ($source_phase ?? 'seo')));
         update_post_meta($post_id, '_idg_sponsor_client', sanitize_text_field($workflow['sponsor_client'] ?? ''));
@@ -116,13 +125,18 @@ final class IDG_Post_Creator {
             'seo' => IDG_Prompt_Library::version('seo'),
             'web_research' => IDG_Prompt_Library::version('web_research'),
         ]));
+        // Keep the audit consistent with _idg_manual_review_required:
+        // reel-only pending is not a global SEO approval or an override.
+        $manual_review_required = $reel_pending || !empty($validation['overridden'])
+            || (!empty($workflow['editorial_requires_manual_review']) && empty($workflow['editorial_validation']['ok']));
         update_post_meta($post_id, '_idg_execution_history', wp_json_encode([
             'created_at' => current_time('mysql'),
             'user_id' => get_current_user_id(),
             'workflow_id' => $workflow['workflow_id'] ?? '',
             'validation_ok' => !empty($validation['ok']),
             'validation_overridden' => !empty($validation['overridden']),
-            'manual_review_required' => !empty($validation['overridden']) || (!empty($workflow['editorial_requires_manual_review']) && empty($workflow['editorial_validation']['ok'])),
+            'manual_review_required' => $manual_review_required,
+            'reel_requires_repair' => $reel_pending,
         ]));
         if (!empty($workflow['editorial_requires_manual_review']) && empty($workflow['editorial_validation']['ok'])) {
             update_post_meta($post_id, '_idg_manual_review_required', '1');
@@ -251,7 +265,7 @@ final class IDG_Post_Creator {
             $validation['summary'] = trim((string) ($validation['summary'] ?? '') . "\n- ERROR: Falta salida SEO final; la excepción mantiene revisión manual y no genera metadatos, Reel ni sello SEO.");
             $validation['error_codes'] = IDG_Final_Guard::classify_errors((array) $validation['errors']);
         }
-        $write_allowed = !empty($validation['ok']);
+        $write_allowed = !empty($validation['ok']) || self::reel_only_pending_eligible($workflow, $validation);
         if (empty($validation['ok'])
             && !empty($workflow['force_validation_override'])
             && self::editorial_override_allowed($validation)
@@ -308,7 +322,7 @@ final class IDG_Post_Creator {
             $validation['summary'] .= "\n- ERROR: Falta salida SEO final; la excepción mantiene revisión manual y no genera metadatos, Reel ni sello SEO.";
         }
         $validation['error_codes'] = IDG_Final_Guard::classify_errors((array) ($validation['errors'] ?? []));
-        $write_allowed = !empty($validation['ok']);
+        $write_allowed = !empty($validation['ok']) || self::reel_only_pending_eligible($workflow, $validation);
         if (empty($validation['ok'])
             && !empty($workflow['force_validation_override'])
             && self::editorial_override_allowed($validation)
@@ -343,6 +357,32 @@ final class IDG_Post_Creator {
             }
         }
         return true;
+    }
+
+    /**
+     * The Final Guard remains rejected. This narrow result only permits a new
+     * pending post after SEO sealed the exact non-Reel payload. Unknown errors
+     * deliberately fail closed, as do updates and recurring workflows.
+     */
+    public static function reel_only_pending_eligible(array $workflow, array $validation): bool {
+        if (!self::force_target_is_new_pending($workflow) || !empty($validation['ok'])
+            || empty($validation['errors']) || !class_exists('IDG_Final_Guard')) return false;
+        $errors = array_values((array) $validation['errors']);
+        $codes = IDG_Final_Guard::classify_errors($errors);
+        if (count($codes) !== count($errors) || in_array('unknown', $codes, true)) return false;
+        foreach ($codes as $code) if ($code !== 'reel_contract') return false;
+        return true;
+    }
+
+    private static function valid_reel_pending_seal(array $workflow, array $prepared, string $payload_hash): bool {
+        $reel = (string) ($prepared['reel_package'] ?? '');
+        $document_hash = (string) ($prepared['document_hash'] ?? '');
+        return (string) ($workflow['seo_reel_pending_payload_hash'] ?? '') !== ''
+            && hash_equals((string) $workflow['seo_reel_pending_payload_hash'], $payload_hash)
+            && hash_equals((string) ($workflow['seo_reel_pending_post_content'] ?? ''), (string) ($prepared['post_content'] ?? ''))
+            && hash_equals((string) ($workflow['seo_reel_pending_reel_hash'] ?? ''), hash('sha256', $reel))
+            && (($document_hash === '' && (string) ($workflow['seo_reel_pending_document_hash'] ?? '') === '')
+                || ($document_hash !== '' && hash_equals((string) ($workflow['seo_reel_pending_document_hash'] ?? ''), $document_hash)));
     }
 
     private static function editorial_override_allowed(array $validation): bool {

@@ -943,10 +943,37 @@ final class IDG_Workflow_Admin_Controller {
         $lines[] = '## 6. Versiones del artículo';
         $lines[] = '### Versión 1 · Artículo base';
         $lines[] = self::md_block((string) ($workflow['base_article'] ?? ''));
+        $lines[] = '#### P0R1 · Reparación de generación y verificación real';
+        $generate_repair = (array) ($workflow['generate_repair'] ?? []);
+        $lines[] = '- **Reparación intentada:** ' . (!empty($generate_repair['attempted']) ? 'sí' : 'no');
+        $lines[] = '- **Reparación aplicada:** ' . (!empty($generate_repair['applied']) ? 'sí' : 'no');
+        $lines[] = '- **Motivo técnico:** ' . self::md_value((string) ($generate_repair['reason'] ?? 'no registrado'));
+        $lines[] = '- **Validación final de Generación:** ' . (!empty($workflow['generate_validation']['ok']) ? 'aprobada por Final Guard' : 'pendiente o rechazada');
         $lines[] = '### Versión 2 · Revisión editorial';
         $lines[] = self::md_block((string) ($workflow['editorial_result'] ?? ''));
         $lines[] = '#### Diagnóstico editorial interno';
         $lines[] = self::md_block((string) ($workflow['editorial_diagnosis'] ?? ''));
+        $lines[] = '#### Diagnóstico original del modelo editorial (declarativo; no prueba de cambios)';
+        $lines[] = self::md_block((string) ($workflow['editorial_model_diagnosis'] ?? 'No registrado para esta ejecución.'));
+        $lines[] = '#### P1Q2 · Ruta simulada de revisión (solo observación; llamada editorial obligatoria)';
+        $shadow = (array) ($workflow['editorial_shadow_decision'] ?? []);
+        $lines[] = '- **Modo:** ' . self::md_value((string) ($shadow['mode'] ?? 'no_registrado'));
+        $lines[] = '- **Ruta hipotética:** ' . self::md_value((string) ($shadow['route'] ?? 'no_registrada'));
+        $lines[] = '- **Incidencias objetivas candidatas:** ' . (int) ($shadow['objective_count'] ?? 0);
+        $lines[] = '- **Señales editoriales candidatas:** ' . (int) ($shadow['lexical_count'] ?? 0);
+        $lines[] = '- **Llamada editorial intentada:** ' . (!empty($shadow['actual_editorial_call_attempted']) ? 'sí' : 'no registrada');
+        $lines[] = '- **Llamada editorial omitida por P1Q2:** no; esta variante nunca omite la revisión.';
+        $lines[] = '- **Ahorro potencial hipotético:** ' . (int) ($shadow['predicted_avoidable_calls'] ?? 0) . ' llamada(s); no ahorro real medido.';
+        $lines[] = '- **Resultado verdadero de bloques:** ' . (isset($workflow['editorial_changed']) ? (!empty($workflow['editorial_changed']) ? 'changed' : 'unchanged') : 'no disponible') . '.';
+        $lines[] = '- **Motivos de clasificación:** ' . self::md_value(implode(' | ', array_map('strval', (array) ($shadow['reasons'] ?? []))));
+        $lines[] = '- Esta ruta NO aprueba calidad, NO cambia texto, NO modifica contratos y NO autoriza omisión automática.';
+        $lines[] = '#### Control objetivo P1Q1 previo a revisión (avisos; no bloqueo)';
+        $checks = (array) ($workflow['editorial_objective_checks'] ?? []);
+        $lines[] = '- **Estado:** ' . self::md_value((string) ($checks['status'] ?? 'no_registrado'));
+        $lines[] = '- **Número de incidencias candidatas:** ' . (int) ($checks['issue_count'] ?? 0);
+        $lines[] = self::md_block((string) ($checks['text'] ?? 'No disponible en esta ejecución.'));
+        $lines[] = '#### Alertas de prelectura enviadas al editor (indicios, no errores verificados)';
+        $lines[] = self::md_block((string) ($workflow['editorial_review_signals'] ?? 'No registradas para esta ejecución.'));
         $lines[] = '#### Notas editoriales internas';
         $lines[] = self::md_block((string) ($workflow['editorial_notes'] ?? ''));
         $lines[] = '### Versión 3 · Revisión SEO final';
@@ -1909,6 +1936,11 @@ final class IDG_Workflow_Admin_Controller {
                     // $seo_available && self::should_show_force_draft($workflow)
                     $force_eligible = self::should_show_force_draft($workflow);
                     $seo_done = !empty($workflow['seo_validation']['ok']);
+                    // A Reel-only rejected Final Guard is never shown as SEO
+                    // approval. It merely enables the ordinary pending path;
+                    // the server still requires its exact component seals.
+                    $reel_pending_eligible = !$is_recurring_workflow && class_exists('IDG_Post_Creator')
+                        && IDG_Post_Creator::reel_only_pending_eligible($workflow, (array) ($workflow['seo_validation'] ?? []));
                     $draft_done = $is_recurring_workflow ? !empty($workflow['recurring_event_content_updated']) : !empty($workflow['draft_post_id']);
                     ?>
                     <div class="idg-actions">
@@ -1920,7 +1952,8 @@ final class IDG_Workflow_Admin_Controller {
                             <?php if ($seo_done && !$draft_done) : ?><div class="notice notice-warning inline idg-recurring-content-pending"><p><strong>Versión 3 lista, todavía no aplicada:</strong> abrir la publicación ahora mostrará el contenido anterior. Usa el botón siguiente para reemplazarlo.</p></div><?php endif; ?>
                             <button type="submit" name="step" value="recurring_event_content" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> data-confirm="¿Aplicar la Versión 3 · Revisión SEO final a la publicación ID <?php echo esc_attr((string) ($workflow['recurring_target_post_id'] ?? '')); ?>? Se reemplazarán título, contenido y extracto; se conservarán slug, campos estructurados, estado, autor, taxonomías e imagen." title="<?php echo esc_attr($seo_done ? 'Aplicar la Versión 3 validada a la publicación existente' : 'Primero ejecuta Revisión SEO'); ?>"><?php echo $draft_done ? 'Versión 3 aplicada a la publicación' : 'Aplicar Versión 3 a la publicación ID ' . esc_html((string) ($workflow['recurring_target_post_id'] ?? '')); ?></button>
                         <?php else : ?>
-                            <button type="submit" name="step" value="draft" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done); ?> title="<?php echo esc_attr($seo_done ? 'Crear o repetir entrada pendiente en WordPress' : 'Primero ejecuta Revisión SEO'); ?>">Crear entrada en WordPress</button>
+                            <button type="submit" name="step" value="draft" class="button button-primary <?php echo $draft_done ? 'idg-step-done' : ''; ?>" <?php disabled(!$seo_done && !$reel_pending_eligible); ?> title="<?php echo esc_attr($seo_done ? 'Crear o repetir entrada pendiente en WordPress' : ($reel_pending_eligible ? 'Crear pending con Reel marcado para reparación' : 'Primero ejecuta Revisión SEO')); ?>">Crear entrada en WordPress</button>
+                            <?php if ($reel_pending_eligible) : ?><div class="notice notice-warning inline"><p><strong>Reel requiere reparación:</strong> el artículo y sus metadatos permanecen rechazados globalmente para aprobación, pero puede crearse una única entrada pendiente con revisión manual.</p></div><?php endif; ?>
                             <?php if ($force_eligible) : ?>
                                 <?php
                                 $force_user_id = get_current_user_id();
@@ -2401,6 +2434,23 @@ final class IDG_Workflow_Admin_Controller {
                 <?php if (!empty($workflow['editorial_diagnosis'])) : ?>
                     <h3>Diagnóstico editorial interno</h3>
                     <textarea readonly rows="7" class="large-text code"><?php echo esc_textarea((string) $workflow['editorial_diagnosis']); ?></textarea>
+                <?php endif; ?>
+                <?php if (!empty($workflow['editorial_model_diagnosis'])) : ?>
+                    <h3>Diagnóstico original del modelo (declarativo)</h3>
+                    <textarea readonly rows="7" class="large-text code"><?php echo esc_textarea((string) $workflow['editorial_model_diagnosis']); ?></textarea>
+                <?php endif; ?>
+                <?php if (!empty($workflow['editorial_shadow_decision'])) : ?>
+                    <h3>P1Q2 · Ruta hipotética (revisión siempre ejecutada)</h3>
+                    <?php $shadow = (array) $workflow['editorial_shadow_decision']; ?>
+                    <p class="description">Ruta simulada: <strong><?php echo esc_html((string) ($shadow['route'] ?? 'no_registrada')); ?></strong>; avisos objetivos: <?php echo (int) ($shadow['objective_count'] ?? 0); ?>; señales editoriales: <?php echo (int) ($shadow['lexical_count'] ?? 0); ?>. Ningún ahorro real ni aprobación editorial.</p>
+                <?php endif; ?>
+                <?php if (!empty($workflow['editorial_objective_checks'])) : ?>
+                    <h3>Control objetivo P1Q1 previo a revisión (solo avisos)</h3>
+                    <textarea readonly rows="5" class="large-text code"><?php echo esc_textarea((string) ($workflow['editorial_objective_checks']['text'] ?? '')); ?></textarea>
+                <?php endif; ?>
+                <?php if (!empty($workflow['editorial_review_signals'])) : ?>
+                    <h3>Alertas de prelectura (indicios)</h3>
+                    <textarea readonly rows="5" class="large-text code"><?php echo esc_textarea((string) $workflow['editorial_review_signals']); ?></textarea>
                 <?php endif; ?>
                 <?php if (!empty($workflow['editorial_notes'])) : ?>
                     <h3>Notas editoriales internas</h3>

@@ -141,10 +141,20 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'generate');
         $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
         if (empty($validation['ok'])) {
-            $repair = $this->attempt_localized_repair($workflow_id, 'generate', $candidate, $validation, $workflow, $client);
+            // P0R1: a strictly whitelisted, meaning-preserving contraction can
+            // repair a marginal box-length overflow without any extra AI call.
+            // The REAL Final Guard is the acceptance authority, not this helper.
+            $repair = $this->attempt_safe_box_compaction($candidate, $validation, $workflow);
             if (!empty($repair['applied'])) {
                 $candidate = (string) $repair['content'];
                 $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'generate');
+            }
+            if (empty($validation['ok'])) {
+                $repair = $this->attempt_localized_repair($workflow_id, 'generate', $candidate, $validation, $workflow, $client);
+                if (!empty($repair['applied'])) {
+                    $candidate = (string) $repair['content'];
+                    $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'generate');
+                }
             }
         }
 
@@ -178,6 +188,10 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $this->save_validation_failure($workflow_id, $workflow, 'editorial', ['ok'=>false, 'errors'=>['Revisión editorial: documento por bloques inválido o desactualizado; no se llamó al modelo.'], 'warnings'=>[], 'summary'=>'- ERROR: Documento editorial inválido o desactualizado.']);
             return;
         }
+        // P1Q2: record a simulated route, never branch on it. The normal
+        // editorial model call below MUST run for every valid workflow.
+        $workflow['editorial_shadow_decision'] = (array) ($data['editorial_shadow_decision'] ?? []);
+        $workflow['editorial_shadow_decision']['actual_editorial_call_attempted'] = true;
         $result = $client->complete(IDG_Prompt_Library::editorial_prompt($data));
         if (empty($result['success'])) {
             $this->save_model_failure($workflow_id, $workflow, 'editorial', (string) ($result['message'] ?? 'Falló la revisión editorial.'));
@@ -185,6 +199,10 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         }
 
         $raw = IDG_Workflow_Output_Parser::sanitize((string) $result['content']);
+        $parsed_editorial = IDG_Workflow_Output_Parser::parse_editorial($raw);
+        $workflow['editorial_model_diagnosis'] = trim((string) ($parsed_editorial['diagnosis'] ?? ''));
+        $workflow['editorial_review_signals'] = (string) ($data['editorial_review_signals'] ?? '');
+        $workflow['editorial_objective_checks'] = (array) ($data['editorial_objective_checks'] ?? []);
         if ($document_mode) {
             $applied = IDG_Editorial_Document::apply_editorial_response($workflow['editorial_document'], $raw);
             if (empty($applied['ok'])) {
@@ -193,7 +211,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 $workflow['editorial_output_raw'] = $raw;
                 $workflow['editorial_result'] = $source; // Safe legacy projection; never an approval of the raw response.
                 $workflow['editorial_diagnosis'] = '- ' . $warning;
-                $workflow['editorial_notes'] = (string) (IDG_Workflow_Output_Parser::parse_editorial($raw)['notes'] ?? '');
+                $workflow['editorial_notes'] = (string) ($parsed_editorial['notes'] ?? '');
                 $workflow['editorial_validation'] = ['ok' => false, 'errors' => [$warning], 'warnings' => [$warning], 'summary' => '- ' . $warning];
                 $workflow['editorial_changed'] = false;
                 $workflow['editorial_changed_block_ids'] = [];
@@ -208,6 +226,29 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 IDG_Logger::log('editorial_unapplied', $warning, ['workflow_id' => $workflow_id, 'reason' => $reason]);
                 return;
             }
+            // P0: explicitly documented research sources are not article citations.
+            // A deterministic, fail-closed cleanup counts as an editorial edit;
+            // unlike a model echo, it must appear in the real changed-block audit.
+            $source_curation = IDG_Editorial_Document::curate_documentary_source_mentions($applied['document'], $workflow);
+            if (empty($source_curation['ok'])) {
+                $reason = sanitize_text_field((string) ($source_curation['reason'] ?? 'ambiguous_documentary_reference'));
+                $message = 'Revisión editorial: fuente secundaria en el artículo sin reparación segura (' . $reason . ').';
+                $workflow['editorial_source_curation'] = ['ok' => false, 'reason' => $reason];
+                $workflow['editorial_requires_manual_review'] = true;
+                $workflow['editorial_approved'] = false;
+                $workflow['editorial_applied'] = false;
+                $this->save_validation_failure($workflow_id, $workflow, 'editorial', ['ok' => false, 'errors' => [$message], 'warnings' => [], 'summary' => '- ERROR: ' . $message]);
+                return;
+            }
+            $applied['document'] = $source_curation['document'];
+            $applied['changed_ids'] = array_values(array_unique(array_merge(
+                (array) ($applied['changed_ids'] ?? []),
+                (array) ($source_curation['changed_ids'] ?? [])
+            )));
+            $workflow['editorial_source_curation'] = [
+                'ok' => true,
+                'removed' => (int) ($source_curation['removed'] ?? 0),
+            ];
             $workflow['editorial_document'] = $applied['document'];
             $candidate = IDG_Editorial_Document::markdown($applied['document']);
             $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'editorial');
@@ -216,7 +257,10 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $workflow['editorial_output_raw'] = $raw;
             $workflow['editorial_result'] = $candidate; // legacy projection, never authority.
             $workflow['editorial_diagnosis'] = $changed ? '- Comparación real por bloques: changed; IDs: ' . implode(', ', $changed_ids) . '.' : '- Comparación real por bloques: unchanged; no se atribuyen correcciones inexistentes.';
-            $workflow['editorial_notes'] = (string) (IDG_Workflow_Output_Parser::parse_editorial($raw)['notes'] ?? '');
+            if (!empty($source_curation['removed'])) {
+                $workflow['editorial_diagnosis'] .= "\n" . '- Curación documental: retirada localizada de ' . (int) $source_curation['removed'] . ' referencia(s) a fuentes de investigación; enlaces oficiales y P2 conservados.';
+            }
+            $workflow['editorial_notes'] = (string) ($parsed_editorial['notes'] ?? '');
             $workflow['editorial_changed'] = $changed;
             $workflow['editorial_changed_block_ids'] = $changed_ids;
             $workflow['editorial_validation'] = $validation;
@@ -232,7 +276,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             IDG_Job_Runner::save_workflow($workflow_id, $workflow);
             return;
         }
-        $sections = IDG_Workflow_Output_Parser::parse_editorial($raw);
+        $sections = $parsed_editorial;
         $candidate = IDG_Workflow_Output_Parser::normalize_editorial_box_markdown((string) ($sections['article'] ?? $raw));
         $links = IDG_Workflow_Output_Parser::preserve_approved_article_links($source, $candidate, $workflow);
         $candidate = (string) $links['content'];
@@ -252,7 +296,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $changed = $candidate !== $source;
         $diagnosis = trim((string) ($sections['diagnosis'] ?? ''));
         if (!$changed) {
-            $diagnosis = '- Comparación real de contenido: unchanged; no se atribuyen correcciones ni mejoras no realizadas.';
+            $diagnosis = '- Comparación real de contenido: unchanged; no se atribuyen correcciones ni mejoras no realizadas. El diagnóstico original del modelo se conserva por separado.';
         } else {
             $diagnosis .= ($diagnosis !== '' ? "\n" : '') . '- Comparación real de contenido: changed; la versión revisada difiere byte a byte del artículo base. Esta comparación no demuestra por sí sola la veracidad de cada mejora descrita.';
         }
@@ -362,17 +406,22 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $preflight['errors'] = (array) $validation['errors'];
         }
         $repair = ['attempted' => false, 'applied' => false, 'usage' => [], 'model' => ''];
-        // A link-reconciliation failure is not a Reel-repair request and must
-        // never trigger a second model call. The editor receives the persisted
-        // real preflight instead.
-        if (empty($preflight['ok']) && !empty($links['ok']) && !$link_reconciliation_failed) {
+        // An unresolved article link does not prevent independent repair of
+        // metadata or Reel. Never treat that repair as resolution of the link.
+        if (empty($preflight['ok']) && !empty($links['ok'])) {
             $repair = $this->attempt_localized_repair($workflow_id, 'seo', $candidate, $validation, $workflow, $client);
             if (!empty($repair['applied'])) {
                 $candidate = (string) $repair['content'];
                 if ($document_mode) {
-                    $repaired = IDG_Editorial_Document::apply_reel_package($workflow['editorial_document'], $this->section_body($candidate, 'PAQUETE REEL'));
-                    if (empty($repaired['ok'])) { $this->save_validation_failure($workflow_id, $workflow, 'seo', ['ok'=>false,'errors'=>['SEO: reparación Reel no aplicable; se conserva el documento previo.'],'warnings'=>[],'summary'=>'- ERROR: Reparación Reel no aplicable.']); return; }
-                    $workflow['editorial_document'] = $repaired['document'];
+                    // Commit independent repaired fields ONLY after their own
+                    // contract accepts them. An invalid Reel may not erase a
+                    // valid metadata repair or hide the original guard errors.
+                    $committed = $this->commit_seo_component_repairs($workflow['editorial_document'], $candidate);
+                    $workflow['editorial_document'] = $committed['document'];
+                    $repair['applied'] = !empty($committed['applied']);
+                    $repair['reason'] = (string) $committed['reason'];
+                    $repair['components_applied'] = $committed['components_applied'];
+                    $repair['components_rejected'] = $committed['components_rejected'];
                     $candidate = IDG_Editorial_Document::projection($workflow['editorial_document']);
                 }
                 $workflow['seo_result'] = $candidate;
@@ -424,11 +473,26 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             }
         }
         $workflow['seo_validation_summary'] = (string) ($validation['summary'] ?? '');
+        // Partition real Final Guard findings by their typed codes rather
+        // than independently matching human-readable error message prefixes.
+        // Unclassified errors remain on the blocking article/SEO side.
+        $all_errors = array_values((array) ($validation['errors'] ?? []));
+        $error_codes = IDG_Final_Guard::classify_errors($all_errors);
+        $article_errors = [];
+        foreach ($all_errors as $index => $error) {
+            if (($error_codes[$index] ?? 'unknown') !== 'reel_contract') {
+                $article_errors[] = $error;
+            }
+        }
         $workflow['seo_article_validation'] = [
-            'ok' => true,
-            'errors' => array_values(array_filter((array) ($validation['errors'] ?? []), static fn($error): bool => !preg_match('/\A(?:VO |Falta VO |Falta paquete reel|Las escenas del paquete reel|Escena |Overlay |Línea no reconocida en paquete reel)/u', (string) $error))),
+            'ok' => empty($article_errors),
+            'errors' => $article_errors,
         ];
-        $workflow['seo_article_validation']['ok'] = empty($workflow['seo_article_validation']['errors']);
+        // Presence is a component signal, not approval of the complete copy.
+        $social_copy_present = trim((string) ($prepared['social_copy'] ?? '')) !== '';
+        $workflow['seo_social_copy_presence'] = [
+            'present' => $social_copy_present,
+        ];
         $workflow['seo_reel_validation'] = $reel;
         $workflow['seo_repair'] = $this->repair_audit($repair);
         $workflow['usage_seo'] = $result['usage'] ?? [];
@@ -436,6 +500,21 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $workflow['warnings'] = IDG_Validator::summarize($workflow['seo_result'], (string) ($workflow['keyword'] ?? ''));
         $workflow['feedback_notes'] = IDG_Workflow_Output_Parser::extract_feedback_notes($workflow['seo_result']);
         if (empty($preflight['ok'])) {
+            // A Reel-only failure never upgrades seo_validation or Final Guard.
+            // It may nevertheless create one manually reviewed *new* pending
+            // post, but only with seals for the exact document, SEO projection,
+            // Reel and Gutenberg payload inspected here.
+            // Keep this pipeline read-only with respect to post creation; the
+            // creator remains the sole authority for the eventual write.
+            if (call_user_func(['IDG_Post_Creator', 'reel_only_pending_eligible'], $workflow, $validation)) {
+                $payload_hash = IDG_Post_Creator::prepared_payload_hash($preflight);
+                $workflow['seo_reel_pending_payload_hash'] = $payload_hash;
+                $workflow['seo_reel_pending_post_content'] = (string) ($prepared['post_content'] ?? '');
+                $workflow['seo_reel_pending_reel_hash'] = hash('sha256', (string) ($prepared['reel_package'] ?? ''));
+                $workflow['seo_reel_pending_document_hash'] = (string) ($prepared['document_hash'] ?? '');
+                $workflow['seo_reel_requires_repair'] = true;
+                $workflow['seo_response_diagnostics']['reel_status'] = 'requires_repair';
+            }
             $this->save_validation_failure($workflow_id, $workflow, 'seo', $validation);
             return;
         }
@@ -447,6 +526,63 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'seo_completed', 'Revisión SEO completada después de aprobar el mismo preflight Gutenberg que usará la escritura.');
         IDG_Job_Runner::save_workflow($workflow_id, $workflow);
         IDG_Logger::log('seo_completed', 'SEO y payload Gutenberg validados.', ['workflow_id' => $workflow_id, 'payload_hash' => $workflow['seo_preflight_payload_hash']]);
+    }
+
+    /**
+     * P0R1: accepted small contractions in the factual editorial box.
+     * Do not paraphrase, change numbers, names, links or any other paragraph.
+     * Unsupported cases preserve the existing localized-model repair path.
+     */
+    private function attempt_safe_box_compaction(string $content, array $validation, array $workflow): array {
+        $audit = ['attempted' => false, 'applied' => false, 'content' => $content,
+            'usage' => [], 'model' => '', 'reason' => 'no_safe_box_compaction'];
+        $errors = (array) ($validation['errors'] ?? []);
+        if (count($errors) !== 1
+            || !preg_match('/^(?:Generación|Revisión editorial): la caja editorial debe tener entre 40 y 55 palabras; detectadas: (5[6-9]|60)\.$/u', (string) $errors[0])) {
+            return $audit;
+        }
+        $matches = [];
+        if (preg_match_all('/^Caja editorial[ \t]*\R(?:[ \t]*\R)*([^\r\n]+)$/mu', $content, $matches, PREG_OFFSET_CAPTURE) !== 1) {
+            return $audit;
+        }
+        $body = (string) $matches[1][0][0];
+        $offset = (int) $matches[1][0][1];
+        if (str_starts_with(trim($body), '#') || preg_match('/https?:\/\/|\[[^\]]+\]\(/iu', $body)) {
+            return $audit;
+        }
+        // Literal editorial economies whose meaning and attribution remain the same.
+        // No blind word deletion, content synthesis or unbounded iterations.
+        $edits = [
+            ['/\blo sitúa con[ \t]+(?=\d)/iu', 'indica '],
+            ['/\b(contempla|incluye|reúne|presenta) un total de[ \t]+(?=\d)/iu', '$1 '],
+            ['/\bde acuerdo con\b/iu', 'según'],
+        ];
+        $working = $body;
+        $audit['attempted'] = true;
+        foreach ($edits as [$pattern, $replacement]) {
+            if (preg_match_all($pattern, $working) !== 1) continue;
+            $changed = preg_replace($pattern, $replacement, $working, 1);
+            if (!is_string($changed) || $changed === $working) continue;
+            // Numbers, units and protected punctuation cannot be modified.
+            preg_match_all('/\d+(?:[.,]\d+)*/u', $working, $before_numbers);
+            preg_match_all('/\d+(?:[.,]\d+)*/u', $changed, $after_numbers);
+            if ($before_numbers[0] !== $after_numbers[0]) continue;
+            $proposal = substr_replace($content, $changed, $offset, strlen($body));
+            $check = IDG_Final_Guard::validate_article_phase($proposal, $workflow, 'generate');
+            if (!empty($check['ok'])) {
+                $audit['content'] = $proposal;
+                $audit['applied'] = true;
+                $audit['reason'] = 'safe_box_compaction_real_guard_passed';
+                return $audit;
+            }
+            // Continue only if the sole remaining failure is the length limit.
+            $next_errors = (array) ($check['errors'] ?? []);
+            if (count($next_errors) !== 1 || !str_contains((string) $next_errors[0], 'la caja editorial debe tener entre 40 y 55 palabras')) {
+                continue;
+            }
+            $working = $changed;
+        }
+        return $audit;
     }
 
     private function attempt_localized_repair(string $workflow_id, string $phase, string $content, array $validation, array $workflow, IDG_OpenAI_Client $client): array {
@@ -466,7 +602,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $audit['reason'] = 'client_failure';
             return $audit;
         }
-        $patched = $this->apply_segment_patches($content, (string) ($result['content'] ?? ''), $allowed);
+        $patched = $this->apply_segment_patches($content, (string) ($result['content'] ?? ''), $allowed, $workflow);
         if (empty($patched['ok'])) {
             $audit['reason'] = (string) ($patched['reason'] ?? 'invalid_patch');
             return $audit;
@@ -475,6 +611,45 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $audit['applied'] = $audit['content'] !== $content;
         $audit['reason'] = $audit['applied'] ? 'applied' : 'no_change';
         return $audit;
+    }
+
+    /**
+     * Commit the Reel and the meta description independently. The localized
+     * patcher has already restricted edited lines to the preflight findings;
+     * this second gate validates each resulting component before sealing it.
+     */
+    private function commit_seo_component_repairs(array $document, string $patched_projection): array {
+        $applied = [];
+        $rejected = [];
+        $meta = $this->section_body($patched_projection, 'META DESCRIPTION');
+        $original_meta = (string) (($document['seo'] ?? [])['meta_description'] ?? '');
+        if ($meta !== $original_meta) {
+            $result = IDG_Editorial_Document::apply_meta_description($document, $meta);
+            if (!empty($result['ok'])) {
+                $document = $result['document'];
+                $applied[] = 'meta_description';
+            } else {
+                $rejected[] = 'meta_description:' . (string) ($result['reason'] ?? 'invalid');
+            }
+        }
+        $reel = $this->section_body($patched_projection, 'PAQUETE REEL');
+        $original_reel = (string) (($document['reel'] ?? [])['normalized'] ?? '');
+        if ($reel !== '' && $reel !== $original_reel) {
+            $result = IDG_Editorial_Document::apply_reel_package($document, $reel);
+            if (!empty($result['ok'])) {
+                $document = $result['document'];
+                $applied[] = 'reel_package';
+            } else {
+                $rejected[] = 'reel_package:' . (string) ($result['reason'] ?? 'invalid');
+            }
+        }
+        return [
+            'document' => $document,
+            'applied' => !empty($applied),
+            'components_applied' => $applied,
+            'components_rejected' => $rejected,
+            'reason' => $rejected ? 'partial_or_invalid_component_repair' : ($applied ? 'applied' : 'no_valid_component_change'),
+        ];
     }
 
     private function bounded_model_response(string $response): string {
@@ -502,6 +677,9 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $errors = implode("\n", array_map('strval', (array) ($validation['errors'] ?? [])));
         $allowed = [];
         if ($phase === 'seo') {
+            if (str_contains($errors, 'La meta description debe tener entre 106 y 150 caracteres.')) {
+                $allowed[] = 'META_DESCRIPTION';
+            }
             $inspection = IDG_Reel_Contract::inspect($this->section_body($content, 'PAQUETE REEL'));
             foreach (range(1, 5) as $scene) {
                 $count = (int) ($inspection['vo_counts'][$scene] ?? 0);
@@ -541,7 +719,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         return false;
     }
 
-    private function apply_segment_patches(string $content, string $response, array $allowed): array {
+    private function apply_segment_patches(string $content, string $response, array $allowed, array $workflow = []): array {
         $response = preg_replace('/\A```(?:json)?\s*|\s*```\z/iu', '', trim($response));
         $decoded = json_decode((string) $response, true);
         if (!is_array($decoded) || !isset($decoded['patches']) || !is_array($decoded['patches']) || empty($decoded['patches'])) {
@@ -558,13 +736,39 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             if ($segment === '' || !in_array($segment, $allowed, true) || isset($seen[$segment]) || str_contains($replacement, "\n") || trim($replacement) === '') {
                 return ['ok' => false, 'reason' => 'patch_outside_allowed_scope'];
             }
+            // Text integrity is checked before any branch can commit a patch.
+            if (preg_match('//u', $replacement) !== 1 || preg_match('/[\x00-\x1F\x7F]/', $replacement) === 1) {
+                return ['ok' => false, 'reason' => 'invalid_patch_text'];
+            }
             $seen[$segment] = true;
             if (preg_match('/\ALINE:(\d+)\z/', $segment, $m)) {
                 $index = (int) $m[1] - 1;
                 if (!array_key_exists($index, $lines)) {
                     return ['ok' => false, 'reason' => 'line_not_found'];
                 }
+                if (!self::localized_line_preserves_protected_facts((string) $lines[$index], $replacement, $workflow)
+                    || ($this->is_box_body_line($lines, $index)
+                        && !self::editorial_box_substance_unchanged((string) $lines[$index], $replacement))) {
+                    return ['ok' => false, 'reason' => 'protected_content_changed'];
+                }
                 $lines[$index] = $replacement;
+                continue;
+            }
+            if ($segment === 'META_DESCRIPTION') {
+                $positions = [];
+                foreach ($lines as $index => $line) {
+                    if (preg_match('/^\s*META DESCRIPTION\s*:?\s*$/iu', (string) $line)) $positions[] = $index;
+                }
+                if (count($positions) !== 1 || !array_key_exists($positions[0] + 1, $lines)
+                    || trim((string) $lines[$positions[0] + 1]) === '') {
+                    return ['ok' => false, 'reason' => 'meta_section_not_unique'];
+                }
+                $next = $positions[0] + 2;
+                while (isset($lines[$next]) && trim((string) $lines[$next]) === '') $next++;
+                if (!isset($lines[$next]) || !preg_match('/^\s*INFORME SEO INTERNO\s*:?\s*$/iu', (string) $lines[$next])) {
+                    return ['ok' => false, 'reason' => 'meta_section_not_single_line'];
+                }
+                $lines[$positions[0] + 1] = trim($replacement);
                 continue;
             }
             if (preg_match('/\AVO:([1-5])\z/', $segment, $m)) {
@@ -584,6 +788,66 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             return ['ok' => false, 'reason' => 'unknown_segment'];
         }
         return ['ok' => true, 'content' => implode("\n", $lines)];
+    }
+
+    /** Minimal fail-closed protection for literal factual tokens in model line repairs.
+     * It does not prove semantic correctness; the real Final Guard must still revalidate.
+     */
+    private static function localized_line_preserves_protected_facts(string $before, string $after, array $workflow = []): bool {
+        foreach ([
+            // Numeric amounts, dates, dimensions, percentages (same ordered literals).
+            '/\d+(?:[.,]\d+)*/u',
+            // Multiword proper names, including those embedded in titles.
+            '/\b\p{Lu}[\p{L}\p{M}]*(?:[ \t]+\p{Lu}[\p{L}\p{M}]*)+/u',
+            // Acronyms / abbreviated named organizations (single uppercase token).
+            '/\b\p{Lu}{2,}\b/u',
+            // Original URLs may not be replaced during a wording fix.
+            '~https?://[^\s)\]]+~u',
+            // Negations and factual qualifiers cannot appear or disappear silently.
+            '/\b(?:no|sin|nunca|antes|después|solo|únicamente)\b/iu',
+        ] as $pattern) {
+            $old = []; $new = [];
+            if (preg_match_all($pattern, $before, $old) === false || preg_match_all($pattern, $after, $new) === false) {
+                return false;
+            }
+            if (($old[0] ?? []) !== ($new[0] ?? [])) return false;
+        }
+        // The workflow names can be single words (e.g. Skyreach); generic
+        // capitalization heuristics cannot safely distinguish them from headings.
+        foreach (['entity', 'keyword'] as $field) {
+            $protected = trim((string) ($workflow[$field] ?? ''));
+            if ($protected === '') continue;
+            $name_pattern = '~(?<![\p{L}\p{N}])' . preg_quote($protected, '~') . '(?![\p{L}\p{N}])~iu';
+            $before_count = preg_match_all($name_pattern, $before);
+            $after_count = preg_match_all($name_pattern, $after);
+            if ($before_count === false || $after_count === false || $before_count !== $after_count) return false;
+        }
+        // A wording repair must not silently re-label already authorized links;
+        // link reconciliation is handled independently by the link component.
+        $anchor_pattern = '~\[[^]\r\n]+\]\(https?://[^)\r\n]+\)~u';
+        $before_links = []; $after_links = [];
+        if (preg_match_all($anchor_pattern, $before, $before_links) === false || preg_match_all($anchor_pattern, $after, $after_links) === false) return false;
+        if (($before_links[0] ?? []) !== ($after_links[0] ?? [])) return false;
+        return true;
+    }
+
+    /** Box repairs may remove function words, never silently replace a factual
+     * noun, material, unit, descriptor, person or place. Conservative by design.
+     */
+    private static function editorial_box_substance_unchanged(string $before, string $after): bool {
+        $ignored = array_fill_keys([
+            'a', 'al', 'ante', 'bajo', 'con', 'contra', 'de', 'del', 'desde', 'el',
+            'ella', 'en', 'entre', 'es', 'esta', 'está', 'este', 'estos', 'estas',
+            'fue', 'ha', 'han', 'hacia', 'la', 'las', 'le', 'les', 'lo', 'los',
+            'o', 'para', 'por', 'que', 'se', 'sobre', 'su', 'sus', 'un', 'una',
+            'unos', 'unas', 'y',
+        ], true);
+        $signature = static function (string $value) use ($ignored): ?array {
+            if (preg_match_all('/[\p{L}\p{N}]+/u', mb_strtolower($value), $m) === false) return null;
+            return array_values(array_filter((array) ($m[0] ?? []), static fn(string $token): bool => !isset($ignored[$token])));
+        };
+        $left = $signature($before); $right = $signature($after);
+        return $left !== null && $right !== null && $left === $right;
     }
 
     private function section_body(string $content, string $label): string {
@@ -612,6 +876,8 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             'attempted' => !empty($repair['attempted']),
             'applied' => !empty($repair['applied']),
             'reason' => (string) ($repair['reason'] ?? ''),
+            'components_applied' => (array) ($repair['components_applied'] ?? []),
+            'components_rejected' => (array) ($repair['components_rejected'] ?? []),
             'usage' => (array) ($repair['usage'] ?? []),
             'model' => (string) ($repair['model'] ?? ''),
         ];

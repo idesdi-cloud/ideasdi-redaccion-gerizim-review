@@ -55,8 +55,8 @@ PROMPT;
         $versions = [
             'material_card' => 'material-card-v1.1.0-RC1.5.2',
             'editorial_plan' => 'editorial-plan-v2.1.0-RC1.5.2',
-            'generate' => 'generate-v2.2.0-RC1.7.8.3',
-            'editorial' => 'editorial-v2.2.0-RC1.7.8.3',
+            'generate' => 'generate-v2.3.1-P1B2-EXP',
+            'editorial' => 'editorial-v2.3.3-P1Q1-EXP',
             'seo' => 'seo-v2.2.0-RC1.7.8.3',
             'web_research' => 'web-research-v1.2.0-RC1.5.2',
         ];
@@ -86,6 +86,8 @@ Reglas centrales:
 - Transiciones flexibles: continuidad cuando sea natural y cortes directos cuando el eje cambie con claridad. Evita muletillas como “en ese sentido”, “a la vez”, “desde ahí” o “más allá de”; elige la relación concreta o elimina el puente. El cierre prefiere una observación abierta antes que repetir la tesis.
 - No usar “Conclusión” como subtítulo final.
 - No usar “Fuente oficial:” como rótulo visible.
+- Los enlaces deben envolver una unidad sintáctica completa, relevante para el destino. Nunca cortes con un enlace un nombre de proyecto, marca, cifra, unidad ni signo de un nombre (por ejemplo, °). Evita anchors que terminan en determinantes o preposiciones y fórmulas instrumentales como «una página dedicada a»; conserva siempre la URL oficial y el tag P2 ya resueltos.
+- Las URLs documentales o medios de investigación se usan exclusivamente como evidencia interna. No incorpores en ARTÍCULO FINAL enlaces, menciones, citas ni créditos visibles a fuentes periodísticas secundarias; tampoco aludas a la investigación o a la cobertura del caso. Conserva hechos verificados y el único enlace externo al responsable autorizado. Si un dato depende de atribución imprescindible a una fuente secundaria, marca revisión editorial interna en vez de inventar otra fuente o borrar el hecho.
 - No usar metalenguaje en el artículo: “la documentación oficial describe”, “desde la categoría”, “la lectura editorial”, “ese detalle importa porque”, “quienes siguen de cerca”.
 - En article, usa únicamente la URL corporativa explícita resuelta en orden canonical_context.responsible_official_url > responsible_official_url, solo si es válida y no vacía. `official_source` y `source_information_url` son documentales, nunca fallback corporativo. Integra exactamente un enlace externo contextual al responsable en ARTÍCULO FINAL, sin duplicar la URL, sin línea suelta visible “Fuente oficial:”, sin enlazar otra entidad y sin usar la keyword principal como anchor. Si falta URL válida, solicita resolución editorial, no la inventes.
 - Para Diseño digital, formula una frase breve y útil que atribuya correctamente el acceso al responsable y enlace la URL oficial autorizada; por ejemplo: «CGstuff Interactive ofrece acceso a ActionForge desde el [sitio oficial de la herramienta](https://actionforge.app/), donde puede utilizarse directamente en el navegador». No uses la keyword como anchor ni añadas un segundo enlace externo.
@@ -389,7 +391,18 @@ Objetivo: redactar un primer artículo completo para ideasDi, con voz editorial,
 
 El PLAN EDITORIAL APLICADO es vinculante: desarrolla su tesis, usa sus ejes seleccionados y respeta los ejes descartados. La biblioteca disciplinar es contexto, no vocabulario obligatorio. Usa los conceptos activados y las expansiones del caso como guía, pero redacta con libertad y elige formulaciones más naturales si conservan la evidencia. En proyectos de diseño conecta decisión, percepción y uso cuando corresponda; no apliques esa cadena mecánicamente a Eventos o Concursos.
 
-Usa el brief como punto de partida y la ficha documental temporal como base factual. Esa ficha puede provenir de material temporal, URL leída o investigación web controlada. Si hay material extenso, prioriza la ficha y usa el extracto solo para captar tono, entidades y detalles de diseño. Si la fuente oficial está indicada, intégrala como referencia contextual sin rotular “Fuente oficial”. No inventes datos que no estén en el brief, el material temporal, la URL leída o la investigación. Si falta información concreta, escribe desde una lectura editorial prudente sin convertir inferencias en hechos.
+CRITERIO EDITORIAL P1 PARA EL ARTÍCULO BASE (autoverificación silenciosa; no enumerar en la salida):
+- Prioriza hasta cuatro hallazgos diferentes y concretos cuando la evidencia los permita; los ejes del plan no son una cuota de secciones. Cada H3 debe responder una pregunta distinta con evidencia propia. Si dos secciones solo reformulan la misma idea, fusiónalas.
+- Cada párrafo debe incorporar al menos un dato verificable, una decisión específica o una consecuencia que el párrafo anterior no haya explicado. Una paráfrasis de la tesis no cuenta como avance. Prefiere describir qué se ve, qué cambia o cómo funciona antes que repetir que «organiza», «aporta contexto», «hace legible» o «genera continuidad».
+- Distingue hechos de interpretación: una consecuencia de uso puede explicarse como lectura razonada, no como función demostrada, promesa comercial o resultado medido. En proyectos anunciados o todavía sin uso verificado, no describas como vividas la comodidad, el ritmo, las emociones, el desempeño ni las rutinas futuras; distingue lo previsto de lo observado. No atribuyas una prestación, disponibilidad ni presencia del proyecto en una web corporativa por el mero hecho de disponer de la URL general de la marca.
+- La caja editorial debe recoger únicamente datos verificables y autocontenidos. Nunca incluyas frases sobre la cobertura, las fuentes consultadas, la investigación ni una fecha relativa no corroborada. Si un detalle no es necesario o no está sustentado, omítelo en lugar de rellenar palabras.
+- Prueba mentalmente el H1 fuera del artículo: debe decir algo distintivo y comprensible sobre este proyecto; evita fórmulas genéricas como «lleva X a Y», «apuesta por» o «redefine» cuando oculten el gesto concreto. Comprueba que el título no confunda el medio de acceso con el lugar de residencia, el anuncio con una obra terminada ni el concepto con un producto disponible. No inventes resultados para hacerlo más atractivo.
+- Al encontrar varios números sobre el mismo proyecto, separa total, desglose, fase y calendario. Comprueba si los subtotales explican el total antes de llamar «contradicción» a una diferencia entre formulaciones; si no se aclara, no inventes reconciliaciones. Conserva nombres propios, magnitudes y condiciones temporales exactos.
+- Ante dos párrafos que reiteran una misma interpretación, utiliza primero un detalle documentado aún no contado —implantación, distribución, dimensiones, material, solución, programa o mecanismo—, si está disponible y es pertinente. Si no existe, reduce o fusiona; nunca rellenes con detalles ficticios. Evita convertir el artículo en una lista de características.
+- Explica de forma directa los hechos atribuidos a marcas o estudios cuando la ficha ya los respalda; no encabeces párrafos con «la nota oficial menciona» o «según la documentación» salvo que la atribución textual sea imprescindible para entender el grado de certeza.
+- En el último desarrollo aporta una implicación concreta sustentada por el caso, o termina allí. No añadas un párrafo de síntesis que vuelva a afirmar la tesis con sinónimos. Alterna el ritmo de las oraciones sin imponer una fórmula por párrafo.
+
+Usa el brief como punto de partida y la ficha documental temporal como base factual. Esa ficha puede provenir de material temporal, URL leída o investigación web controlada. Si hay material extenso, prioriza la ficha y usa el extracto solo para captar tono, entidades y detalles de diseño. Usa la fuente documental como evidencia interna, no como ancla pública ni como prueba de que el proyecto figura en la página corporativa general. No inventes datos que no estén en el brief, el material temporal, la URL leída o la investigación. Si falta información concreta, escribe desde una lectura editorial prudente sin convertir inferencias en hechos.
 
 Si el tipo de pieza es Artículo patrocinado, trabaja desde el brief del cliente y las restricciones internas. No es obligatorio tener fuente oficial. No inventes cifras, premios, certificaciones, historia de marca, beneficios ni claims. Integra el enlace obligatorio solo si existe y puede entrar de forma natural; si el anchor solicitado suena forzado, conviértelo en una frase contextual cercana sin perder el objetivo. Evita sonar promocional.
 
@@ -402,7 +415,7 @@ Incluye exactamente una caja editorial factual después de la introducción y an
 H2 y H3 deben sostener una progresión informativa, no reiterar la tesis ni convertir cada hallazgo en sección.
 Los H3 distribuyen los ejes que la evidencia sostenga, sin convertir cada hallazgo del plan en un subtítulo independiente.
 Una sección H3 sobre identidad es opcional, solo si aporta contexto y tiene evidencia verificable. En Concursos y Agenda, no fuerces un H3 para el organizador: intégralo en la introducción o en contexto, y crea una sección propia solo cuando aporte orientación real a la pieza.
-Cierre sin titular “Conclusión”; recupera la lógica principal del diseño y prefiere una observación abierta antes que un veredicto definitivo. Usa transiciones con flexibilidad: continuidad cuando sea natural y cortes directos cuando el eje cambie con claridad.
+Cierre sin titular “Conclusión”: termina con la última consecuencia concreta del desarrollo cuando baste; añade un párrafo final solo si introduce una relación o implicación nueva respaldada por el caso. No recapitules la tesis. Usa transiciones con flexibilidad: continuidad cuando sea natural y cortes directos cuando el eje cambie con claridad.
 
 
 Reglas específicas para Concursos y convocatorias:
@@ -449,11 +462,32 @@ PROMPT;
     }
 
     public static function editorial_prompt(array $data): string {
+        $signals = trim((string) ($data['editorial_review_signals'] ?? ''));
+        if ($signals === '' && class_exists('IDG_Workflow_Prompt_Data')) {
+            $signals = IDG_Workflow_Prompt_Data::editorial_review_signals((string) ($data['article'] ?? ''));
+        }
+        $objective = (array) ($data['editorial_objective_checks'] ?? []);
+        $objective_text = trim((string) ($objective['text'] ?? ''));
         $prompt = self::build_context($data) . <<<PROMPT
 
+CONTROLES OBJETIVOS P1Q1 (incidencias candidatas; verificar antes de corregir; el proceso editorial SIEMPRE se ejecuta):
+{$objective_text}
+No confundas la ausencia de incidencias con calidad editorial, ni propongas modificaciones basadas únicamente en indicios ambiguos. Enlaces y cifras deben respetar su contexto y las URLs de destino. Conserva la caja editorial literal.
+
+ALERTAS EDITORIALES DE PRELECTURA (solo indicios; no hallazgos confirmados):
+{$signals}
+Contrasta estas alertas con el artículo y la ficha. Puedes descartarlas razonadamente; no inventes defectos para justificar una corrección. Si conservas una expresión cuestionable, explica por qué tiene respaldo, o marca como pendiente aquello que no puedas verificar.
+
 TAREA: Revisión editorial.
-Entrega el ARTÍCULO REVISADO completo en Markdown limpio, seguido del diagnóstico y las notas. El sistema reconcilia determinísticamente una estructura inequívoca: conserva un único H1 y la caja editorial íntegra, además de cada enlace autorizado (anchor y URL), pero puedes renombrar o mover H3 con su sección, dividir o fusionar párrafos y eliminar repeticiones legítimas. Si la correspondencia o la integridad de enlaces no es inequívoca, conserva el original y usa como alternativa uno o más parches exactos `PATCH id`, `EXPECTED_SHA256: [hash del texto actual]`, `TEXT: [texto de reemplazo]`, `END PATCH`. No expongas IDs ni hashes dentro del artículo.
+Entrega el ARTÍCULO REVISADO completo en Markdown limpio, seguido del diagnóstico y las notas. El sistema reconcilia determinísticamente una estructura inequívoca: conserva un único H1, pero permite corregir su texto si hay un defecto editorial real; conserva la caja editorial íntegra y preserva exactamente cada URL autorizada y su número de apariciones. El H1 nuevo debe tener como máximo 68 caracteres, respetar el nombre del proyecto o keyword que ya figuraba en el título y no introducir cifras ni hechos sin evidencia en el documento. Puedes corregir el texto ancla y moverlo dentro del mismo párrafo para reparar un defecto concreto. También puedes renombrar o mover H3 con su sección, dividir o fusionar párrafos y eliminar repeticiones legítimas. Si la correspondencia o la integridad de enlaces no es inequívoca, conserva el original y usa como alternativa uno o más parches exactos `PATCH id`, `EXPECTED_SHA256: [hash del texto actual]`, `TEXT: [texto de reemplazo]`, `END PATCH`. No expongas IDs ni hashes dentro del artículo.
 Revisa el artículo base sin optimizarlo todavía para SEO técnico.
+Audita expresamente los anchors del artículo: comprueba que cada nombre propio y cifra se leen íntegros antes, dentro y después del enlace, y que el texto ancla es una expresión gramatical natural cuyo destino resulta pertinente. Corrige solo el fragmento defectuoso preservando íntegra la URL y el número de enlaces; no sustituyas el enlace por uno nuevo ni modifiques la caja editorial por esta causa. Un nombre partido por un anchor es un error, no una preferencia estilística.
+Antes de informar «sin cambios», haz una revisión comparativa de todo el artículo. Prioriza hasta tres defectos sustantivos comprobables; no hagas cambios por cumplir una cuota:
+- TÍTULO Y SUBTÍTULO: compara H1 y H2 como un par, no aisladamente. Conserva el H1 original cuando ya identifica con precisión el proyecto y su rasgo noticioso; no lo sustituyas por una alternativa más genérica, menos exacta o solo diferente. Si H1 y H2 reiteran la misma idea, corrige primero el encabezado que realmente falla (normalmente el H2 cuando el H1 es correcto). El H2 debe añadir una dimensión informativa distinta. Cambia el H1 solo si contiene un error factual, una ambigüedad real, un alcance equivocado o una formulación claramente menos útil. No atribuyas a una vivienda propiedades del transporte, a una propuesta resultados de obra construida ni al responsable acciones de otro actor.
+- PROGRESIÓN: compara apertura, secciones H3 y último párrafo. Cuando dos pasajes desarrollan la misma tesis o consecuencia sin aportar evidencia o relación nueva, condensa el segundo o sustituye la reiteración por un detalle verificable ya presente; no redistribuyas datos exclusivos ni fabriques información para variar el texto. El cierre puede terminar en una observación concreta sin volver al inicio ni añadir una moraleja.
+- PRECISIÓN: señala afirmaciones sobre ritmos, efectos psicológicos, funcionamiento, privacidad o logros que no estén demostrados por la ficha; conviértelas en descripciones de decisiones previstas y sus alcances conocidos o elimínalas. No presentes metáforas como efectos observados. Conserva cifras, nombres, estado, responsabilidades y tiempos; no inventes mejoras espaciales o funcionales.
+- ENLACES Y CAJA: conserva literalmente la caja editorial y cada URL y su número de apariciones; solo corrige anchors defectuosos y su contexto inmediato. No conviertas la revisión en una limpieza cosmética.
+Si no identificas una mejora sustantiva segura, entrega el texto intacto y explica «sin cambios». Responde en el diagnóstico a cada alerta de prelectura —corregida, descartada con motivo o pendiente—, incluso si el texto queda intacto. Si hay errores que no puedes resolver sin nuevas fuentes, consérvalos como pendientes en el diagnóstico; no simules haberlos corregido.
 Objetivo: comprobar primero si el artículo cumple la tesis y el plan editorial, y después corregir estructura, naturalidad, precisión, ritmo y fuerza desde la voz ideasDi Diseñador Traductor. Revisa decisiones de diseño verificables y traduce sus efectos perceptivos, funcionales o culturales sin inventar hechos. Puedes reemplazar H3, reorganizar bloques o reescribir fragmentos solo cuando exista un problema sustantivo comprobable.
 Usa la ficha documental temporal solo para verificar datos, conservar precisión y evitar que se pierdan hechos relevantes. No vuelvas a copiar el tono de la nota de prensa ni reescribas desde el material temporal completo.
 Si el artículo es patrocinado, cuida que conserve una voz editorial, que el enlace obligatorio no parezca inserción mecánica y que no se afirmen datos no sustentados por el brief o material temporal.
@@ -465,7 +499,7 @@ Evita:
 - frases rígidas o demasiado explicativas;
 - párrafos repetidos con el patrón “Eso/Esa/Ahí/Desde ahí + explicación + minicierre”;
 - metalenguaje público como “densidad editorial”, “interés editorial”, “alcance editorial” o “marco documental”;
-- H1 o H2 vagos, ornamentales o repetitivos: deben nombrar el caso, la decisión, el efecto o la pregunta real; usa la keyword solo cuando informe y no para forzar el título;
+- H1 y H2 redundantes: conserva un H1 bueno y mejora el H2 cuando corresponda; nunca cambies el título solo para que conste una edición;
 - vocabulario correcto en otra disciplina pero impropio para la categoría, lente o tipo de pieza;
 - verbos genéricos cuando existe una acción más concreta del objeto, espacio, prenda, interfaz o evento;
 - especificaciones sin consecuencia perceptiva o de uso;
@@ -502,7 +536,9 @@ DIAGNÓSTICO EDITORIAL INTERNO
 - Tesis y disciplina: [cumple / corregido / pendiente; problema sustantivo si existe]
 - Identidad de autor o marca: [cumple / no aplica / pendiente]
 - Decisiones → percepción → uso: [cumple / corregido / pendiente]
-- H3 y estructura: [cambios principales o “sin cambios”]
+- H1 + H2: [ambos conservados / H1 corregido / H2 corregido; defecto concreto y mejora verificable]
+- H3 y estructura: [secciones modificadas y propósito, o “sin cambios”]
+- Repeticiones e inferencias: [fragmentos realmente corregidos o riesgos pendientes; “sin cambios” si aplica]
 - Frases artificiales o corporativas eliminadas: [resumen o “sin cambios”]
 - Pertinencia disciplinar y naturalidad: [cumple / corregido / pendiente; términos reemplazados o “sin cambios”]
 
@@ -629,9 +665,9 @@ SEGMENTOS AUTORIZADOS
 {$segments}
 
 Devuelve exclusivamente JSON válido, sin Markdown ni explicación, con esta forma:
-{"patches":[{"segment":"VO:1 o LINE:12","replacement":"texto completo del segmento"}]}
+{"patches":[{"segment":"VO:1 o META_DESCRIPTION o LINE:12","replacement":"texto completo del segmento"}]}
 
-Para Reel solo puedes devolver VO:n autorizadas; no devuelvas overlays. Para artículo usa LINE:n y sustituye la línea completa. Si no puedes corregir sin tocar algo fuera de alcance, devuelve {"patches":[]}.
+Para Reel solo puedes devolver VO:n autorizadas; no devuelvas overlays. Para la meta description, usa META_DESCRIPTION solo si aparece autorizada y entrega una sola frase de 106–150 caracteres sin hechos nuevos. Para artículo usa LINE:n y sustituye la línea completa. Si no puedes corregir sin tocar algo fuera de alcance, devuelve {"patches":[]}.
 PROMPT;
         return self::append_editable($prompt, $phase === 'seo' ? 'seo' : ($phase === 'editorial' ? 'editorial' : 'generate'));
     }

@@ -142,8 +142,23 @@ final class IDG_Editorial_Document {
         return ['ok' => true, 'document' => self::seal($document), 'reason' => 'reel_only'];
     }
 
+    /** Independently re-seals only a well-formed SEO meta description. */
+    public static function apply_meta_description(array $document, string $description): array {
+        $description = trim($description);
+        $length = mb_strlen($description);
+        if ($length < 106 || $length > 150 || preg_match('/[\r\n<>]/u', $description)
+            || preg_match('/https?:\/\//iu', $description)) {
+            return ['ok' => false, 'document' => $document, 'reason' => 'invalid_meta_description'];
+        }
+        $document['seo']['meta_description'] = $description;
+        return ['ok' => true, 'document' => self::seal($document), 'reason' => 'meta_only'];
+    }
+
     /** Completes only missing, already-authorized links by wrapping existing prose. */
     public static function complete_missing_authorized_links(array $document, array $workflow): array {
+        $curation = self::curate_documentary_source_mentions($document, $workflow);
+        if (empty($curation['ok'])) return ['ok' => false, 'document' => $document, 'reason' => (string) ($curation['reason'] ?? 'documentary_reference_ambiguous')];
+        $document = $curation['document'];
         $required = [];
         $official = self::responsible_url($workflow);
         if ($official !== '') $required[] = ['url'=>$official, 'internal'=>false];
@@ -157,6 +172,15 @@ final class IDG_Editorial_Document {
         foreach ($required as $need) {
             $present = array_values(array_filter($existing, static fn(array $link): bool => $link['url'] === $need['url']));
             if ($present) {
+                // Repair an objectively malformed official anchor only by
+                // rewrapping the existing responsible name; keep every word.
+                if (empty($need['internal']) && self::ends_in_broken_connector((string) ($present[0]['anchor'] ?? ''))) {
+                    $adjusted = self::repair_existing_official_anchor($document, $workflow, $need);
+                    if ($adjusted !== null) {
+                        $document = $adjusted;
+                        $existing = self::links(self::markdown($document));
+                    }
+                }
                 // P2 may already be present with the literal tag as its anchor.
                 // Repair only that known, invalid markup by re-wrapping visible
                 // prose; all other existing links remain untouched.
@@ -176,6 +200,89 @@ final class IDG_Editorial_Document {
             $existing[] = ['anchor'=>$anchor, 'url'=>$need['url']];
         }
         return ['ok'=>true, 'document'=>self::seal($document), 'reason'=>'deterministic_authorized_links'];
+    }
+
+    /**
+     * Remove explicitly known secondary-source citations from *publishable*
+     * paragraphs only. This does not modify research evidence, attribution,
+     * official-URL resolution, P2, headings, the factual box or other content.
+     * For a non-mechanical citation or extra external URL, fail closed.
+     */
+    public static function curate_documentary_source_mentions(array $document, array $workflow): array {
+        $original = $document;
+        $official = self::responsible_url($workflow);
+        if ($official === '' || mb_strtolower(trim((string) ($workflow['piece_type'] ?? ''))) !== 'actualidad') {
+            return ['ok' => true, 'document' => $document, 'removed' => 0, 'changed_ids' => []];
+        }
+        $documentary = [];
+        foreach (['official_source', 'source_information_url'] as $key) {
+            $url = trim((string) ($workflow[$key] ?? ''));
+            if (!filter_var($url, FILTER_VALIDATE_URL)) continue;
+            $url = esc_url_raw($url);
+            if ($url !== '' && rtrim($url, '/') !== rtrim($official, '/')) $documentary[$url] = true;
+        }
+        if (!$documentary) return ['ok' => true, 'document' => $document, 'removed' => 0, 'changed_ids' => []];
+
+        $removed = 0; $changed_ids = []; $media_names = [];
+        foreach ((array) ($document['blocks'] ?? []) as $index => $block) {
+            $before = self::block_text((array) $block);
+            $text = $before;
+            foreach (self::links($text) as $link) {
+                $url = (string) ($link['url'] ?? '');
+                if (!isset($documentary[$url])) continue;
+                if (($block['type'] ?? '') !== 'paragraph') {
+                    return ['ok' => false, 'document' => $original, 'reason' => 'documentary_reference_in_protected_block'];
+                }
+                $anchor = (string) ($link['anchor'] ?? '');
+                $markup = '[' . $anchor . '](' . $url . ')';
+                if ($anchor === '' || substr_count($text, $markup) !== 1) {
+                    return ['ok' => false, 'document' => $original, 'reason' => 'ambiguous_documentary_reference'];
+                }
+                // In both recognized patterns the entire phrase is a citation
+                // mechanism with no project fact. Never remove a factual claim.
+                $escaped = preg_quote($markup, '/');
+                $patterns = [
+                    '/,\s*mientras\s+que\s+la\s+cobertura\s+de\s+referencia\s+puede\s+consultarse\s+en\s+(?:la|el)\s+' . $escaped . '(?=[.!?;]|$)/iu',
+                    '/(?:(?<=^)|(?<=[.!?] ))(?:Para\s+(?:m[aá]s|ampliar)\s+informaci[oó]n,?\s+)?(?:consulta(?:r)?|visita(?:r)?)\s+(?:(?:la|el)\s+)?' . $escaped . '\s*[.!?](?=\s|$)/iu',
+                ];
+                $candidate = $text; $count = 0;
+                foreach ($patterns as $pattern) {
+                    $proposed = preg_replace($pattern, '', $text, 1, $matches);
+                    if ($proposed !== null && $matches === 1) {
+                        $candidate = $proposed; $count = 1; break;
+                    }
+                }
+                if ($count !== 1 || trim($candidate) === '') {
+                    return ['ok' => false, 'document' => $original, 'reason' => 'documentary_reference_needs_editorial_review'];
+                }
+                if (preg_match('/^(?:nota|art[íi]culo|rese[ñn]a|cobertura)\s+de\s+(.+)$/iu', trim($anchor), $m)) {
+                    $media_names[] = trim($m[1]);
+                }
+                $text = $candidate; $removed++;
+            }
+            if ($text !== $before) {
+                $document['blocks'][$index]['text'] = $text;
+                $changed_ids[] = (string) ($block['id'] ?? '');
+            }
+        }
+        $visible = self::markdown($document);
+        foreach ($media_names as $name) {
+            if ($name !== '' && mb_stripos($visible, $name) !== false) {
+                return ['ok' => false, 'document' => $original, 'reason' => 'documentary_media_mention_remains'];
+            }
+        }
+        foreach (self::links($visible) as $link) {
+            if (isset($documentary[(string) ($link['url'] ?? '')])) {
+                return ['ok' => false, 'document' => $original, 'reason' => 'documentary_reference_remains'];
+            }
+        }
+        if ($removed > 0) {
+            $document['review']['changed_ids'] = array_values(array_unique(array_merge(
+                (array) ($document['review']['changed_ids'] ?? []), $changed_ids
+            )));
+            $document = self::seal($document);
+        }
+        return ['ok' => true, 'document' => $document, 'removed' => $removed, 'changed_ids' => array_values(array_filter($changed_ids))];
     }
 
     /** Replaces the SEO link-count claim using the exact typed Gutenberg HTML. */
@@ -270,7 +377,8 @@ final class IDG_Editorial_Document {
     private static function seo_sections(string $raw): array { $s = ['article' => '', 'meta_description' => '', 'seo_report' => '', 'social_copy' => '', 'reel_package' => '', 'feedback_notes' => '']; $map = ['ART[ÍI]CULO FINAL' => 'article', 'T[ÍI]TULO SEO' => 'title', 'META DESCRIPTION' => 'meta_description', 'INFORME SEO INTERNO' => 'seo_report', 'COPY PARA REDES' => 'social_copy', 'PAQUETE REEL' => 'reel_package', 'RETROALIMENTACI[ÓO]N GERIZIM' => 'feedback_notes']; $matches=[]; foreach ($map as $p=>$k) if (preg_match('/^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*'.$p.'\s*(?:\*\*)?\s*:?\s*$/imu',$raw,$m,PREG_OFFSET_CAPTURE)) $matches[]=['key'=>$k,'start'=>$m[0][1],'body'=>$m[0][1]+strlen($m[0][0])]; usort($matches, fn($a,$b)=>$a['start']<=>$b['start']); if ($matches && $matches[0]['start'] > 0 && $matches[0]['key'] !== 'article') $s['article'] = trim(substr($raw, 0, $matches[0]['start'])); foreach($matches as $i=>$m) $s[$m['key']]=trim(substr($raw,$m['body'],($matches[$i+1]['start']??strlen($raw))-$m['body'])); return $s; }
     /** Finds one deterministic, contextual prose span; never manufactures prose or uses the box. */
     private static function contextual_anchor(array $document, array $workflow, array $need): ?array {
-        $tokens = $need['internal'] ? self::internal_anchor_tokens($workflow, (string) $need['url']) : self::words((string) ($workflow['entity'] ?? ''));
+        if (empty($need['internal'])) return self::official_identity_anchor($document, $workflow);
+        $tokens = self::internal_anchor_tokens($workflow, (string) $need['url']);
         if (!$tokens) return null;
         $keyword = self::plain((string) ($workflow['keyword'] ?? ''));
         $matches = [];
@@ -291,6 +399,53 @@ final class IDG_Editorial_Document {
         $same = array_filter($matches, static fn(array $m): bool => strlen($m[1]) === strlen($best[1]) && $m[0] === $best[0]);
         return count($same) === 1 && substr_count(self::block_text((array) $document['blocks'][$best[0]]), $best[1]) === 1 ? $best : null;
     }
+    /** Existing prose is immutable; only the brackets enclosing the URL move. */
+    private static function ends_in_broken_connector(string $anchor): bool {
+        return (bool) preg_match('/\b(?:no|ni|y|o|de|del|para|por|con|sin|un|una|que|a|al|en)\s*$/iu', trim($anchor));
+    }
+    private static function repair_existing_official_anchor(array $document, array $workflow, array $need): ?array {
+        foreach ((array) ($document['blocks'] ?? []) as $index => $block) {
+            if (($block['type'] ?? '') !== 'paragraph') continue;
+            $text = self::block_text((array) $block);
+            $links = self::links($text);
+            if (count($links) !== 1 || (string) ($links[0]['url'] ?? '') !== (string) $need['url']) continue;
+            $unlinked = preg_replace('/\[([^\]\r\n]+)\]\(' . preg_quote((string) $need['url'], '/') . '\)/u', '$1', $text, 1, $replaced);
+            if ($replaced !== 1 || $unlinked === null) return null;
+            $candidate = $document;
+            $candidate['blocks'][$index]['text'] = $unlinked;
+            $match = self::official_identity_anchor($candidate, $workflow, $index);
+            if ($match === null || $match[0] !== $index) return null;
+            $name = (string) $match[1];
+            $candidate['blocks'][$index]['text'] = preg_replace('/' . preg_quote($name, '/') . '/u', '[' . $name . '](' . $need['url'] . ')', $unlinked, 1);
+            return $candidate;
+        }
+        return null;
+    }
+
+    /** Prefer the whole responsible name over arbitrary surrounding words. */
+    private static function official_identity_anchor(array $document, array $workflow, ?int $only_index = null): ?array {
+        $entity = trim((string) ($workflow['entity'] ?? ''));
+        $keyword = trim((string) ($workflow['keyword'] ?? ''));
+        if ($entity === '') return null;
+        $brand = $entity;
+        if ($keyword !== '' && preg_match('/^' . preg_quote($entity, '/') . '\s+([A-Z]{1,2})(?=\s|$)/u', $keyword, $brand_suffix)) {
+            $brand .= ' ' . $brand_suffix[1];
+        }
+        foreach ((array) ($document['blocks'] ?? []) as $index => $block) {
+            if ($only_index !== null && $index !== $only_index) continue;
+            if (($block['type'] ?? '') !== 'paragraph' || self::links(self::block_text((array) $block))) continue;
+            $text = self::block_text((array) $block);
+            if (!preg_match_all('/(?<![\p{L}\p{N}])' . preg_quote($brand, '/') . '(?![\p{L}\p{N}])/iu', $text, $hits, PREG_OFFSET_CAPTURE)) continue;
+            foreach ((array) ($hits[0] ?? []) as $hit) {
+                $matched = (string) $hit[0]; $offset = (int) $hit[1];
+                if ($keyword !== '' && mb_strtolower(substr($text, $offset, strlen($keyword))) === mb_strtolower($keyword)) continue;
+                if (substr_count($text, $matched) !== 1) continue;
+                return [$index, $matched];
+            }
+        }
+        return null;
+    }
+
     private static function repair_existing_internal_anchor(array $document, array $workflow, array $need): ?array {
         foreach ((array) ($document['blocks'] ?? []) as $index => $block) {
             if (($block['type'] ?? '') !== 'paragraph') continue;
@@ -339,13 +494,20 @@ final class IDG_Editorial_Document {
             if (!hash_equals(hash('sha256',$old_text), strtolower($m[2]))) return ['ok'=>false,'document'=>$document,'changed_ids'=>[],'reason'=>'old_hash_mismatch'];
             if ($phase==='seo' && in_array($old['type']??'', ['heading','editorial_box'], true)) return ['ok'=>false,'document'=>$document,'changed_ids'=>[],'reason'=>'protected_block'];
             $new=trim($m[3]); if ($new==='' || self::has_ambiguous_link_markup($old_text) || self::has_ambiguous_link_markup($new)) return ['ok'=>false,'document'=>$document,'changed_ids'=>[],'reason'=>'href_mutation'];
+            if ($phase === 'editorial' && ($old['type'] ?? '') === 'editorial_box' && $new !== $old_text) {
+                return ['ok'=>false,'document'=>$original,'changed_ids'=>[],'reason'=>'protected_editorial_box_changed'];
+            }
+            if ($phase === 'editorial' && ($old['type'] ?? '') === 'heading' && (int) ($old['level'] ?? 0) === 1
+                && !self::safe_editorial_h1($original, $old_text, $new)) {
+                return ['ok'=>false,'document'=>$original,'changed_ids'=>[],'reason'=>'unsafe_h1_revision'];
+            }
             if (($old['type']??'')==='list') $document['blocks'][$index]['items']=preg_split('/\s*\|\s*/u',$new); else $document['blocks'][$index]['text']=$new;
             if ($new !== $old_text) $changed[]=$id;
         }
         if ($phase === 'seo') {
             $old_links = self::links(self::markdown($original)); $new_links = self::links(self::markdown($document));
             if ($old_links !== $new_links && !self::only_authorized_link_additions($original, $document, $workflow, $old_links, $new_links)) return ['ok'=>false,'document'=>$original,'changed_ids'=>[],'reason'=>'href_mutation'];
-        } elseif (self::link_multiset(self::links(self::markdown($original))) !== self::link_multiset(self::links(self::markdown($document)))) return ['ok'=>false,'document'=>$original,'changed_ids'=>[],'reason'=>'href_mutation'];
+        } elseif (self::link_url_multiset(self::links(self::markdown($original))) !== self::link_url_multiset(self::links(self::markdown($document)))) return ['ok'=>false,'document'=>$original,'changed_ids'=>[],'reason'=>'href_mutation'];
         $document['review']=['state'=>$phase.'_reviewed','validation'=>[],'changed_ids'=>$changed];
         return ['ok'=>true,'document'=>self::seal($document),'changed_ids'=>$changed,'reason'=>'patches'];
     }
@@ -367,7 +529,7 @@ final class IDG_Editorial_Document {
         $candidate['blocks'] = $parsed['blocks'];
         foreach (array_merge((array) $document['blocks'], (array) $candidate['blocks']) as $block) if (self::has_ambiguous_link_markup(self::block_text((array) $block))) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'ambiguous_link_markup'];
         $old_links = self::links(self::markdown($document)); $new_links = self::links(self::markdown($candidate));
-        if ($phase === 'editorial' && self::link_multiset($old_links) !== self::link_multiset($new_links)) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'href_mutation'];
+        if ($phase === 'editorial' && self::link_url_multiset($old_links) !== self::link_url_multiset($new_links)) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'href_mutation'];
         if ($phase === 'seo' && !self::only_authorized_link_additions($document, $candidate, $workflow, $old_links, $new_links)) return ['ok'=>false, 'document'=>$document, 'changed_ids'=>[], 'reason'=>'unsafe_seo_article_replacement'];
         $changed = [];
         $old_blocks = (array) $document['blocks']; $new_blocks = (array) $candidate['blocks'];
@@ -385,7 +547,7 @@ final class IDG_Editorial_Document {
     }
     /**
      * Structural editorial reconciliation deliberately has a small trust base:
-     * exactly one preserved H1, one byte-identical editorial box, valid block
+     * exactly one safely revisable H1, one byte-identical editorial box, valid block
      * types, and link fingerprints are checked by the caller.  IDs travel with
      * an exact block or a uniquely identifiable section body; otherwise a fresh
      * ID is safer than guessing identity.
@@ -396,7 +558,13 @@ final class IDG_Editorial_Document {
         $new_h1 = array_values(array_filter($new, static fn(array $b): bool => ($b['type'] ?? '') === 'heading' && (int) ($b['level'] ?? 0) === 1));
         $old_box = array_values(array_filter($old, static fn(array $b): bool => ($b['type'] ?? '') === 'editorial_box'));
         $new_box = array_values(array_filter($new, static fn(array $b): bool => ($b['type'] ?? '') === 'editorial_box'));
-        if (count($old_h1) !== 1 || count($new_h1) !== 1 || self::block_text($old_h1[0]) !== self::block_text($new_h1[0])) return ['ok'=>false, 'reason'=>'protected_h1_changed'];
+        if (count($old_h1) !== 1 || count($new_h1) !== 1) return ['ok'=>false, 'reason'=>'invalid_h1_count'];
+        // The sole H1 remains in position; only its text may change.
+        $old_h1_index = array_key_first(array_filter($old, static fn(array $b): bool => ($b['type'] ?? '') === 'heading' && (int) ($b['level'] ?? 0) === 1));
+        $new_h1_index = array_key_first(array_filter($new, static fn(array $b): bool => ($b['type'] ?? '') === 'heading' && (int) ($b['level'] ?? 0) === 1));
+        if ($old_h1_index !== $new_h1_index || !self::safe_editorial_h1($previous, self::block_text($old_h1[0]), self::block_text($new_h1[0]))) {
+            return ['ok'=>false, 'reason'=>'unsafe_h1_revision'];
+        }
         if (count($old_box) !== 1 || count($new_box) !== 1 || self::block_text($old_box[0]) !== self::block_text($new_box[0])) return ['ok'=>false, 'reason'=>'protected_editorial_box_changed'];
         foreach ($new as $block) if (!in_array((string) ($block['type'] ?? ''), ['heading', 'paragraph', 'editorial_box', 'list'], true)) return ['ok'=>false, 'reason'=>'ambiguous_article_structure'];
 
@@ -406,6 +574,12 @@ final class IDG_Editorial_Document {
         foreach ($new as $index => $block) {
             $fingerprint = self::block_fingerprint($block);
             foreach ((array) ($available[$fingerprint] ?? []) as $old_index) if (!isset($used[$old_index])) { $new[$index]['id'] = (string) $old[$old_index]['id']; $used[$old_index] = true; $preserved[$index] = true; break; }
+        }
+        // The title keeps its canonical block ID even when the wording improves.
+        if (self::block_text($old_h1[0]) !== self::block_text($new_h1[0])) {
+            $new[$new_h1_index]['id'] = (string) ($old_h1[0]['id'] ?? '');
+            $used[$old_h1_index] = true;
+            $preserved[$new_h1_index] = true;
         }
         // A renamed/moved H3 keeps its ID only if the first following body block
         // matches one section uniquely. This is evidence of correspondence, not
@@ -430,6 +604,22 @@ final class IDG_Editorial_Document {
         unset($block);
         $parsed['blocks'] = $new;
         return ['ok'=>true, 'document'=>$parsed];
+    }
+    /** Allow an editorial title change only when it cannot introduce new numerical claims,
+     * alter an established project keyword, or create malformed heading markup.
+     * Semantics remain the editor's task; this guard is deliberately objective. */
+    private static function safe_editorial_h1(array $document, string $old_title, string $new_title): bool {
+        $new_title = trim($new_title);
+        if ($new_title === '' || mb_strlen($new_title) > 68 || preg_match('/[\[\]<>*_`]|https?:\/\/|\R/u', $new_title)) return false;
+        $keyword = trim((string) ($document['seo']['keyword'] ?? ''));
+        if ($keyword !== '' && mb_stripos($old_title, $keyword) !== false && mb_stripos($new_title, $keyword) === false) return false;
+        preg_match_all('/[0-9]+(?:[.,][0-9]+)?/u', $new_title, $numbers);
+        // Numeric evidence must exist in visible prose, not merely in an URL slug.
+        $corpus = (string) preg_replace('/\]\(https?:\/\/[^\s)]+\)/u', ']', self::markdown($document));
+        foreach (array_unique((array) ($numbers[0] ?? [])) as $number) {
+            if (!str_contains($corpus, (string) $number)) return false;
+        }
+        return true;
     }
     private static function block_fingerprint(array $block): string { return (string) ($block['type'] ?? '') . '|' . (int) ($block['level'] ?? 0) . '|' . self::block_text($block); }
     private static function following_body_fingerprint(array $blocks, int $heading_index): string { for ($i = $heading_index + 1; $i < count($blocks); $i++) { $block = (array) $blocks[$i]; if (($block['type'] ?? '') === 'heading') break; if (in_array(($block['type'] ?? ''), ['paragraph', 'list'], true)) return self::block_fingerprint($block); } return ''; }
@@ -463,6 +653,16 @@ final class IDG_Editorial_Document {
     }
     /** Link contracts compare exact anchor/URL occurrences, independent of block order. */
     private static function links(string $text): array { preg_match_all('/\[([^\]\r\n]+)\]\((https?:\/\/[^\s)]+)\)/u',$text,$m,PREG_SET_ORDER); return array_map(static fn(array $link): array => ['anchor'=>$link[1], 'url'=>$link[2]], $m); }
+    /** Authorized link targets and counts are immutable during editorial anchor repair. */
+    private static function link_url_multiset(array $links): array {
+        $counts = [];
+        foreach ($links as $link) {
+            $url = (string) ($link['url'] ?? '');
+            $counts[$url] = ($counts[$url] ?? 0) + 1;
+        }
+        ksort($counts);
+        return $counts;
+    }
     private static function link_multiset(array $links): array { $counts = []; foreach ($links as $link) { $key = (string) ($link['anchor'] ?? '') . "\n" . (string) ($link['url'] ?? ''); $counts[$key] = ($counts[$key] ?? 0) + 1; } ksort($counts); return $counts; }
     /** Patches do not accept alternate or malformed link notation that cannot be fingerprinted exactly. */
     private static function has_ambiguous_link_markup(string $text): bool { if (preg_match('/\\\\\[/u', $text)) return true; $remainder=(string) preg_replace('/\[[^\]\r\n]+\]\(https?:\/\/[^\s)]+\)/u','',$text); return (bool) preg_match('/\[[^\]\r\n]*\]\s*\(|\[[^\]\r\n]*\]\s*\[[^\]\r\n]*\]|<https?:\/\/[^>\s]+>/u', $remainder); }
