@@ -71,6 +71,14 @@ final class IDG_Workflow_Planning_Pipeline implements IDG_Workflow_Planning_Pipe
             }
         }
 
+        // Model notes can incorrectly describe the editor's already-supplied
+        // corporate URL as missing. Preserve raw research verbatim, but add a
+        // factual nonblocking warning derived from the original brief.
+        $official = trim((string) ($workflow['responsible_official_url'] ?? ''));
+        if ($official !== '' && filter_var($official, FILTER_VALIDATE_URL) !== false
+            && preg_match('/(?:falta|no se (?:resolvi[oó]|proporcion[oó])|no qued[oó] resuelta|pendiente de resolver).{0,90}URL corporativa|URL corporativa.{0,70}(?:no resuelta|pendiente)/iu', $card)) {
+            $workflow['temp_material_warnings'][] = 'Contraste de identidad: la ficha generada declaró ausente la URL corporativa, pero el brief ya contiene una URL responsable. Prevalece el valor explícito del brief para el enlace externo; la fuente documental no lo sustituye.';
+        }
         $workflow['document_card'] = $card;
         $workflow['document_card_hash'] = $hash;
         $workflow['document_card_created_at'] = current_time('mysql');

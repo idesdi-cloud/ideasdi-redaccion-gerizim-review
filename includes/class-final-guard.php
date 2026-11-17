@@ -137,6 +137,7 @@ final class IDG_Final_Guard {
             'expected_anchors' => [],
         ];
         $errors = array_merge($errors, (array) ($internal_audit['errors'] ?? []));
+        $warnings = array_merge($warnings, (array) ($internal_audit['warnings'] ?? []));
         // Auditar todos los externos, reutilizando los anchors del HTML real.
         // El enlace patrocinado explícito conserva su contrato separado.
         if (!self::is_event_workflow($workflow) && class_exists('IDG_Internal_Links')) {

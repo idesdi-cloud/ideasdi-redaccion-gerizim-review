@@ -211,7 +211,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 $workflow['editorial_output_raw'] = $raw;
                 $workflow['editorial_result'] = $source; // Safe legacy projection; never an approval of the raw response.
                 $workflow['editorial_diagnosis'] = '- ' . $warning;
-                $workflow['editorial_notes'] = (string) ($parsed_editorial['notes'] ?? '');
+                $workflow['editorial_notes'] = $this->verified_editorial_link_notes((string) ($parsed_editorial['notes'] ?? ''), $source, $workflow);
                 $workflow['editorial_validation'] = ['ok' => false, 'errors' => [$warning], 'warnings' => [$warning], 'summary' => '- ' . $warning];
                 $workflow['editorial_changed'] = false;
                 $workflow['editorial_changed_block_ids'] = [];
@@ -260,7 +260,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             if (!empty($source_curation['removed'])) {
                 $workflow['editorial_diagnosis'] .= "\n" . '- Curación documental: retirada localizada de ' . (int) $source_curation['removed'] . ' referencia(s) a fuentes de investigación; enlaces oficiales y P2 conservados.';
             }
-            $workflow['editorial_notes'] = (string) ($parsed_editorial['notes'] ?? '');
+            $workflow['editorial_notes'] = $this->verified_editorial_link_notes((string) ($parsed_editorial['notes'] ?? ''), $candidate, $workflow);
             $workflow['editorial_changed'] = $changed;
             $workflow['editorial_changed_block_ids'] = $changed_ids;
             $workflow['editorial_validation'] = $validation;
@@ -318,6 +318,33 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $workflow = IDG_Job_Runner::append_history_snapshot($workflow, 'editorial_completed', 'Revisión editorial validada; comparación registrada como ' . ($changed ? 'changed.' : 'unchanged.'));
         IDG_Job_Runner::save_workflow($workflow_id, $workflow);
         IDG_Logger::log('editorial_completed', 'Revisión editorial validada.', ['workflow_id' => $workflow_id, 'changed' => $changed]);
+    }
+
+    /** Model prose about links is declarative, never evidence. Derive the V2
+     * link counts from the actual article Markdown, including a zero result.
+     */
+    private function verified_editorial_link_notes(string $notes, string $article, array $workflow): string {
+        $lines = preg_split('/\r?\n/u', trim($notes)) ?: [];
+        $kept = [];
+        foreach ($lines as $line) {
+            // Remove model claims of link preservation/insertion; the audited
+            // summary below replaces them without inventing model changes.
+            if (preg_match('/\b(?:enlace|enlaces|anchor|anchors|href)\b/iu', (string) $line)) continue;
+            $kept[] = $line;
+        }
+        $official = (string) (($workflow['canonical_context']['responsible_official_url'] ?? '') ?: ($workflow['responsible_official_url'] ?? ''));
+        $internal = class_exists('IDG_Internal_Links') ? IDG_Internal_Links::normalize($workflow) : [];
+        $target = (string) ($internal[0]['url'] ?? '');
+        $count_official = 0; $count_internal = 0;
+        if (preg_match_all('/\[([^\]\r\n]+)\]\((https?:\/\/[^\s)]+)\)/u', $article, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $url = (string) $match[2];
+                if ($official !== '' && IDG_Internal_Links::equivalent_url($url, $official)) $count_official++;
+                if ($target !== '' && IDG_Internal_Links::equivalent_url($url, $target)) $count_internal++;
+            }
+        }
+        $kept[] = '- Enlaces comprobados en V2: ' . $count_internal . ' internos P2 y ' . $count_official . ' externos al responsable. La comprobación no atribuye cambios al modelo.';
+        return trim(implode("\n", array_filter($kept, static fn($line): bool => trim((string) $line) !== '')));
     }
 
     private function run_seo(string $workflow_id, array $workflow, IDG_OpenAI_Client $client): void {

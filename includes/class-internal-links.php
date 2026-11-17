@@ -97,7 +97,17 @@ final class IDG_Internal_Links {
         $unexpected = array_values(array_filter($internal, static fn(array $anchor): bool => empty($anchor['expected'])));
         $policy_required = !self::has_verified_p2_exception($workflow);
         $resolution_status = $expected_key !== '' ? 'resolved' : 'unresolved';
+        // An explicitly selected No Index tag is context, not a P2 destination.
+        // An absent eligible tag is not a defect in the article. This does NOT
+        // permit an invented link, a category fallback, or a bad/unknown URL.
+        $library = $resolution_status === 'unresolved' ? self::library($workflow) : [];
+        $no_eligible_tag = $resolution_status === 'unresolved'
+            && (string) ($library['resolution_reason'] ?? '') === 'no hay post_tag seleccionado elegible en la categoría';
         $errors = [];
+        $warnings = [];
+        if ($no_eligible_tag) {
+            $warnings[] = 'P2 sin tag indexable elegible: no se exige enlace interno y no se permite inventar un destino.';
+        }
 
         // La excepción solo elimina la cuota de exactamente un enlace editorial.
         // Nunca autoriza URL internas adicionales: incluso con unresolved,
@@ -105,7 +115,9 @@ final class IDG_Internal_Links {
         // ni de campos de workflow que cualquiera puede rellenar.
         if ($policy_required) {
             if ($resolution_status === 'unresolved') {
-                $errors[] = 'P2 bloqueado: no existe un tag canónico real resuelto por IDG_Internal_Links::normalize().';
+                if (!$no_eligible_tag) {
+                    $errors[] = 'P2 bloqueado: no existe un tag canónico real resuelto por IDG_Internal_Links::normalize().';
+                }
             } else {
                 if (count($expected) !== 1) {
                     $errors[] = 'P2 exige exactamente un enlace al tag canónico resuelto; detectados: ' . count($expected) . '.';
@@ -123,6 +135,8 @@ final class IDG_Internal_Links {
             'policy_required' => $policy_required,
             'exception' => $policy_required ? '' : self::verified_p2_exception($workflow),
             'resolution_status' => $resolution_status,
+            'no_eligible_tag' => $no_eligible_tag,
+            'warnings' => $warnings,
             'expected_url' => $expected_url,
             'anchors' => $anchors,
             'internal_anchors' => $internal,
@@ -258,7 +272,7 @@ final class IDG_Internal_Links {
             $lines[] = '- Diagnóstico técnico: ' . self::display((string) $library['resolution_reason']);
         }
         $lines[] = '- Regla: lente canónica primaria, después secundarias en orden y, si ninguna resuelve, primer post_tag explícitamente seleccionado y elegible; solo tags reales, indexables, de la categoría WordPress validada y con URL HTTP(S) real.';
-        $lines[] = '- Sin lente canónica ni post_tag seleccionado elegible con URL real: unresolved y revisión editorial; la categoría es contexto y nunca fallback P2.';
+        $lines[] = '- Sin tag indexable elegible: unresolved y aviso informativo, sin cuota de enlace P2; nunca fabricar un destino ni usar la categoría como fallback.';
         return implode("\n", $lines);
     }
 

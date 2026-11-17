@@ -546,23 +546,59 @@ final class IDG_Editorial_Document {
         $entity = trim((string) ($workflow['entity'] ?? ''));
         $keyword = trim((string) ($workflow['keyword'] ?? ''));
         if ($entity === '') return null;
-        $brand = $entity;
-        if ($keyword !== '' && preg_match('/^' . preg_quote($entity, '/') . '\s+([A-Z]{1,2})(?=\s|$)/u', $keyword, $brand_suffix)) {
-            $brand .= ' ' . $brand_suffix[1];
+        $names = [$entity];
+        // Corporate/legal suffixes are not always repeated in publishable prose.
+        // The abbreviated brand is accepted ONLY if it exactly matches the
+        // registered brand label in the explicitly authorized corporate host.
+        // This cannot derive or invent a URL from a research source.
+        $official = self::responsible_url($workflow);
+        if ($official !== '') {
+            $short = trim((string) preg_replace('/(?:,?\s+)(?:Electronics|Inc\.?|Incorporated|Corporation|Corp\.?|Ltd\.?|Limited|GmbH)\.?$/iu', '', $entity));
+            $host = strtolower((string) parse_url($official, PHP_URL_HOST));
+            $host = preg_replace('/^www\./i', '', $host);
+            $labels = explode('.', (string) $host);
+            $brand_index = count($labels) - 2;
+            if ($brand_index >= 1 && in_array($labels[$brand_index], ['co', 'com', 'org', 'net'], true)) {
+                $brand_index--;
+            }
+            $host_label = $labels[max(0, $brand_index)] ?? '';
+            $short_key = preg_replace('/[^a-z0-9]/', '', strtolower(remove_accents($short)));
+            $host_key = preg_replace('/[^a-z0-9]/', '', strtolower(remove_accents($host_label)));
+            if ($short !== $entity && strlen((string) $short_key) >= 3
+                && $host_key !== '' && hash_equals((string) $host_key, (string) $short_key)) {
+                $names[] = $short;
+            }
         }
-        foreach ((array) ($document['blocks'] ?? []) as $index => $block) {
-            if ($only_index !== null && $index !== $only_index) continue;
-            if (($block['type'] ?? '') !== 'paragraph' || self::links(self::block_text((array) $block))) continue;
-            $text = self::block_text((array) $block);
-            if (!preg_match_all('/(?<![\p{L}\p{N}])' . preg_quote($brand, '/') . '(?![\p{L}\p{N}])/iu', $text, $hits, PREG_OFFSET_CAPTURE)) continue;
-            foreach ((array) ($hits[0] ?? []) as $hit) {
-                $matched = (string) $hit[0]; $offset = (int) $hit[1];
-                if ($keyword !== '' && mb_strtolower(substr($text, $offset, strlen($keyword))) === mb_strtolower($keyword)) continue;
-                if (substr_count($text, $matched) !== 1) continue;
-                return [$index, $matched];
+        // Prefer the complete responsible name wherever it occurs in real
+        // prose, then a safely verified short brand. Never link the editorial
+        // box or split the project's complete keyword phrase.
+        foreach ($names as $brand) {
+            foreach ((array) ($document['blocks'] ?? []) as $index => $block) {
+                if ($only_index !== null && $index !== $only_index) continue;
+                if (($block['type'] ?? '') !== 'paragraph' || self::links(self::block_text((array) $block))) continue;
+                $text = self::block_text((array) $block);
+                if (!preg_match_all('/(?<![\p{L}\p{N}])' . preg_quote($brand, '/') . '(?![\p{L}\p{N}])/iu', $text, $hits, PREG_OFFSET_CAPTURE)) continue;
+                foreach ((array) ($hits[0] ?? []) as $hit) {
+                    $matched = (string) $hit[0]; $offset = (int) $hit[1];
+                    if (self::within_protected_keyword($text, $keyword, $offset, strlen($matched))) continue;
+                    if (count((array) ($hits[0] ?? [])) !== 1) continue;
+                    return [$index, $matched];
+                }
             }
         }
         return null;
+    }
+
+    private static function within_protected_keyword(string $text, string $keyword, int $offset, int $length): bool {
+        if ($keyword === '') return false;
+        $pattern = '/(?<![\p{L}\p{N}])' . preg_quote($keyword, '/') . '(?![\p{L}\p{N}])/iu';
+        if (!preg_match_all($pattern, $text, $matches, PREG_OFFSET_CAPTURE)) return false;
+        foreach ((array) ($matches[0] ?? []) as $match) {
+            $start = (int) $match[1];
+            $end = $start + strlen((string) $match[0]);
+            if ($offset >= $start && ($offset + $length) <= $end) return true;
+        }
+        return false;
     }
 
     private static function repair_existing_internal_anchor(array $document, array $workflow, array $need): ?array {
