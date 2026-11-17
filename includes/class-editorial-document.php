@@ -295,6 +295,43 @@ final class IDG_Editorial_Document {
         return self::seal($document);
     }
 
+    /**
+     * Replace model claims about P2 with counts from actual Gutenberg HTML.
+     * This never changes article prose or claims that Final Guard approved SEO.
+     */
+    public static function reconcile_seo_feedback_links(array $document, array $workflow): array {
+        if (!class_exists('IDG_Internal_Links')) return $document;
+        $audit = IDG_Internal_Links::audit_html((string) (self::gutenberg($document)['html'] ?? ''), $workflow);
+        $canonical_count = (int) ($audit['expected_count'] ?? 0);
+        $official = self::responsible_url($workflow);
+        $official_count = 0;
+        foreach ((array) ($audit['anchors'] ?? []) as $link) {
+            if ($official !== '' && empty($link['internal'])
+                && IDG_Internal_Links::equivalent_url((string) ($link['url'] ?? ''), $official)) $official_count++;
+        }
+        $lines = preg_split('/\\R/u', trim((string) ($document['feedback_notes'] ?? ''))) ?: [];
+        $retained = [];
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+            if ($line === '' || preg_match('/verificaci[oó]n t[eé]cnica de enlaces/iu', $line)) continue;
+            // Model-provided "resolved/inserted" assertions cannot overrule
+            // the physical anchor count. Preserve actual editorial feedback.
+            $about_internal = preg_match('/\\benlace(?:s)?\\b.*?\\bintern[oa]s?\\b/iu', $line) === 1;
+            if ($about_internal && preg_match('/resuelt|asumid|integrad|aplicad|conservad|completad|verificad|validado/iu', $line)) continue;
+            if ($about_internal && $canonical_count === 1
+                && preg_match('/pendiente|ausente|faltante|no se (?:añadi[oó]|agreg[oó]|integr[oó])/iu', $line)) continue;
+            $retained[] = $line;
+        }
+        $retained[] = '- Verificación técnica de enlaces: ' . $canonical_count . ' interno' . ($canonical_count === 1 ? '' : 's')
+            . ' canónico' . ($canonical_count === 1 ? '' : 's') . ' detectado' . ($canonical_count === 1 ? '' : 's') . '; '
+            . $official_count . ' externo' . ($official_count === 1 ? '' : 's') . ' corporativo' . ($official_count === 1 ? '' : 's')
+            . ' detectado' . ($official_count === 1 ? '' : 's') . '. La aprobación depende del preflight.';
+        $updated = trim(implode("\n", $retained));
+        if ($updated === (string) ($document['feedback_notes'] ?? '')) return $document;
+        $document['feedback_notes'] = $updated;
+        return self::seal($document);
+    }
+
     /** Keeps the sealed document's validation claim derived from final preflight. */
     public static function normalize_seo_report_validation(array $document, bool $approved, bool $reel_valid): array {
         $report = trim((string) (($document['seo'] ?? [])['report'] ?? ''));
@@ -393,12 +430,43 @@ final class IDG_Editorial_Document {
         }
         // A fixed five-word window avoids manufacturing several equally-long
         // generated alternatives around the same unequivocal mention.
-        if (!$matches) return null;
+        if (!$matches) return self::contextual_dron_singular_anchor($document, $workflow, $need);
         usort($matches, static fn(array $a, array $b): int => strlen($b[1]) <=> strlen($a[1]) ?: $a[0] <=> $b[0] ?: strcmp($a[1], $b[1]));
         $best = $matches[0];
         $same = array_filter($matches, static fn(array $m): bool => strlen($m[1]) === strlen($best[1]) && $m[0] === $best[0]);
         return count($same) === 1 && substr_count(self::block_text((array) $document['blocks'][$best[0]]), $best[1]) === 1 ? $best : null;
     }
+    /**
+     * P2: the verified Drones tag may occur as singular "dron" in Spanish prose.
+     * Match only an already-written, complete nominal span, never the protected
+     * box, a linked paragraph or a generic "aircraft" synonym. More than one
+     * candidate is ambiguous, so no automatic link is inserted.
+     */
+    private static function contextual_dron_singular_anchor(array $document, array $workflow, array $need): ?array {
+        $url = (string) ($need['url'] ?? '');
+        $canonical = [];
+        foreach ((array) IDG_Internal_Links::normalize($workflow) as $link) {
+            if ((string) ($link['url'] ?? '') === $url) { $canonical = $link; break; }
+        }
+        if ((string) ($canonical['source_type'] ?? '') !== 'tag'
+            || self::plain((string) ($canonical['source_name'] ?? '')) !== 'drones') return null;
+        $matches = [];
+        foreach ((array) ($document['blocks'] ?? []) as $index => $block) {
+            if (($block['type'] ?? '') !== 'paragraph') continue;
+            $text = self::block_text((array) $block);
+            if (self::links($text) || str_contains($text, '](')) continue;
+            // e.g. "el uso del dron", "la configuración del dron": existing prose only.
+            $pattern = '/(?<![\\p{L}\\p{N}])((?:el|la|los|las|un|una)\\s+[\\p{L}\\p{N}]+(?:\\s+[\\p{L}\\p{N}]+)?\\s+(?:del|de\\s+la|de\\s+los|de\\s+las)\\s+dron)(?![\\p{L}\\p{N}])/iu';
+            if (!preg_match_all($pattern, $text, $found)) continue;
+            foreach ((array) ($found[1] ?? []) as $span) {
+                if (!self::valid_internal_anchor((string) $span, $workflow, $url)
+                    || substr_count($text, (string) $span) !== 1) continue;
+                $matches[] = [$index, (string) $span];
+            }
+        }
+        return count($matches) === 1 ? $matches[0] : null;
+    }
+
     /** Existing prose is immutable; only the brackets enclosing the URL move. */
     private static function ends_in_broken_connector(string $anchor): bool {
         return (bool) preg_match('/\b(?:no|ni|y|o|de|del|para|por|con|sin|un|una|que|a|al|en)\s*$/iu', trim($anchor));

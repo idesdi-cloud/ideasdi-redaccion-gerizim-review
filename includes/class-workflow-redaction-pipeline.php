@@ -386,6 +386,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
             }
             $workflow['editorial_document'] = IDG_Editorial_Document::reconcile_seo_report_links($workflow['editorial_document'], $workflow);
+            $workflow['editorial_document'] = IDG_Editorial_Document::reconcile_seo_feedback_links($workflow['editorial_document'], $workflow);
             $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
         }
         $candidate = $document_mode ? $workflow['seo_result'] : IDG_Workflow_Output_Parser::normalize_editorial_box_markdown(
