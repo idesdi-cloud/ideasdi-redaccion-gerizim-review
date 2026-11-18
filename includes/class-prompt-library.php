@@ -680,11 +680,15 @@ PROMPT;
         foreach ((array)IDG_Internal_Links::normalize($workflow) as $entry) {
             if ((string)($entry['url']??'')===$url) { $tag=(string)($entry['source_name']??'');break; }
         }
+        $has_link = !empty($target['anchor']);
+        $situation = $has_link
+            ? 'El enlace ya existe, pero su texto ancla es inválido: '.(string)$target['anchor'].'. Corrígelo en ese mismo párrafo.'
+            : 'El enlace aún NO existe. Incorpóralo naturalmente en este párrafo sin inventar hechos.';
         return "ACTÚAS COMO EDITOR DE ENLACES DE ideasDi, no como generador de contenido.\n"
             . "Revisa SOLO este párrafo. Su destino interno ya ha sido autorizado: {$url} ({$tag}).\n"
-            . "El enlace existe, pero su texto ancla es inválido: ".(string)($target['anchor']??'').".\n"
+            . $situation."\n"
             . "Puedes reorganizar palabras de la frase para obtener un anchor natural de 3 a 8 palabras, distinto del nombre literal del tag. "
-            . "Mantén exactamente una aparición de la misma URL, sin insertar otra, ni moverla a otro párrafo. "
+            . "El resultado debe contener exactamente una aparición de esa URL, sin enlaces adicionales ni moverla a otro párrafo. "
             . "Mantén tesis, nombres, números, negaciones, grados de certeza y datos; no agregues promesas ni nuevos hechos. "
             . "No cambies la caja editorial, otros párrafos, titulares, URL o etiquetas.\n"
             . "Párrafo original: ".(string)($target['text']??'')."\n"

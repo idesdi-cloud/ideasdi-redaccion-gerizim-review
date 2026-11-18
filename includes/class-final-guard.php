@@ -179,19 +179,25 @@ final class IDG_Final_Guard {
 
                 $expected_anchors = (array) ($internal_audit['expected_anchors'] ?? []);
                 $anchor = trim((string) ($expected_anchors[0]['anchor'] ?? ''));
+                // Missing P2 is already reported by the internal-link audit.
+                // Do not report a nonsensical word-count error for an anchor
+                // that does not exist. The exact same contract as the editor
+                // governs the real anchor when one is present.
+                if ($anchor === '') continue;
                 $word_count = self::anchor_word_count($anchor);
 
+                $source_name = trim((string) ($link['source_name'] ?? ''));
+                // One actionable diagnostic per real defective anchor; share
+                // the canonical contract with the editor instead of stacking
+                // contradictory errors for the same defect.
                 if ($word_count < 3 || $word_count > 8) {
                     $errors[] = 'El anchor del enlace interno debe tener entre 3 y 8 palabras.';
-                }
-
-                if ($keyword !== '' && self::same_plain($anchor, $keyword)) {
+                } elseif ($keyword !== '' && self::same_plain($anchor, $keyword)) {
                     $errors[] = 'El enlace interno no puede usar la keyword principal exacta como anchor.';
-                }
-
-                $source_name = trim((string) ($link['source_name'] ?? ''));
-                if ($source_name !== '' && self::same_plain($anchor, $source_name)) {
+                } elseif ($source_name !== '' && self::same_plain($anchor, $source_name)) {
                     $errors[] = 'El enlace interno no puede usar el nombre literal del tag como anchor.';
+                } elseif (!IDG_Editorial_Document::valid_internal_anchor($anchor, $workflow, $url)) {
+                    $errors[] = 'El anchor del enlace interno no cumple el contrato contextual del tag canónico.';
                 }
             }
         }

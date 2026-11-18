@@ -181,7 +181,9 @@ final class IDG_Editorial_Document {
         return ['applied'=>false,'document'=>$document,'reason'=>'requires_localized_repair'];
     }
 
-    /** Completes only missing, already-authorized links by wrapping existing prose. */
+    /** One reconciler for authorized links: present/valid, present/defective,
+     * or missing. The same internal-anchor contract governs selection,
+     * localized editing and final validation. */
     public static function complete_missing_authorized_links(array $document, array $workflow): array {
         $curation = self::curate_documentary_source_mentions($document, $workflow);
         if (empty($curation['ok'])) return ['ok' => false, 'document' => $document, 'reason' => (string) ($curation['reason'] ?? 'documentary_reference_ambiguous')];
@@ -510,6 +512,13 @@ final class IDG_Editorial_Document {
                 $matches[] = [$index, $phrase];
             }
         }
+        // The selector MUST use the same anchor contract as the verifier. A
+        // grammatically complete noun phrase ("un programa aeronáutico") is
+        // valid even without a literal article/tag-name match or rigid
+        // preposition. Never invent a phrase or cross a punctuation boundary.
+        $matches = array_values(array_filter($matches, static fn(array $m): bool =>
+            self::valid_internal_anchor((string) $m[1], $workflow, (string) $need['url'])));
+        // Do not manufacture alternatives around the same occurrence.
         // A fixed five-word window avoids manufacturing several equally-long
         // generated alternatives around the same unequivocal mention.
         if (!$matches) return self::contextual_dron_singular_anchor($document, $workflow, $need)
@@ -522,8 +531,10 @@ final class IDG_Editorial_Document {
         usort($matches, static fn(array $a, array $b): int => $quality($a) <=> $quality($b)
             ?: $a[0] <=> $b[0] ?: strlen($a[1]) <=> strlen($b[1]) ?: strcmp($a[1], $b[1]));
         $best = $matches[0];
-        $same = array_filter($matches, static fn(array $m): bool => $quality($m) === $quality($best) && $m[0] === $best[0]);
-        return count($same) === 1 && substr_count(self::block_text((array) $document['blocks'][$best[0]]), $best[1]) === 1 ? $best : null;
+        // Multiple *valid* phrases in the same paragraph are not a failure:
+        // choose deterministically after ranking, but only if the chosen
+        // substring occurs exactly once. The guard rechecks the real HTML.
+        return substr_count(self::block_text((array) $document['blocks'][$best[0]]), $best[1]) === 1 ? $best : null;
     }
     /**
      * P2: the verified Drones tag may occur as singular "dron" in Spanish prose.
@@ -656,6 +667,17 @@ final class IDG_Editorial_Document {
         return $best;
     }
 
+    /** A unified P2 editing target: existing bad link keeps its own paragraph;
+     * a missing link uses a single eligible, unlinked paragraph. */
+    public static function contextual_link_editor_target(array $document, array $workflow, array $need): ?array {
+        if (empty($need['internal'])) return null;
+        if ((string)($need['reason'] ?? '') === 'invalid_internal_anchor') {
+            return self::contextual_anchor_revision_target($document, $need);
+        }
+        if ((string)($need['reason'] ?? '') !== 'missing_contextual_anchor') return null;
+        return self::anchor_insertion_target($document, $workflow, $need);
+    }
+
     /** Only a real, already-linked P2 paragraph is eligible for a localized
      * editorial rewrite. This never selects a different paragraph to fix it.
      */
@@ -670,9 +692,9 @@ final class IDG_Editorial_Document {
         return null;
     }
 
-    /** Apply the language editor's one-paragraph proposal only after the
-     * safety reviewer verifies the authorized URL, link count, protected
-     * facts, topical continuity and exact unchanged surrounding blocks.
+    /** Accept the editor's one-paragraph proposal for either MISSING or
+     * INVALID existing P2. Verify the authorized destination, counts, core
+     * facts and exact unchanged surrounding blocks; never add a second P2.
      */
     public static function apply_contextual_anchor_revision(array $document, array $workflow, array $need, array $target, string $raw): array {
         $deny=static fn(string $reason):array=>['ok'=>false,'document'=>$document,'reason'=>$reason];
@@ -694,7 +716,12 @@ final class IDG_Editorial_Document {
         if ($after==='' || strlen($after)>2500 || preg_match('/[<>\\r\\n]/u',$after)) return $deny('paragraph_out_of_scope');
         $old=(string)$target['text'];
         $before_links=self::links($old);$after_links=self::links($after);
-        if (count($before_links)!==1 || count($after_links)!==1 || (string)$after_links[0]['url']!==$url) return $deny('link_destination_or_count_changed');
+        // A missing P2 starts with zero links; an existing bad P2 starts
+        // with exactly its one authorized URL. Both end with the same single
+        // canonical destination. Never append a second link to another block.
+        if (count($before_links)>1 || (count($before_links)===1 && (string)$before_links[0]['url']!==$url)
+            || count($after_links)!==1 || (string)$after_links[0]['url']!==$url)
+            return $deny('link_destination_or_count_changed');
         if (!self::valid_internal_anchor((string)$after_links[0]['anchor'],$workflow,$url)) return $deny('new_anchor_invalid');
         $plain_old=preg_replace('/\\[([^\\]\\r\\n]+)\\]\\(https?:\\/\\/[^\\s)]+\\)/u','$1',$old);
         $plain_new=preg_replace('/\\[([^\\]\\r\\n]+)\\]\\(https?:\\/\\/[^\\s)]+\\)/u','$1',$after);
@@ -718,6 +745,20 @@ final class IDG_Editorial_Document {
         if ($old_words && $overlap / count($old_words)<0.70) return $deny('factual_paragraph_rewritten');
         if (abs(mb_strlen($plain_new)-mb_strlen($plain_old))>100) return $deny('paragraph_diff_too_large');
         $document['blocks'][$index]['text']=$after;
+        // Post-condition on the *whole* document, not just the edited block:
+        // one authorized destination, no duplication, unchanged other links.
+        $original = $document;
+        $original['blocks'][$index]['text'] = $old;
+        $all_before = self::links(self::markdown($original));
+        $all_after = self::links(self::markdown($document));
+        $counts_before = []; $counts_after = [];
+        foreach ($all_before as $link) $counts_before[(string)$link['url']] = ($counts_before[(string)$link['url']] ?? 0) + 1;
+        foreach ($all_after as $link) $counts_after[(string)$link['url']] = ($counts_after[(string)$link['url']] ?? 0) + 1;
+        foreach ($counts_before as $destination => $count) {
+            if ($destination !== $url && ($counts_after[$destination] ?? 0) !== $count)
+                return $deny('another_destination_changed');
+        }
+        if (($counts_after[$url] ?? 0)!==1) return $deny('duplicate_p2_after_repair');
         return ['ok'=>true,'document'=>self::seal($document),'reason'=>'localized_editorial_anchor_reconciled'];
     }
 
@@ -957,7 +998,7 @@ final class IDG_Editorial_Document {
         return $candidates[0];
     }
 
-    private static function valid_internal_anchor(string $anchor, array $workflow, string $url): bool {
+    public static function valid_internal_anchor(string $anchor, array $workflow, string $url): bool {
         // An anchor must be a readable phrase. Crossing a clause or sentence
         // boundary cannot be repaired by satisfying only the word-count quota.
         if (preg_match('/[,:;.!?\r\n]/u', $anchor)) return false;
@@ -994,6 +1035,29 @@ final class IDG_Editorial_Document {
                 && self::anchor_word_count((string) $found[1]) >= 3
                 && self::anchor_word_count((string) $found[1]) <= 8) {
                 $out[] = (string) $found[1];
+                continue;
+            }
+            // Generic, topic-anchored nominal group, not a list per tag. Walk
+            // backwards from the *existing* topical word to a determiner in
+            // this same clause; prefer the shortest 3-6 word complete span.
+            // This recognizes "un programa aeronáutico" and equivalent
+            // constructions without changing a byte of the article.
+            $nominal = [];
+            for ($back = 2; $back <= min(7, $i); $back++) {
+                $begin = $i - $back;
+                $start_offset = (int) $words[$begin][1];
+                $first = self::plain((string) $words[$begin][0]);
+                if (!in_array($first, ['el','la','los','las','un','una','este','esta','estos','estas'], true)) continue;
+                $phrase = substr($text, $start_offset, $end_offset - $start_offset);
+                if ($phrase === false || preg_match('/[,:;.!?\r\n\[\]()]/u', $phrase)) continue;
+                if ($internal && self::anchor_word_count($phrase) >= 3
+                    && self::anchor_word_count($phrase) <= 8) $nominal[] = $phrase;
+            }
+            if ($nominal) {
+                usort($nominal, static fn(string $a, string $b): int =>
+                    self::anchor_word_count($a) <=> self::anchor_word_count($b)
+                    ?: strlen($a) <=> strlen($b));
+                $out[] = $nominal[0];
                 continue;
             }
             // Legacy fallback: keep only a self-contained, punctuation-free

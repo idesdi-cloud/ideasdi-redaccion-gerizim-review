@@ -439,7 +439,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 $workflow['seo_response_diagnostics']['authorized_links_detail'] = [
                     'status' => 'unreconciled',
                     'reason' => $workflow['seo_response_diagnostics']['authorized_links'],
-                    'editor_message' => 'No se añadió ningún enlace: falta una frase contextual inequívoca o la reconciliación no es segura. Revisa el texto y los enlaces autorizados.',
+                    'editor_message' => 'Quedan destinos autorizados por integrar; el editor intentará reparar únicamente los enlaces pendientes sin alterar los ya válidos.',
                 ];
                 $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
             } else {
@@ -456,8 +456,9 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 $workflow['editorial_document'] = $meta_safe['document'];
                 $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
             }
-            // A missing link can be repaired by a strictly additive insertion
-            // into one authorized paragraph; no general article rewrite.
+            // A missing/invalid P2 uses the same localized language editor;
+            // official URLs retain their bounded insertion path. Never
+            // regenerate a complete article to satisfy a link obligation.
             if ($link_reconciliation_failed && empty($patch_errors)) {
                 $missing = (array) ($completed['remaining'] ?? []);
                 $link_repair = $this->attempt_bounded_missing_links($workflow_id, $workflow, $missing, $client);
@@ -469,7 +470,7 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                     if (!$link_reconciliation_failed) {
                         $workflow['seo_response_diagnostics']['authorized_links'] = '';
                         $workflow['seo_response_diagnostics']['authorized_links_detail'] = [
-                            'status'=>'reconciled','reason'=>'additive_paragraph_link_repair'
+                            'status'=>'reconciled','reason'=>'localized_authorized_link_editor'
                         ];
                     }
                 }
@@ -838,8 +839,9 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         foreach (array_slice($missing,0,2) as $need) {
             // EDITOR + VERIFIER: If P2 already exists, its paragraph owns the
             // correction. Never append a duplicate link to a different block.
-            if (!empty($need['internal']) && (string)($need['reason']??'')==='invalid_internal_anchor') {
-                $target=IDG_Editorial_Document::contextual_anchor_revision_target($document,(array)$need);
+            if (!empty($need['internal']) && in_array((string)($need['reason']??''),
+                ['invalid_internal_anchor','missing_contextual_anchor'],true)) {
+                $target=IDG_Editorial_Document::contextual_link_editor_target($document,$workflow,(array)$need);
                 if ($target === null) {
                     $left[]=$need;
                     $audit['rejected'][]=['url'=>(string)($need['url']??''),'reason'=>'linked_paragraph_unavailable'];
