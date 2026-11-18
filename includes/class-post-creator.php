@@ -1991,16 +1991,15 @@ final class IDG_Post_Creator {
 
     private static function source_matches_entity(string $url, string $entity): bool {
         $host = mb_strtolower((string) wp_parse_url($url, PHP_URL_HOST));
-        $host = function_exists('remove_accents') ? remove_accents($host) : $host;
-        $host = preg_replace('/[^a-z0-9]/', '', (string) $host);
-        $entity_plain = mb_strtolower(function_exists('remove_accents') ? remove_accents($entity) : $entity);
-        preg_match_all('/[a-z0-9]{4,}/', $entity_plain, $m);
-        foreach ($m[0] ?? [] as $token) {
-            if (str_contains($host, $token)) {
-                return true;
-            }
-        }
-        return false;
+        $host = preg_replace('/^www\./iu','',$host);
+        $parts = explode('.', (string)$host);
+        $at = count($parts)-2;
+        if ($at>=1 && in_array($parts[$at], ['co','com','org','net'], true)) $at--;
+        $label = (string)($parts[max(0,$at)]??'');
+        if (strlen($label)<3) return false;
+        $identity = mb_strtolower(function_exists('remove_accents') ? remove_accents($entity) : $entity);
+        preg_match_all('/[a-z0-9]{3,}/', $identity, $m);
+        return in_array($label,(array)($m[0]??[]),true);
     }
 
     private static function same_plain(string $a, string $b): bool {

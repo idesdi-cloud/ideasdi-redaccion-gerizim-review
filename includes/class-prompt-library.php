@@ -388,6 +388,7 @@ PROMPT;
         $prompt = self::build_context($data) . <<<PROMPT
 
 TAREA: Generar artículo base desde el brief editorial.
+PREPARACIÓN PREVENTIVA DE ENLACES: si la ficha ya contiene una URL del responsable y un tag P2 elegible, reserva dentro de la prosa menciones naturales y no ambiguas del responsable FUERA de la keyword completa y del tema del tag. No hace falta insertar enlaces en el borrador, pero las frases deben poder enlazarse posteriormente sin inventar texto. No agregues párrafos de enlaces ni nombres de tags como relleno; prima la calidad de redacción y los datos respaldados.
 Objetivo: redactar un primer artículo completo para ideasDi, con voz editorial, naturalidad y mirada de diseño. Este paso NO es la Revisión SEO final: prioriza calidad de redacción, claridad móvil, estructura y una tesis viva.
 
 El PLAN EDITORIAL APLICADO es vinculante: desarrolla su tesis, usa sus ejes seleccionados y respeta los ejes descartados. La biblioteca disciplinar es contexto, no vocabulario obligatorio. Usa los conceptos activados y las expansiones del caso como guía, pero redacta con libertad y elige formulaciones más naturales si conservan la evidencia. En proyectos de diseño conecta decisión, percepción y uso cuando corresponda; no apliques esa cadena mecánicamente a Eventos o Concursos.
@@ -647,6 +648,27 @@ Reglas obligatorias del PAQUETE REEL:
 - No añadas escenas, VO, overlays ni líneas explicativas fuera de esta estructura.
 PROMPT;
         return self::append_editable($prompt, 'seo');
+    }
+
+    /** Minimal addition of a verified destination to an existing paragraph. */
+    public static function bounded_link_insertion_prompt(array $workflow, array $need, array $paragraph): string {
+        $url=(string)($need['url']??'');
+        $kind=!empty($need['internal'])?'P2 interno':'responsable externo';
+        $tag='';
+        if (!empty($need['internal']) && class_exists('IDG_Internal_Links')) {
+            foreach ((array)IDG_Internal_Links::normalize($workflow) as $link) {
+                if ((string)($link['url']??'')===$url) { $tag=(string)($link['source_name']??''); break; }
+            }
+        }
+        return "TAREA BREVE DE REPARACIÓN, NO DE REDACCIÓN: inserta UN enlace de {$kind} en un párrafo ya aprobado.\n"
+            . "URL obligatoria e inalterable: {$url}\n"
+            . "Responsable identificado: ".(string)($workflow['entity']??'').". Keyword protegida: ".(string)($workflow['keyword']??'').". Tag indexable validado: {$tag}\n"
+            . "Párrafo original (inmutable, excepto la inserción de palabras de conexión y el enlace):\n".(string)($paragraph['text']??'')."\n"
+            . "Devuelve SOLO JSON: {\"after\":\"fragmento literal único del párrafo\",\"addition\":\" texto añadido con [anchor](URL)\"}. "
+            . "La adición debe tener máximo 12 palabras visibles y debe contener solo conectores neutros y la marca o conceptos del tag ya verificados. "
+            . "No cambies, suprimas o reordenen letras del texto original; no introduzcas datos, beneficios, fechas, cifras ni promesas. "
+            . "El anchor P2 debe tener 3 a 8 palabras, diferir del nombre literal del tag, y ser relevante; el enlace externo debe usar la marca fuera de la keyword completa. "
+            . "Si no puedes hacerlo naturalmente sin alterar los hechos, responde {\"after\":\"\",\"addition\":\"\"}.";
     }
 
     /** Compact, bounded repair prompt; no full SEO/article regeneration. */

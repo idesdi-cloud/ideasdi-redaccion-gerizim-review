@@ -157,6 +157,30 @@ final class IDG_Editorial_Document {
         return ['ok' => true, 'document' => self::seal($document), 'reason' => 'meta_only'];
     }
 
+    /**
+     * No model request for marginal metadata overflow when an objectively
+     * redundant, nonfactual phrase can be dropped while preserving keyword.
+     * Larger or ambiguous edits remain the responsibility of localized repair.
+     */
+    public static function compact_meta_if_safe(array $document, array $workflow): array {
+        $meta=trim((string)(($document['seo']??[])['meta_description']??''));
+        $length=mb_strlen($meta);
+        if ($length>=106 && $length<=150) return ['applied'=>false,'document'=>$document,'reason'=>'already_valid'];
+        if ($length<151 || $length>165) return ['applied'=>false,'document'=>$document,'reason'=>'not_marginal'];
+        $keyword=trim((string)($workflow['keyword']??''));
+        // Changes are limited to redundant editorial scaffolding; do not
+        // drop dates, figures, negations, suppliers or technical qualifiers.
+        $redundant=[' de la marca',' de este proyecto',' en esta propuesta',' en el proyecto'];
+        foreach ($redundant as $piece) {
+            if (substr_count($meta,$piece)!==1) continue;
+            $next=str_replace($piece,'',$meta);
+            if ($keyword!=='' && mb_stripos($next,$keyword)===false) continue;
+            $applied=self::apply_meta_description($document,$next);
+            if (!empty($applied['ok'])) return ['applied'=>true,'document'=>$applied['document'],'reason'=>'redundant_nonfactual_phrase_removed'];
+        }
+        return ['applied'=>false,'document'=>$document,'reason'=>'requires_localized_repair'];
+    }
+
     /** Completes only missing, already-authorized links by wrapping existing prose. */
     public static function complete_missing_authorized_links(array $document, array $workflow): array {
         $curation = self::curate_documentary_source_mentions($document, $workflow);
@@ -171,38 +195,51 @@ final class IDG_Editorial_Document {
         }
         if (!$required) return ['ok'=>false, 'document'=>$document, 'reason'=>'authorized_links_unresolved'];
         $existing = self::links(self::markdown($document));
-        foreach ($required as $need) if (count(array_filter($existing, static fn(array $link): bool => $link['url'] === $need['url'])) > 1) return ['ok'=>false, 'document'=>$document, 'reason'=>'duplicate_authorized_link'];
+        $remaining = []; $applied = [];
+        // Each destination is independent: failure of one anchor may never
+        // discard a different, already-authorized successful insertion.
         foreach ($required as $need) {
-            $present = array_values(array_filter($existing, static fn(array $link): bool => $link['url'] === $need['url']));
+            $url = (string) $need['url'];
+            $present = array_values(array_filter($existing, static fn(array $link): bool => $link['url'] === $url));
+            if (count($present) > 1) { $remaining[] = ['url'=>$url,'internal'=>!empty($need['internal']),'reason'=>'duplicate_authorized_link']; continue; }
             if ($present) {
-                // Repair an objectively malformed official anchor only by
-                // rewrapping the existing responsible name; keep every word.
                 if (empty($need['internal']) && self::ends_in_broken_connector((string) ($present[0]['anchor'] ?? ''))) {
                     $adjusted = self::repair_existing_official_anchor($document, $workflow, $need);
-                    if ($adjusted !== null) {
-                        $document = $adjusted;
-                        $existing = self::links(self::markdown($document));
-                    }
+                    if ($adjusted !== null) { $document = $adjusted; $existing = self::links(self::markdown($document)); }
+                    else $remaining[] = ['url'=>$url,'internal'=>false,'reason'=>'malformed_official_anchor'];
                 }
-                // P2 may already be present with the literal tag as its anchor.
-                // Repair only that known, invalid markup by re-wrapping visible
-                // prose; all other existing links remain untouched.
-                if (!empty($need['internal']) && !self::valid_internal_anchor((string) ($present[0]['anchor'] ?? ''), $workflow, (string) $need['url'])) {
+                if (!empty($need['internal']) && !self::valid_internal_anchor((string) ($present[0]['anchor'] ?? ''), $workflow, $url)) {
                     $repaired = self::repair_existing_internal_anchor($document, $workflow, $need);
-                    if ($repaired === null) return ['ok'=>false, 'document'=>$document, 'reason'=>'missing_unique_authorized_anchor'];
-                    $document = $repaired;
-                    $existing = self::links(self::markdown($document));
+                    if ($repaired === null) $remaining[] = ['url'=>$url,'internal'=>true,'reason'=>'invalid_internal_anchor'];
+                    else { $document = $repaired; $existing = self::links(self::markdown($document)); }
                 }
                 continue;
             }
             $match = self::contextual_anchor($document, $workflow, $need);
-            if ($match === null) return ['ok'=>false, 'document'=>$document, 'reason'=>'missing_unique_authorized_anchor'];
-            [$index, $anchor] = $match;
-            $text = self::block_text((array) $document['blocks'][$index]);
-            $document['blocks'][$index]['text'] = str_replace($anchor, '[' . $anchor . '](' . $need['url'] . ')', $text);
-            $existing[] = ['anchor'=>$anchor, 'url'=>$need['url']];
+            if ($match !== null) {
+                [$index, $anchor] = $match;
+                $text = self::block_text((array) $document['blocks'][$index]);
+                if (substr_count($text, $anchor) !== 1) { $remaining[] = ['url'=>$url,'internal'=>!empty($need['internal']),'reason'=>'ambiguous_anchor']; continue; }
+                $document['blocks'][$index]['text'] = str_replace($anchor, '['.$anchor.']('.$url.')', $text);
+                $existing[] = ['anchor'=>$anchor, 'url'=>$url];
+                $applied[] = $url;
+                continue;
+            }
+            // A generic corporate apposition is a verifiable identity, not a
+            // fabricated factual sentence. The source must match the brand.
+            $appended = empty($need['internal']) ? self::appose_official_identity($document, $workflow, $url) : null;
+            if ($appended !== null) {
+                $document = $appended;
+                $existing = self::links(self::markdown($document));
+                $applied[] = $url;
+                continue;
+            }
+            $remaining[] = ['url'=>$url,'internal'=>!empty($need['internal']),'reason'=>'missing_contextual_anchor'];
         }
-        return ['ok'=>true, 'document'=>self::seal($document), 'reason'=>'deterministic_authorized_links'];
+        $document = self::seal($document);
+        return ['ok'=>empty($remaining),'document'=>$document,
+            'reason'=>empty($remaining)?'deterministic_authorized_links':'missing_unique_authorized_anchor',
+            'applied'=>$applied,'remaining'=>$remaining];
     }
 
     /**
@@ -475,7 +512,8 @@ final class IDG_Editorial_Document {
         }
         // A fixed five-word window avoids manufacturing several equally-long
         // generated alternatives around the same unequivocal mention.
-        if (!$matches) return self::contextual_dron_singular_anchor($document, $workflow, $need);
+        if (!$matches) return self::contextual_dron_singular_anchor($document, $workflow, $need)
+            ?? self::contextual_category_anchor($document, $workflow, $need);
         // Prefer complete articulated nominal phrases (e.g. "la lectura del
         // calzado") to looser generic ones ("innovación de calzado"). Then
         // use article order, not the arbitrary number of characters.
@@ -518,6 +556,161 @@ final class IDG_Editorial_Document {
         return count($matches) === 1 ? $matches[0] : null;
     }
 
+    /**
+     * A responsible already named in the brief may be apposed to an existing
+     * unambiguous "la marca" reference. This inserts the *identity only*, not
+     * an unsupported new claim or a fabricated corporate destination.
+     */
+    private static function appose_official_identity(array $document, array $workflow, string $url): ?array {
+        $name = trim((string) ($workflow['entity'] ?? ''));
+        if ($name === '' || $url !== self::responsible_url($workflow)) return null;
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        $host = preg_replace('/^www\./i', '', $host);
+        $brand = preg_replace('/[^a-z0-9]/', '', strtolower(remove_accents($name)));
+        $labels=explode('.',(string)$host);
+        $index=count($labels)-2;
+        if ($index>=1 && in_array($labels[$index],['co','com','org','net'],true)) $index--;
+        $root=strtolower((string)($labels[max(0,$index)]??''));
+        if (strlen((string) $brand) < 3 || $brand !== $root) return null;
+        $candidates = [];
+        foreach ((array) ($document['blocks'] ?? []) as $i => $block) {
+            if (($block['type'] ?? '') !== 'paragraph') continue;
+            $text = self::block_text((array) $block);
+            if (self::links($text)) continue;
+            // Only a clear singular corporate reference can receive the
+            // already verified brand; do not attach it to "un estudio", etc.
+            if (!preg_match_all('/(?<![\p{L}\p{N}])(la marca|la firma)(?![\p{L}\p{N}])/iu', $text, $hits, PREG_OFFSET_CAPTURE)) continue;
+            foreach ((array) ($hits[1] ?? []) as $hit) $candidates[] = [$i,(string)$hit[0]];
+        }
+        if (count($candidates)!==1) return null;
+        [$index,$phrase]=$candidates[0];
+        $text = self::block_text((array) $document['blocks'][$index]);
+        $replacement=$phrase.' ['.$name.']('.$url.')';
+        $modified=preg_replace('/'.preg_quote($phrase,'/').'/u',$replacement,$text,1,$count);
+        if ($count!==1 || $modified===null) return null;
+        $document['blocks'][$index]['text']=$modified;
+        return $document;
+    }
+
+    /** Reusable, category-backed object vocabulary when the literal tag
+     * is absent. Only already-written nouns in vetted mobility articles can
+     * be linked; no tag is fabricated, and prose/URLs are immutable. */
+    private static function contextual_category_anchor(array $document, array $workflow, array $need): ?array {
+        if (empty($need['internal']) || (int)($workflow['category_id']??0)!==1236) return null;
+        $resolved = [];
+        foreach ((array) IDG_Internal_Links::normalize($workflow) as $entry) {
+            if ((string)($entry['url']??'')===(string)($need['url']??'')) { $resolved=$entry; break; }
+        }
+        if (($resolved['source_type']??'')!=='tag') return null;
+        $name = self::plain((string)($resolved['source_name']??''));
+        if (!in_array($name, ['vehículos eléctricos','vehiculos electricos','diseño automotriz','diseno automotriz'],true)) return null;
+        $matches=[];
+        foreach ((array)($document['blocks']??[]) as $index=>$block) {
+            if (($block['type']??'')!=='paragraph') continue;
+            $text=self::block_text((array)$block);
+            if (self::links($text)) continue;
+            if (!preg_match_all('/(?<![\p{L}\p{N}])((?:un|una|el|la|este|esta)\s+(?:coche|autom[oó]vil|veh[ií]culo|concept\s+car|prototipo))(?![\p{L}\p{N}])/iu',$text,$found)) continue;
+            foreach ((array)($found[1]??[]) as $phrase) {
+                if (self::valid_internal_anchor((string)$phrase,$workflow,(string)$need['url'])
+                    && substr_count($text,(string)$phrase)===1) $matches[]=[$index,(string)$phrase];
+            }
+        }
+        // Favor a descriptive, stable noun phrase already present in the
+        // article. Reject ambiguity in a single paragraph, keep article order.
+        if (!$matches) return null;
+        usort($matches,static fn($a,$b)=>$a[0]<=>$b[0]?:strcmp($a[1],$b[1]));
+        $first=$matches[0];
+        $same=array_filter($matches,static fn($m)=>$m[0]===$first[0]);
+        return count($same)===1?$first:null;
+    }
+
+    /** Pick a single, factual paragraph. Never touch boxes, headings or an
+     * existing link; this is only for a bounded additive fallback. */
+    public static function anchor_insertion_target(array $document, array $workflow, array $need): ?array {
+        $url=(string)($need['url']??''); $is_internal=!empty($need['internal']);
+        if ($url==='') return null;
+        if ($is_internal) {
+            $verified=false;
+            foreach ((array) IDG_Internal_Links::normalize($workflow) as $entry) {
+                if ((string)($entry['url']??'')===$url) $verified=true;
+            }
+            if (!$verified) return null;
+        } elseif ($url!==self::responsible_url($workflow)) return null;
+        $keyword=trim((string)($workflow['keyword']??''));
+        $best=null; $best_score=-999;
+        foreach ((array)($document['blocks']??[]) as $index=>$block) {
+            if (($block['type']??'')!=='paragraph') continue;
+            $text=self::block_text((array)$block);
+            if (self::links($text) || strlen($text)<70 || strlen($text)>1400) continue;
+            $score= -$index;
+            if ($is_internal) {
+                $score+=15;
+                foreach ((array) IDG_Internal_Links::normalize($workflow) as $row) {
+                    if (($row['url']??'')!==$url) continue;
+                    foreach (self::internal_anchor_tokens($workflow,$url) as $token) {
+                        if (preg_match('/(?<![\p{L}\p{N}])'.preg_quote($token,'/').'(?![\p{L}\p{N}])/iu',self::plain($text))) $score+=30;
+                    }
+                }
+            } else {
+                if (preg_match('/\b(?:la marca|la firma|el fabricante|el estudio)\b/iu',$text)) $score+=50;
+                if ($keyword!=='' && mb_stripos($text,$keyword)!==false) $score+=25;
+            }
+            if ($score>$best_score) { $best=['index'=>$index,'id'=>(string)($block['id']??''),'text'=>$text];$best_score=$score; }
+        }
+        return $best;
+    }
+
+    /**
+     * Model output is NOT an authorized replacement paragraph. The model may
+     * propose only a very short insertion of verified words and a canonical
+     * URL; the plugin applies it itself after checking source, scope, and
+     * exact unchanged pre-existing prose.
+     */
+    public static function apply_bounded_link_insertion(array $document, array $workflow, array $need, array $target, string $raw): array {
+        $reject=static fn(string $reason):array=>['ok'=>false,'document'=>$document,'reason'=>$reason];
+        $url=(string)($need['url']??''); $internal=!empty($need['internal']);
+        if ($url==='' || ($internal && !array_filter((array) IDG_Internal_Links::normalize($workflow),
+            static fn(array $r):bool=>(string)($r['url']??'')===$url)) || (!$internal && $url!==self::responsible_url($workflow))) {
+            return $reject('url_not_canonical');
+        }
+        $raw=trim((string)preg_replace('/\A```(?:json)?\s*|\s*```\z/iu','',$raw));
+        $data=json_decode($raw,true);
+        if (!is_array($data) || array_keys($data)!==['after','addition']
+            || !is_string($data['after']) || !is_string($data['addition'])) return $reject('invalid_insertion_json');
+        $after=$data['after']; $addition=$data['addition'];
+        if ($after==='' || $addition==='' || strlen($addition)>220 || preg_match('/[<>\r\n]/u',$addition)) return $reject('insertion_out_of_scope');
+        $index=(int)($target['index']??-1);
+        if (!isset($document['blocks'][$index]) || ($document['blocks'][$index]['type']??'')!=='paragraph'
+            || (string)($document['blocks'][$index]['id']??'')!==(string)($target['id']??'')) return $reject('stale_paragraph');
+        $text=self::block_text($document['blocks'][$index]);
+        if ($text!==(string)($target['text']??'') || substr_count($text,$after)!==1 || self::links($text)) return $reject('paragraph_modified_or_ambiguous');
+        // Insert only at a word/punctuation boundary, never inside a token.
+        $offset=strpos($text,$after)+strlen($after);
+        if ($offset<strlen($text) && preg_match('/^[\p{L}\p{N}]/u',substr($text,$offset))) return $reject('midword_insertion');
+        $matches=self::links($addition);
+        if (count($matches)!==1 || (string)$matches[0]['url']!==$url
+            || !str_contains($addition,'['.$matches[0]['anchor'].']('.$url.')')) return $reject('unexpected_link_markup');
+        $visible=str_replace('['.$matches[0]['anchor'].']('.$url.')',(string)$matches[0]['anchor'],$addition);
+        if (self::links($visible) || preg_match('/https?:\/\/|\[|\]|\*|[0-9]/u',$visible)) return $reject('unsafe_added_text');
+        if (count(preg_split('/\s+/u',trim($visible),-1,PREG_SPLIT_NO_EMPTY))>12) return $reject('insertion_too_long');
+        $tokens=self::words(self::plain($visible));
+        $whitelist=['marca','firma','el','la','los','las','un','una','en','de','del','y','para','con','al','su','este','esta','estos','estas','diseño','contexto','ámbito','sector','proyecto','tipo'];
+        foreach ($tokens as $token) {
+            if (in_array($token,$whitelist,true)) continue;
+            $source=$internal ? '' : (string)($workflow['entity']??'');
+            if ($internal) foreach ((array)IDG_Internal_Links::normalize($workflow) as $row) {
+                if ((string)($row['url']??'')===$url) { $source=(string)($row['source_name']??'');break; }
+            }
+            if (!in_array($token,self::words($source),true)) return $reject('new_unverified_lexical_claim');
+        }
+        if ($internal && !self::valid_internal_anchor((string)$matches[0]['anchor'],$workflow,$url)) return $reject('invalid_internal_anchor');
+        if (!$internal && self::plain((string)$matches[0]['anchor'])!==self::plain((string)($workflow['entity']??''))) return $reject('invalid_corporate_anchor');
+        $document['blocks'][$index]['text']=substr($text,0,$offset).$addition.substr($text,$offset);
+        $updated=self::links(self::markdown($document));
+        if (count(array_filter($updated,static fn(array $l):bool=>$l['url']===$url))!==1) return $reject('link_count_invalid');
+        return ['ok'=>true,'document'=>self::seal($document),'reason'=>'strictly_additive_verified_insertion'];
+    }
+
     /** Existing prose is immutable; only the brackets enclosing the URL move. */
     private static function ends_in_broken_connector(string $anchor): bool {
         return (bool) preg_match('/\b(?:no|ni|y|o|de|del|para|por|con|sin|un|una|que|a|al|en)\s*$/iu', trim($anchor));
@@ -546,6 +739,18 @@ final class IDG_Editorial_Document {
         $entity = trim((string) ($workflow['entity'] ?? ''));
         $keyword = trim((string) ($workflow['keyword'] ?? ''));
         if ($entity === '') return null;
+        // Do not accept a brand name merely because it appears in a hostile
+        // subdomain (brand.evil.com). Match the registrable corporate label.
+        $official = self::responsible_url($workflow);
+        $host = strtolower((string) parse_url($official, PHP_URL_HOST));
+        $host = preg_replace('/^www\./i', '', $host);
+        $labels = explode('.', (string)$host);
+        $root_index = count($labels)-2;
+        if ($root_index>=1 && in_array($labels[$root_index],['co','com','org','net'],true)) $root_index--;
+        $root = $labels[max(0,$root_index)]??'';
+        $first = preg_split('/\s+/u',trim((string)preg_replace('/[,._-]+/u',' ',$entity)))[0]??'';
+        $first_key=preg_replace('/[^a-z0-9]/','',strtolower(remove_accents($first)));
+        if (strlen((string)$first_key)<3 || $first_key!==$root) return null;
         $names = [$entity];
         // Corporate/legal suffixes are not always repeated in publishable prose.
         // The abbreviated brand is accepted ONLY if it exactly matches the

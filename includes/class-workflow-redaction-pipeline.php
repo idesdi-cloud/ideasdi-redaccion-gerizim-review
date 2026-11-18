@@ -394,6 +394,9 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 $patch_errors[] = 'SEO: PATCH explícito rechazado (' . $patch_reason . '); revisión manual obligatoria.';
             }
             $completed = IDG_Editorial_Document::complete_missing_authorized_links($workflow['editorial_document'], $workflow);
+            // Keep independently successful authorized links even when a
+            // second destination still needs bounded repair.
+            $workflow['editorial_document'] = (array) ($completed['document'] ?? $workflow['editorial_document']);
             if (empty($completed['ok'])) {
                 $link_reconciliation_failed = true;
                 // No invent an anchor or a destination.  The independently
@@ -415,6 +418,32 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 // An empty legacy value must not simulate a Bridge incident.
                 $workflow['seo_response_diagnostics']['authorized_links'] = '';
                 $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
+            }
+            // Compact only objectively redundant metadata; never truncate
+            // unknown technical details or depend on successful link repair.
+            $meta_safe = IDG_Editorial_Document::compact_meta_if_safe($workflow['editorial_document'], $workflow);
+            $workflow['seo_response_diagnostics']['meta_safe_compaction'] = (string) ($meta_safe['reason'] ?? 'unavailable');
+            if (!empty($meta_safe['applied'])) {
+                $workflow['editorial_document'] = $meta_safe['document'];
+                $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
+            }
+            // A missing link can be repaired by a strictly additive insertion
+            // into one authorized paragraph; no general article rewrite.
+            if ($link_reconciliation_failed && empty($patch_errors)) {
+                $missing = (array) ($completed['remaining'] ?? []);
+                $link_repair = $this->attempt_bounded_missing_links($workflow_id, $workflow, $missing, $client);
+                $workflow['seo_response_diagnostics']['link_repair'] = $link_repair['audit'];
+                if (!empty($link_repair['applied'])) {
+                    $workflow['editorial_document'] = $link_repair['document'];
+                    $workflow['seo_result'] = IDG_Editorial_Document::projection($workflow['editorial_document']);
+                    $link_reconciliation_failed = !empty($link_repair['remaining']);
+                    if (!$link_reconciliation_failed) {
+                        $workflow['seo_response_diagnostics']['authorized_links'] = '';
+                        $workflow['seo_response_diagnostics']['authorized_links_detail'] = [
+                            'status'=>'reconciled','reason'=>'additive_paragraph_link_repair'
+                        ];
+                    }
+                }
             }
             // Never let an invalid fresh VO silently evict a previously validated
             // Reel when both the approved SEO payload and the factual article
@@ -766,6 +795,44 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $audit['applied'] = true;
         $audit['reason'] = 'vo_only_contract_validated';
         return ['applied' => true, 'audit' => $audit, 'document' => $document['document']];
+    }
+
+    /**
+     * Exactly one small model request per missing authorized link, max two.
+     * An unrecognized response cannot modify the document. This is not a
+     * new workflow phase, restriction or WordPress write.
+     */
+    private function attempt_bounded_missing_links(string $workflow_id, array $workflow, array $missing, IDG_OpenAI_Client $client): array {
+        $document=(array)($workflow['editorial_document']??[]);
+        $audit=['attempted'=>false,'applied'=>[],'rejected'=>[],'usage'=>[]];
+        $left=[];
+        foreach (array_slice($missing,0,2) as $need) {
+            $paragraph=IDG_Editorial_Document::anchor_insertion_target($document, $workflow, (array)$need);
+            if (!$paragraph) {
+                $left[]=$need;
+                $audit['rejected'][]=['url'=>(string)($need['url']??''),'reason'=>'no_safe_paragraph'];
+                continue;
+            }
+            $audit['attempted']=true;
+            $result=$client->complete(IDG_Prompt_Library::bounded_link_insertion_prompt($workflow, (array)$need, $paragraph));
+            $audit['usage'][]=(array)($result['usage']??[]);
+            IDG_Usage_Estimator::record('seo_link_paragraph_repair',(array)($result['usage']??[]),$workflow_id,(string)($result['model']??''));
+            if (empty($result['success'])) {
+                $left[]=$need;
+                $audit['rejected'][]=['url'=>(string)($need['url']??''),'reason'=>'model_unavailable'];
+                continue;
+            }
+            $applied=IDG_Editorial_Document::apply_bounded_link_insertion($document,$workflow,(array)$need,$paragraph,(string)($result['content']??''));
+            if (empty($applied['ok'])) {
+                $left[]=$need;
+                $audit['rejected'][]=['url'=>(string)($need['url']??''),'reason'=>(string)($applied['reason']??'invalid_model_insertion')];
+                continue;
+            }
+            $document=$applied['document'];
+            $audit['applied'][]=(string)($need['url']??'');
+        }
+        foreach (array_slice($missing,2) as $need) $left[]=$need;
+        return ['applied'=>!empty($audit['applied']), 'document'=>$document,'remaining'=>$left,'audit'=>$audit];
     }
 
     private function attempt_localized_repair(string $workflow_id, string $phase, string $content, array $validation, array $workflow, IDG_OpenAI_Client $client): array {

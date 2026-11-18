@@ -742,17 +742,10 @@ final class IDG_Final_Guard {
 
 
     private static function external_entity_context_ok(string $url, string $anchor, string $entity): bool {
-        if (self::source_matches_entity($url, $anchor) || self::source_matches_entity($url, $entity)) {
-            return true;
-        }
-        $host_path = self::plain_for_match((string) wp_parse_url($url, PHP_URL_HOST) . ' ' . (string) wp_parse_url($url, PHP_URL_PATH));
-        $tokens = preg_split('/\s+/u', self::plain_for_match($anchor . ' ' . $entity), -1, PREG_SPLIT_NO_EMPTY);
-        foreach ((array) $tokens as $token) {
-            if (mb_strlen((string) $token) >= 4 && str_contains($host_path, (string) $token)) {
-                return true;
-            }
-        }
-        return false;
+        // A mark in a subdomain or arbitrary path is not proof of identity.
+        // Compare names exclusively to the registrable corporate label.
+        return self::source_matches_entity($url, $anchor)
+            || self::source_matches_entity($url, $entity);
     }
 
     private static function entity_near_match(string $a, string $b): bool {
@@ -776,16 +769,15 @@ final class IDG_Final_Guard {
 
     private static function source_matches_entity(string $url, string $entity): bool {
         $host = mb_strtolower((string) wp_parse_url($url, PHP_URL_HOST));
-        $host = function_exists('remove_accents') ? remove_accents($host) : $host;
-        $host = preg_replace('/[^a-z0-9]/', '', (string) $host);
+        $host = preg_replace('/^www\./iu','',$host);
+        $labels = explode('.', (string)$host);
+        $root_index = count($labels)-2;
+        if ($root_index>=1 && in_array($labels[$root_index], ['co','com','org','net'], true)) $root_index--;
+        $root = (string)($labels[max(0,$root_index)]??'');
+        if (strlen($root)<3) return false;
         $entity_plain = mb_strtolower(function_exists('remove_accents') ? remove_accents($entity) : $entity);
-        preg_match_all('/[a-z0-9]{4,}/', $entity_plain, $m);
-        foreach ($m[0] ?? [] as $token) {
-            if (str_contains($host, $token)) {
-                return true;
-            }
-        }
-        return false;
+        preg_match_all('/[a-z0-9]{3,}/', $entity_plain, $tokens);
+        return in_array($root,(array)($tokens[0]??[]),true);
     }
 
     private static function looks_like_entity_name(string $anchor): bool {
