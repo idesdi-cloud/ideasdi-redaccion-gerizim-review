@@ -8,11 +8,12 @@ function report_sections(string $file):array{
   $fixture=json_decode(file_get_contents(__DIR__.'/fixtures/polestar-brief-272.json'),true,512,JSON_THROW_ON_ERROR);
   return [(string)$fixture['v1'],(string)$fixture['seo_original']];
  }
- if (!is_file('/mnt/data/'.$file)) throw new RuntimeException('prior report missing: '.$file);
- $txt=file_get_contents('/mnt/data/'.$file);
- if(!preg_match('/### Versión 1 · Artículo base\n(.*?)\n#### /su',$txt,$a))throw new RuntimeException('V1 absent '.$file);
- if(!preg_match('/### Versión 3 · Revisión SEO final\n(.*?)\n#### /su',$txt,$b))throw new RuntimeException('V3 absent '.$file);
- return [trim($a[1]),trim($b[1])];
+ $case = str_contains($file,'nike-') ? 'nike' : (str_contains($file,'skyways-') ? 'skyreach' : (str_contains($file,'samsung-') ? 'samsung' : (str_contains($file,'sculptforge-') ? 'sculptforge' : 'unknown')));
+ $fixture_file=__DIR__.'/fixtures/'.$case.'-article-fixture.json';
+ if (!is_file($fixture_file)) throw new RuntimeException('permanent fixture missing: '.$fixture_file);
+ $v=json_decode(file_get_contents($fixture_file),true,512,JSON_THROW_ON_ERROR);
+ if (empty($v['v1']) || empty($v['v3'])) throw new RuntimeException('fixture article sections missing: '.$case);
+ return [trim((string)$v['v1']),trim((string)$v['v3'])];
 }
 function make_workflow(string $keyword,string $entity,string $url,int $cat,array $tags):array{return ['keyword'=>$keyword,'entity'=>$entity,'responsible_official_url'=>$url,'canonical_context'=>['responsible_official_url'=>$url],'category_id'=>$cat,'tag_ids'=>$tags,'primary_lens'=>'','secondary_lenses'=>[],'piece_type'=>'Actualidad','assignment_card'=>'brief fixture','editorial_plan_raw'=>'plan fixture','editorial_recipe_applied'=>'recipe fixture','seo_result'=>'nonempty'];}
 $specs=[
@@ -24,7 +25,7 @@ $specs=[
 ];
 $polestar=null;
 foreach($specs as [$name,$file,$keyword,$entity,$url,$cat,$tags,$p2]){
- if ($name!=='polestar' && !is_file('/mnt/data/'.$file)) continue;
+ // Permanent, committed fixtures are mandatory; never silently skip a case.
  try{
   [$v1,$v3]=report_sections($file);$w=make_workflow($keyword,$entity,$url,$cat,$tags);
   $doc=IDG_Editorial_Document::from_markdown($v1,$w);

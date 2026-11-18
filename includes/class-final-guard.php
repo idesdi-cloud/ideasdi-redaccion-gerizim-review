@@ -121,10 +121,12 @@ final class IDG_Final_Guard {
                 if ($keyword !== '' && self::same_plain($anchor, $keyword)) {
                     $errors[] = 'El enlace externo no puede usar la keyword principal como anchor.';
                 }
-                if ($entity !== '' && $anchor !== '' && self::looks_like_entity_name($anchor) && !self::external_entity_context_ok($official, $anchor, $entity)) {
+                $declared_identity = $entity !== '' && self::same_plain($anchor, $entity)
+                    && self::operator_declared_official_identity($workflow, $official, $entity);
+                if (!$declared_identity && $entity !== '' && $anchor !== '' && self::looks_like_entity_name($anchor) && !self::external_entity_context_ok($official, $anchor, $entity)) {
                     $errors[] = 'El enlace externo parece apuntar a una entidad distinta del responsable configurado.';
                 }
-                if ($entity !== '' && $anchor !== '' && (self::same_plain($anchor, $entity) || self::entity_near_match($anchor, $entity)) && !self::source_matches_entity($official, $entity) && !self::source_matches_entity($official, $anchor) && !self::external_entity_context_ok($official, $anchor, $entity)) {
+                if (!$declared_identity && $entity !== '' && $anchor !== '' && (self::same_plain($anchor, $entity) || self::entity_near_match($anchor, $entity)) && !self::source_matches_entity($official, $entity) && !self::source_matches_entity($official, $anchor) && !self::external_entity_context_ok($official, $anchor, $entity)) {
                     $errors[] = 'El anchor del enlace externo usa el responsable configurado, pero la URL no parece corresponder a esa entidad.';
                 }
             }
@@ -740,6 +742,16 @@ final class IDG_Final_Guard {
     }
 
 
+
+    /** Distinguish editor authorization from the unreliable assumption that
+     * brand names must equal registrable domains. Only the exact configured
+     * URL + exact responsible name passes; spoof-like brand subdomains do not.
+     */
+    private static function operator_declared_official_identity(array $workflow, string $url, string $entity): bool {
+        $declared = trim((string)(($workflow['canonical_context']['responsible_official_url'] ?? '') ?: ($workflow['responsible_official_url'] ?? '')));
+        if ($declared === '' || !IDG_Internal_Links::equivalent_url($declared,$url)) return false;
+        return !IDG_Editorial_Document::suspicious_responsible_subdomain($url,$entity);
+    }
 
     private static function external_entity_context_ok(string $url, string $anchor, string $entity): bool {
         // A mark in a subdomain or arbitrary path is not proof of identity.

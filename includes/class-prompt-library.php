@@ -671,6 +671,26 @@ PROMPT;
             . "Si no puedes hacerlo naturalmente sin alterar los hechos, responde {\"after\":\"\",\"addition\":\"\"}.";
     }
 
+    /** Focused language editor for a linked paragraph which cannot be fixed
+     * by moving Markdown delimiters; the software reviewer owns acceptance.
+     */
+    public static function contextual_anchor_revision_prompt(array $workflow, array $need, array $target): string {
+        $url=(string)($need['url']??'');
+        $tag='';
+        foreach ((array)IDG_Internal_Links::normalize($workflow) as $entry) {
+            if ((string)($entry['url']??'')===$url) { $tag=(string)($entry['source_name']??'');break; }
+        }
+        return "ACTÚAS COMO EDITOR DE ENLACES DE ideasDi, no como generador de contenido.\n"
+            . "Revisa SOLO este párrafo. Su destino interno ya ha sido autorizado: {$url} ({$tag}).\n"
+            . "El enlace existe, pero su texto ancla es inválido: ".(string)($target['anchor']??'').".\n"
+            . "Puedes reorganizar palabras de la frase para obtener un anchor natural de 3 a 8 palabras, distinto del nombre literal del tag. "
+            . "Mantén exactamente una aparición de la misma URL, sin insertar otra, ni moverla a otro párrafo. "
+            . "Mantén tesis, nombres, números, negaciones, grados de certeza y datos; no agregues promesas ni nuevos hechos. "
+            . "No cambies la caja editorial, otros párrafos, titulares, URL o etiquetas.\n"
+            . "Párrafo original: ".(string)($target['text']??'')."\n"
+            . "Devuelve EXCLUSIVAMENTE JSON válido: {\"paragraph\":\"párrafo completo corregido con único [anchor]({$url})\"}.";
+    }
+
     /** Compact, bounded repair prompt; no full SEO/article regeneration. */
     public static function reel_vo_length_repair_prompt(string $reel, array $segments, array $workflow): string {
         $inspected = IDG_Reel_Contract::inspect($reel);

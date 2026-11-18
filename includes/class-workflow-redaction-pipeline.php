@@ -249,6 +249,32 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
                 'ok' => true,
                 'removed' => (int) ($source_curation['removed'] ?? 0),
             ];
+            // The technical link colleague works beside the language editor,
+            // before SEO. It silently repairs only exact authorized links;
+            // unresolved/ambiguous cases remain available for the dedicated
+            // SEO paragraph editor. It never blocks the editorial review.
+            $before_link_alignment = (array) $applied['document'];
+            $aligned = IDG_Editorial_Document::complete_missing_authorized_links($before_link_alignment,$workflow);
+            $applied['document'] = (array)($aligned['document'] ?? $before_link_alignment);
+            $alignment_ids = [];
+            foreach ((array)($applied['document']['blocks'] ?? []) as $i=>$block) {
+                $before = (array)($before_link_alignment['blocks'][$i] ?? []);
+                if ((string)($block['text'] ?? '') !== (string)($before['text'] ?? '')) {
+                    $alignment_ids[] = (string)($block['id'] ?? '');
+                }
+            }
+            $applied['changed_ids']=array_values(array_unique(array_merge(
+                (array)($applied['changed_ids']??[]),array_filter($alignment_ids)
+            )));
+            $workflow['editorial_link_team']=[
+                'state'=>!empty($aligned['ok'])?'authorized_links_complete':'remaining_for_seo',
+                'deterministic_links'=>(array)($aligned['applied']??[]),
+                'changed_block_ids'=>$alignment_ids,
+                'remaining'=>array_map(static fn(array $r):array=>[
+                    'internal'=>!empty($r['internal']),
+                    'reason'=>(string)($r['reason']??'unresolved')
+                ],(array)($aligned['remaining']??[])),
+            ];
             $workflow['editorial_document'] = $applied['document'];
             $candidate = IDG_Editorial_Document::markdown($applied['document']);
             $validation = IDG_Final_Guard::validate_article_phase($candidate, $workflow, 'editorial');
@@ -259,6 +285,9 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
             $workflow['editorial_diagnosis'] = $changed ? '- Comparación real por bloques: changed; IDs: ' . implode(', ', $changed_ids) . '.' : '- Comparación real por bloques: unchanged; no se atribuyen correcciones inexistentes.';
             if (!empty($source_curation['removed'])) {
                 $workflow['editorial_diagnosis'] .= "\n" . '- Curación documental: retirada localizada de ' . (int) $source_curation['removed'] . ' referencia(s) a fuentes de investigación; enlaces oficiales y P2 conservados.';
+            }
+            if (!empty($alignment_ids)) {
+                $workflow['editorial_diagnosis'] .= "\n" . '- Alineación técnica de enlaces en Revisión editorial: ' . count($alignment_ids) . ' bloque(s) ajustado(s) con destinos autorizados; sin cambios de hechos o redacción atribuibles al modelo.';
             }
             $workflow['editorial_notes'] = $this->verified_editorial_link_notes((string) ($parsed_editorial['notes'] ?? ''), $candidate, $workflow);
             $workflow['editorial_changed'] = $changed;
@@ -807,6 +836,30 @@ final class IDG_Workflow_Redaction_Pipeline implements IDG_Workflow_Redaction_Pi
         $audit=['attempted'=>false,'applied'=>[],'rejected'=>[],'usage'=>[]];
         $left=[];
         foreach (array_slice($missing,0,2) as $need) {
+            // EDITOR + VERIFIER: If P2 already exists, its paragraph owns the
+            // correction. Never append a duplicate link to a different block.
+            if (!empty($need['internal']) && (string)($need['reason']??'')==='invalid_internal_anchor') {
+                $target=IDG_Editorial_Document::contextual_anchor_revision_target($document,(array)$need);
+                if ($target === null) {
+                    $left[]=$need;
+                    $audit['rejected'][]=['url'=>(string)($need['url']??''),'reason'=>'linked_paragraph_unavailable'];
+                    continue;
+                }
+                $audit['attempted']=true;
+                $response=$client->complete(IDG_Prompt_Library::contextual_anchor_revision_prompt($workflow,(array)$need,$target));
+                $audit['usage'][]=(array)($response['usage']??[]);
+                IDG_Usage_Estimator::record('seo_link_local_editor',(array)($response['usage']??[]),$workflow_id,(string)($response['model']??''));
+                $edited=!empty($response['success']) ? IDG_Editorial_Document::apply_contextual_anchor_revision(
+                    $document,$workflow,(array)$need,$target,(string)($response['content']??'')) : ['ok'=>false,'reason'=>'model_unavailable'];
+                if (empty($edited['ok'])) {
+                    $left[]=$need;
+                    $audit['rejected'][]=['url'=>(string)($need['url']??''),'reason'=>(string)($edited['reason']??'editor_rejected')];
+                } else {
+                    $document=$edited['document'];
+                    $audit['applied'][]=(string)($need['url']??'');
+                }
+                continue;
+            }
             $paragraph=IDG_Editorial_Document::anchor_insertion_target($document, $workflow, (array)$need);
             if (!$paragraph) {
                 $left[]=$need;

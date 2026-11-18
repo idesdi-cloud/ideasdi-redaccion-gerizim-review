@@ -211,7 +211,7 @@ final class IDG_Editorial_Document {
                 if (!empty($need['internal']) && !self::valid_internal_anchor((string) ($present[0]['anchor'] ?? ''), $workflow, $url)) {
                     $repaired = self::repair_existing_internal_anchor($document, $workflow, $need);
                     if ($repaired === null) $remaining[] = ['url'=>$url,'internal'=>true,'reason'=>'invalid_internal_anchor'];
-                    else { $document = $repaired; $existing = self::links(self::markdown($document)); }
+                    else { $document = $repaired; $existing = self::links(self::markdown($document)); $applied[]=$url; }
                 }
                 continue;
             }
@@ -564,14 +564,10 @@ final class IDG_Editorial_Document {
     private static function appose_official_identity(array $document, array $workflow, string $url): ?array {
         $name = trim((string) ($workflow['entity'] ?? ''));
         if ($name === '' || $url !== self::responsible_url($workflow)) return null;
-        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
-        $host = preg_replace('/^www\./i', '', $host);
-        $brand = preg_replace('/[^a-z0-9]/', '', strtolower(remove_accents($name)));
-        $labels=explode('.',(string)$host);
-        $index=count($labels)-2;
-        if ($index>=1 && in_array($labels[$index],['co','com','org','net'],true)) $index--;
-        $root=strtolower((string)($labels[max(0,$index)]??''));
-        if (strlen((string) $brand) < 3 || $brand !== $root) return null;
+        // The brief explicitly authorizes the destination. Attaching that
+        // already-named responsible to an unambiguous "la marca" does not
+        // depend on the registered domain containing the literal brand name.
+        if (self::suspicious_responsible_subdomain($url,$name)) return null;
         $candidates = [];
         foreach ((array) ($document['blocks'] ?? []) as $i => $block) {
             if (($block['type'] ?? '') !== 'paragraph') continue;
@@ -660,6 +656,71 @@ final class IDG_Editorial_Document {
         return $best;
     }
 
+    /** Only a real, already-linked P2 paragraph is eligible for a localized
+     * editorial rewrite. This never selects a different paragraph to fix it.
+     */
+    public static function contextual_anchor_revision_target(array $document, array $need): ?array {
+        if (empty($need['internal']) || (string)($need['url']??'')==='') return null;
+        foreach ((array)($document['blocks']??[]) as $index=>$block) {
+            if (($block['type']??'')!=='paragraph') continue;
+            $links=self::links(self::block_text((array)$block));
+            if (count($links)!==1 || (string)($links[0]['url']??'')!==(string)$need['url']) continue;
+            return ['index'=>$index,'id'=>(string)($block['id']??''),'text'=>self::block_text((array)$block),'anchor'=>(string)($links[0]['anchor']??'')];
+        }
+        return null;
+    }
+
+    /** Apply the language editor's one-paragraph proposal only after the
+     * safety reviewer verifies the authorized URL, link count, protected
+     * facts, topical continuity and exact unchanged surrounding blocks.
+     */
+    public static function apply_contextual_anchor_revision(array $document, array $workflow, array $need, array $target, string $raw): array {
+        $deny=static fn(string $reason):array=>['ok'=>false,'document'=>$document,'reason'=>$reason];
+        $url=(string)($need['url']??'');
+        if ($url==='' || empty($need['internal'])) return $deny('not_internal_p2');
+        $approved=false;
+        foreach ((array)IDG_Internal_Links::normalize($workflow) as $link) {
+            if ((string)($link['url']??'')===$url) $approved=true;
+        }
+        if (!$approved) return $deny('unapproved_p2_url');
+        $index=(int)($target['index']??-1);
+        if (!isset($document['blocks'][$index]) || ($document['blocks'][$index]['type']??'')!=='paragraph'
+            || (string)($document['blocks'][$index]['id']??'')!==(string)($target['id']??'')
+            || self::block_text((array)$document['blocks'][$index])!==(string)($target['text']??'')) return $deny('stale_target');
+        $raw=trim((string)preg_replace('/\\A```(?:json)?\\s*|\\s*```\\z/iu','',$raw));
+        $patch=json_decode($raw,true);
+        if (!is_array($patch) || array_keys($patch)!==['paragraph'] || !is_string($patch['paragraph'])) return $deny('invalid_editor_response');
+        $after=trim($patch['paragraph']);
+        if ($after==='' || strlen($after)>2500 || preg_match('/[<>\\r\\n]/u',$after)) return $deny('paragraph_out_of_scope');
+        $old=(string)$target['text'];
+        $before_links=self::links($old);$after_links=self::links($after);
+        if (count($before_links)!==1 || count($after_links)!==1 || (string)$after_links[0]['url']!==$url) return $deny('link_destination_or_count_changed');
+        if (!self::valid_internal_anchor((string)$after_links[0]['anchor'],$workflow,$url)) return $deny('new_anchor_invalid');
+        $plain_old=preg_replace('/\\[([^\\]\\r\\n]+)\\]\\(https?:\\/\\/[^\\s)]+\\)/u','$1',$old);
+        $plain_new=preg_replace('/\\[([^\\]\\r\\n]+)\\]\\(https?:\\/\\/[^\\s)]+\\)/u','$1',$after);
+        if (!is_string($plain_old)||!is_string($plain_new)) return $deny('invalid_link_markup');
+        preg_match_all('/\\d+(?:[.,]\\d+)*/u',$plain_old,$digits_old);
+        preg_match_all('/\\d+(?:[.,]\\d+)*/u',$plain_new,$digits_new);
+        $digits_a=$digits_old[0];$digits_b=$digits_new[0];sort($digits_a);sort($digits_b);
+        if ($digits_a!==$digits_b) return $deny('protected_numbers_changed');
+        // Names/keywords, explicit negations and factual hedges may not be
+        // dropped or inserted during a link-only language repair.
+        foreach ([(string)($workflow['keyword']??''),(string)($workflow['entity']??'')] as $protected) {
+            if ($protected!=='' && substr_count(self::plain($plain_old),self::plain($protected))
+                !== substr_count(self::plain($plain_new),self::plain($protected))) return $deny('protected_identity_changed');
+        }
+        preg_match_all('/\\b(?:no|ni|sin|nunca|jamás|siempre|solo|solamente|puede|podría|podria|hasta|más|menos|todos|ninguno)\\b/iu',$plain_old,$qual_old);
+        preg_match_all('/\\b(?:no|ni|sin|nunca|jamás|siempre|solo|solamente|puede|podría|podria|hasta|más|menos|todos|ninguno)\\b/iu',$plain_new,$qual_new);
+        $q1=array_map('mb_strtolower',$qual_old[0]);$q2=array_map('mb_strtolower',$qual_new[0]);sort($q1);sort($q2);
+        if ($q1!==$q2) return $deny('protected_qualifier_changed');
+        $old_words=self::words($plain_old);$new_words=self::words($plain_new);
+        $overlap=count(array_intersect($old_words,$new_words));
+        if ($old_words && $overlap / count($old_words)<0.70) return $deny('factual_paragraph_rewritten');
+        if (abs(mb_strlen($plain_new)-mb_strlen($plain_old))>100) return $deny('paragraph_diff_too_large');
+        $document['blocks'][$index]['text']=$after;
+        return ['ok'=>true,'document'=>self::seal($document),'reason'=>'localized_editorial_anchor_reconciled'];
+    }
+
     /**
      * Model output is NOT an authorized replacement paragraph. The model may
      * propose only a very short insertion of verified words and a canonical
@@ -739,18 +800,13 @@ final class IDG_Editorial_Document {
         $entity = trim((string) ($workflow['entity'] ?? ''));
         $keyword = trim((string) ($workflow['keyword'] ?? ''));
         if ($entity === '') return null;
-        // Do not accept a brand name merely because it appears in a hostile
-        // subdomain (brand.evil.com). Match the registrable corporate label.
+        // The operator's explicitly configured responsible URL is the source of
+        // truth. It need not have the same literal string as the business name
+        // (Tripo Studio -> studio.tripo3d.ai). Domain matching only rejects a
+        // suspicious brand-in-foreign-subdomain construction; it never invents
+        // or replaces the authorized URL.
         $official = self::responsible_url($workflow);
-        $host = strtolower((string) parse_url($official, PHP_URL_HOST));
-        $host = preg_replace('/^www\./i', '', $host);
-        $labels = explode('.', (string)$host);
-        $root_index = count($labels)-2;
-        if ($root_index>=1 && in_array($labels[$root_index],['co','com','org','net'],true)) $root_index--;
-        $root = $labels[max(0,$root_index)]??'';
-        $first = preg_split('/\s+/u',trim((string)preg_replace('/[,._-]+/u',' ',$entity)))[0]??'';
-        $first_key=preg_replace('/[^a-z0-9]/','',strtolower(remove_accents($first)));
-        if (strlen((string)$first_key)<3 || $first_key!==$root) return null;
+        if ($official === '' || self::suspicious_responsible_subdomain($official, $entity)) return null;
         $names = [$entity];
         // Corporate/legal suffixes are not always repeated in publishable prose.
         // The abbreviated brand is accepted ONLY if it exactly matches the
@@ -794,6 +850,28 @@ final class IDG_Editorial_Document {
         return null;
     }
 
+    /** Catch brand.evil.com without assuming a legitimate company owns a
+     * domain that is literally identical to its brand. No DNS or guesswork.
+     */
+    public static function suspicious_responsible_subdomain(string $url, string $entity): bool {
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($host === '') return true;
+        $labels = array_values(array_filter(explode('.', $host), static fn($x): bool => $x !== ''));
+        if (count($labels) < 2) return true;
+        $root_index = count($labels) - 2;
+        if ($root_index >= 1 && in_array($labels[$root_index], ['com','co','org','net'], true)) $root_index--;
+        $root = preg_replace('/[^a-z0-9]/', '', (string) ($labels[$root_index] ?? ''));
+        $first = preg_split('/\s+/u', trim((string) preg_replace('/[,._-]+/u', ' ', $entity)))[0] ?? '';
+        $brand = preg_replace('/[^a-z0-9]/', '', strtolower(remove_accents((string)$first)));
+        if (strlen((string)$brand) < 4) return false;
+        if (str_starts_with((string)$root, (string)$brand)) return false;
+        foreach (array_slice($labels, 0, max(0,$root_index)) as $sub) {
+            $sub = preg_replace('/[^a-z0-9]/', '', $sub);
+            if ($sub === $brand || (strlen((string)$sub) > strlen((string)$brand) && str_starts_with($sub, (string)$brand))) return true;
+        }
+        return false;
+    }
+
     private static function within_protected_keyword(string $text, string $keyword, int $offset, int $length): bool {
         if ($keyword === '') return false;
         $pattern = '/(?<![\p{L}\p{N}])' . preg_quote($keyword, '/') . '(?![\p{L}\p{N}])/iu';
@@ -806,31 +884,90 @@ final class IDG_Editorial_Document {
         return false;
     }
 
+    /** Repair an existing link where it already lives. Searching for an
+     * anchor in a different paragraph cannot legitimately repair that link.
+     * First try an exact-span expansion (zero prose changes). The semantic
+     * paragraph editor may be invoked separately if none is possible.
+     */
     private static function repair_existing_internal_anchor(array $document, array $workflow, array $need): ?array {
         foreach ((array) ($document['blocks'] ?? []) as $index => $block) {
             if (($block['type'] ?? '') !== 'paragraph') continue;
-            $text = self::block_text((array) $block);
+            $text = self::block_text((array)$block);
             $links = self::links($text);
-            if (count($links) !== 1 || (string) ($links[0]['url'] ?? '') !== (string) $need['url']) continue;
-            $unlinked = preg_replace('/\[([^\]\r\n]+)\]\(' . preg_quote((string) $need['url'], '/') . '\)/u', '$1', $text, 1, $replaced);
-            if ($replaced !== 1 || $unlinked === null) continue;
+            if (count($links) !== 1 || (string)($links[0]['url'] ?? '') !== (string)$need['url']) continue;
+            $old_markup = '[' . $links[0]['anchor'] . '](' . $need['url'] . ')';
+            if (substr_count($text, $old_markup) !== 1) continue;
+            $unlinked = str_replace($old_markup, $links[0]['anchor'], $text);
+            $start = strpos($unlinked, (string)$links[0]['anchor']);
+            if ($start === false || substr_count($unlinked, (string)$links[0]['anchor']) !== 1) continue;
+            $end = $start + strlen((string)$links[0]['anchor']);
+            $ends = [$end];
+            // A model may have linked a whole clause with a colon. End the
+            // link at the first complete noun phrase, leaving punctuation and
+            // all following words exactly where they were.
+            if (preg_match('/[,:;.!?]/u', (string)$links[0]['anchor'], $delimiter, PREG_OFFSET_CAPTURE)) {
+                $prefix_end = $start + (int)$delimiter[0][1];
+                if ($prefix_end > $start) array_unshift($ends,$prefix_end);
+            }
+            $phrase = null;
+            foreach ($ends as $candidate_end) {
+                $phrase=self::local_internal_anchor($unlinked,$start,$candidate_end,$workflow,(string)$need['url']);
+                if ($phrase !== null) break;
+            }
+            if ($phrase === null) continue;
             $candidate = $document;
-            $candidate['blocks'][$index]['text'] = $unlinked;
-            $match = self::contextual_anchor($candidate, $workflow, $need);
-            if ($match === null || $match[0] !== $index) continue;
-            $anchor = (string) $match[1];
-            $candidate['blocks'][$index]['text'] = str_replace($anchor, '[' . $anchor . '](' . $need['url'] . ')', $unlinked);
-            return $candidate;
+            $candidate['blocks'][$index]['text'] = substr_replace($unlinked,
+                '['.$phrase['anchor'].']('.$need['url'].')', $phrase['start'], $phrase['length']);
+            return self::seal($candidate);
         }
         return null;
     }
+
+    /** Explore contiguous words in the SAME clause, anchored on the existing
+     * linked term, favoring complete noun phrases, never arbitrary windows.
+     */
+    private static function local_internal_anchor(string $text, int $start, int $end, array $workflow, string $url): ?array {
+        $before = substr($text, max(0, $start - 96), min(96, $start));
+        if (preg_match('/[.!?;:,\r\n]/u', $before)) {
+            $punct = preg_split('/[.!?;:,\r\n]/u', $before);
+            $before = (string) end($punct);
+        }
+        preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}’\'-]*/u', $before, $found, PREG_OFFSET_CAPTURE);
+        $words = $found[0] ?? [];
+        $candidates = [];
+        $base = $start - strlen($before);
+        for ($n = 1; $n <= min(6, count($words)); $n++) {
+            $offset = $base + (int)$words[count($words)-$n][1];
+            $span = substr($text,$offset,$end-$offset);
+            if ($span === false || !self::valid_internal_anchor($span,$workflow,$url)) continue;
+            if (preg_match('/[,:;.!?\r\n\[\]\(\)]/u',$span)) continue;
+            $count=self::anchor_word_count($span);
+            $plain=self::plain($span);
+            $tokens=explode(' ',$plain);
+            $first=$tokens[0]??'';
+            if (in_array($first,['de','del','en','con','por','para','sobre','al','a','y','o'],true)) continue;
+            $score = ($count<=6 ? 10 : 0)
+                + (in_array($first,['el','la','los','las','un','una','este','esta','estos','estas'],true) ? 30 : 0)
+                + (preg_match('/\b(?:del|de|para|en|con)\b/u',$plain) ? 7 : 0)
+                - abs($count-5);
+            $candidates[]=['anchor'=>$span,'start'=>$offset,'length'=>$end-$offset,'score'=>$score];
+        }
+        if (!$candidates) return null;
+        usort($candidates,static fn(array $a,array $b):int=>$b['score']<=>$a['score'] ?: $a['start']<=>$b['start']);
+        return $candidates[0];
+    }
+
     private static function valid_internal_anchor(string $anchor, array $workflow, string $url): bool {
         // An anchor must be a readable phrase. Crossing a clause or sentence
         // boundary cannot be repaired by satisfying only the word-count quota.
         if (preg_match('/[,:;.!?\r\n]/u', $anchor)) return false;
         $count = self::anchor_word_count($anchor);
         if ($count < 3 || $count > 8 || self::plain($anchor) === self::plain((string) ($workflow['keyword'] ?? ''))) return false;
-        return self::plain($anchor) !== self::plain(implode(' ', self::internal_anchor_tokens($workflow, $url)));
+        foreach ((array) IDG_Internal_Links::normalize($workflow) as $item) {
+            if ((string)($item['url'] ?? '') !== $url) continue;
+            if (self::plain($anchor) === self::plain((string)($item['source_name'] ?? $item['label'] ?? ''))) return false;
+        }
+        return true;
     }
     private static function anchor_word_count(string $value): int {
         $value = trim(html_entity_decode(wp_strip_all_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
